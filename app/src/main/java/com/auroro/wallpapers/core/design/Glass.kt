@@ -231,12 +231,12 @@ private fun Modifier.drawAeroGlows(c: AeroColors) = drawWithCache {
 }
 
 @Composable
-fun AppLogo(modifier: Modifier = Modifier, size: Dp = 42.dp) {
+fun AppLogo(modifier: Modifier = Modifier, logoSize: Dp = 42.dp) {
     val c = Aero.colors
-    val shape = RoundedCornerShape(size * 0.31f)
+    val shape = RoundedCornerShape(logoSize * 0.31f)
     Box(
         modifier
-            .size(size)
+            .size(logoSize)
             .shadow(6.dp, shape, clip = false, ambientColor = c.accent.copy(alpha = 0.22f))
             .clip(shape)
             .background(Brush.verticalGradient(listOf(Color(0xFF9AD9EC), Color(0xFF3D9AB9), Color(0xFF1D5E70))))
