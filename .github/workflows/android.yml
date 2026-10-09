@@ -49,7 +49,13 @@ jobs:
           AURORO_KEYSTORE_PASSWORD: ${{ secrets.AURORO_KEYSTORE_PASSWORD }}
           AURORO_KEY_ALIAS: ${{ secrets.AURORO_KEY_ALIAS }}
           AURORO_KEY_PASSWORD: ${{ secrets.AURORO_KEY_PASSWORD }}
-        run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug assembleRelease
+        run: |
+          set -o pipefail
+          ./gradlew --stacktrace --continue testDebugUnitTest lintDebug assembleDebug assembleRelease 2>&1 | tee build.log
+
+      - name: Surface build/test failures as check annotations
+        if: failure()
+        run: python3 .github/scripts/annotate_failures.py build.log
 
       - name: Collect APKs
         if: success()
