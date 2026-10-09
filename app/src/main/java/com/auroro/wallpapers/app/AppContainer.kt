@@ -4,10 +4,13 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.work.WorkManager
+import coil3.ComponentRegistry
 import coil3.ImageLoader
+import coil3.Uri
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
 import okio.Path.Companion.toOkioPath
 import com.auroro.wallpapers.core.data.AbyssProvider
 import com.auroro.wallpapers.core.data.CollectionsRepository
@@ -137,9 +140,11 @@ class AppContainer(context: Context) {
                     .maxSizeBytes(cacheMb.toLong() * 1024 * 1024)
                     .build()
             }
-            .components {
-                add(OkHttpNetworkFetcherFactory(callFactory = { imageHttpClient }))
-            }
+            .components(
+                ComponentRegistry.Builder()
+                    .apply { add(OkHttpNetworkFetcherFactory(callFactory = { imageHttpClient }), Uri::class) }
+                    .build(),
+            )
             .build()
     }
 

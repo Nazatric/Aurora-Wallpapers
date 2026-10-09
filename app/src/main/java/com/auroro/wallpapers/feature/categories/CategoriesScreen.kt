@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Forest
 import androidx.compose.material.icons.rounded.HdrStrong
 import androidx.compose.material.icons.rounded.Landscape
 import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Water
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,7 +68,7 @@ fun CategoriesScreen(onMenu: () -> Unit, onSearch: (String) -> Unit) {
                         Text(item.title, style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
                         Text(item.summary, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                     }
-                    GlassIconButton(onClick = { onSearch(item.query) }, description = "Search ${item.title}", icon = androidx.compose.material.icons.Icons.Rounded.Search, tint = item.color)
+                    GlassIconButton(onClick = { onSearch(item.query) }, description = "Search ${item.title}", icon = Icons.Rounded.Search, tint = item.color)
                 }
             }
         }

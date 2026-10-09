@@ -12,12 +12,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.verticalScroll
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyVerticalGrid
-import androidx.compose.foundation.lazy.GridCells
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.items as columnItems
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -56,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.auroro.wallpapers.core.database.CollectionSummary
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.EmptyState
@@ -99,7 +101,7 @@ fun CollectionsScreen(
             }
         } else {
             item { SectionTitle("Your collections", "${collections.size} collection${if (collections.size == 1) "" else "s"}") }
-            items(collections, key = { it.id }) { collection ->
+            columnItems(collections, key = { it.id }) { collection ->
                 CollectionCard(collection, onOpen = { onOpen(collection) }, onRename = { name -> onRename(collection.id, name) }, onDelete = { onDelete(collection.id) })
             }
             item { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { TextButton(onClick = { creating = true }) { Icon(Icons.Rounded.Add, null); Text("  New collection") } } }

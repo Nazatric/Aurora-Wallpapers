@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,8 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.OpenInNew
@@ -50,7 +53,7 @@ fun HeaderBar(
     subtitle: String? = null,
     onMenu: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
-    trailing: @Composable Row.() -> Unit = {},
+    trailing: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
@@ -61,7 +64,7 @@ fun HeaderBar(
             GlassIconButton(
                 onClick = leading,
                 description = if (onBack != null) "Back" else "Open navigation menu",
-                icon = if (onBack != null) androidx.compose.material.icons.Icons.Rounded.ArrowBack else androidx.compose.material.icons.Icons.Rounded.Menu,
+                icon = if (onBack != null) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
             )
             Spacer(Modifier.width(12.dp))
         }

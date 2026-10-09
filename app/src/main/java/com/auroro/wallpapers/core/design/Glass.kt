@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,7 +76,7 @@ fun GlassSurface(
         .clip(shape)
         .background(Brush.verticalGradient(listOf(c.glassTint.copy(alpha = (alpha + 0.16f).coerceAtMost(0.98f)), c.glassTint.copy(alpha = alpha))))
         .border(BorderStroke(0.8.dp, Brush.verticalGradient(listOf(c.glassRimLight.copy(alpha = 0.5f), c.glassRimDark.copy(alpha = 0.35f)))), shape)
-    val clickable = if (onClick != null) base.clickable(role = Role.Button, interactionSource = remember { MutableInteractionSource() }, indication = androidx.compose.material.ripple.rememberRipple(), onClick = onClick) else base
+    val clickable = if (onClick != null) base.clickable(role = Role.Button, onClick = onClick) else base
     Box(clickable, content = content)
 }
 
@@ -93,7 +91,6 @@ fun GlassPill(
 ) {
     val c = Aero.colors
     val shape = CircleShape
-    val interaction = remember { MutableInteractionSource() }
     Row(
         modifier = modifier
             .clip(shape)
@@ -102,7 +99,7 @@ fun GlassPill(
                 else Brush.verticalGradient(listOf(c.glassTint.copy(alpha = if (c.isDark) 0.48f else 0.7f), c.glassTint.copy(alpha = if (c.isDark) 0.32f else 0.58f))),
             )
             .border(0.8.dp, if (selected) c.glassHighlight.copy(alpha = 0.42f) else c.glassRimLight.copy(alpha = 0.32f), shape)
-            .clickable(interactionSource = interaction, indication = androidx.compose.material.ripple.rememberRipple(), enabled = enabled, role = Role.RadioButton, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 15.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
