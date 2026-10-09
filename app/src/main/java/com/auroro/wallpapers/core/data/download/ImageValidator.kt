@@ -3,7 +3,6 @@ package com.auroro.wallpapers.core.data.download
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
-import java.io.IOException
 import kotlin.math.max
 
 data class ImageInfo(val mime: String, val width: Int, val height: Int)
@@ -23,7 +22,9 @@ object ImageValidator {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         try {
             file.inputStream().use { BitmapFactory.decodeStream(it, null, bounds) }
-        } catch (_: IOException) {
+        } catch (_: Exception) {
+            return null
+        } catch (_: OutOfMemoryError) {
             return null
         }
         val mime = bounds.outMimeType?.lowercase() ?: return null

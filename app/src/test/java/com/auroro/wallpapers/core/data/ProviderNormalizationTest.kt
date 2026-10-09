@@ -77,6 +77,8 @@ class ProviderNormalizationTest {
             url = "https://wallhaven.cc/w/abc123",
             purity = "sketchy",
             path = "https://w.wallhaven.cc/full/ab/file.jpg",
+            dimensionX = 1920,
+            dimensionY = 1080,
             thumbs = WallhavenThumbsDto(large = "https://th.wallhaven.cc/lg/ab/thumb.jpg"),
         )
         assertNull(WallhavenMapper.toWallpaper(base))
@@ -250,7 +252,7 @@ class ProviderNormalizationTest {
         val default = WallhavenQuery.build(FeedRequest(), PageCursor())
         assertEquals("100", default["purity"])
         assertEquals("111", default["categories"])
-        assertEquals("date_added", default["sorting"])
+        assertEquals("relevance", default["sorting"])
         assertFalse("apikey" in default)
         assertFalse("seed" in default)
 

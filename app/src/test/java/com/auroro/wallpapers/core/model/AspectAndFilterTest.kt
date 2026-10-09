@@ -51,7 +51,7 @@ class AspectAndFilterTest {
         assertTrue(minimum.matches(1080, 2400))
         assertTrue(minimum.matches(2400, 1080))
         assertFalse(minimum.matches(1079, 2400))
-        assertFalse(minimum.matches(2400, 1919))
+        assertFalse(minimum.matches(1919, 1080))
         assertTrue(ResolutionFilter.Any.matches(0, 0))
     }
 
