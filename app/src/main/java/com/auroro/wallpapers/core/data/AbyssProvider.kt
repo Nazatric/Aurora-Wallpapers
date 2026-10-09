@@ -39,7 +39,7 @@ class AbyssProvider(
     override val source = WallpaperSource.ABYSS
 
     override val capabilities = ProviderCapabilities(
-        sortsWithoutQuery = setOf(SortOption.RELEVANCE, SortOption.NEWEST),
+        sortsWithoutQuery = setOf(SortOption.NEWEST),
         sortsWithQuery = setOf(SortOption.RELEVANCE),
     )
 
@@ -56,7 +56,10 @@ class AbyssProvider(
     }
 
     override fun unsupportedReason(request: FeedRequest): String? {
-        val sort = request.filter.sort
+        val filter = request.filter
+        if (filter.wallhavenCategories.isNotEmpty()) return "Categories are Wallhaven-specific; Wallpaper Abyss can't apply them."
+        if (filter.colorHex != null) return "Dominant-color filtering is only available on Wallhaven."
+        val sort = filter.sort
         val hasQuery = request.normalizedQuery.isNotEmpty()
         val supported = if (hasQuery) capabilities.sortsWithQuery else capabilities.sortsWithoutQuery
         return if (sort in supported) {
@@ -70,7 +73,10 @@ class AbyssProvider(
         val key = apiKey().trim()
         if (key.isEmpty()) throw ProviderException(ProviderErrorKind.NOT_CONFIGURED, "Wallpaper Abyss needs an API key.")
         if (cursor.page > MAX_PAGE) return ProviderPage(emptyList(), null)
-        val params = AbyssQuery.build(request, cursor, key)
+        val variants = AbyssQuery.variants(request)
+        if (cursor.variant !in variants.indices) return ProviderPage(emptyList(), null)
+        val type = variants[cursor.variant]
+        val params = AbyssQuery.build(request, cursor, key, type)
         val response = try {
             api.call(params)
         } catch (t: Throwable) {
@@ -78,7 +84,12 @@ class AbyssProvider(
         }
         if (!response.success) throw errorFor(response)
         val items = response.wallpapers.mapNotNull(AbyssMapper::toWallpaper)
-        val next = if (response.wallpapers.isEmpty() || cursor.page >= MAX_PAGE) null else PageCursor(cursor.page + 1)
+        val next = when {
+            cursor.variant < variants.lastIndex -> PageCursor(cursor.page, variant = cursor.variant + 1)
+            response.wallpapers.isEmpty() -> null
+            cursor.page < MAX_PAGE -> PageCursor(cursor.page + 1, variant = 0)
+            else -> null
+        }
         return ProviderPage(items, next)
     }
 
@@ -104,14 +115,22 @@ object AbyssQuery {
      * `phone` wallpapers when the user asks for portrait content, `desktop` otherwise.
      * (The API has no "any" type, so landscape/any share `desktop`.)
      */
-    fun type(request: FeedRequest): String {
+    fun variants(request: FeedRequest): List<String> {
         val target = request.filter.aspect.targetRatio
         val portrait = request.filter.orientation == Orientation.PORTRAIT ||
             (request.filter.aspect != AspectFilter.Any && target != null && target < 1f)
-        return if (portrait) "phone" else "desktop"
+        val landscape = request.filter.orientation == Orientation.LANDSCAPE ||
+            (request.filter.aspect != AspectFilter.Any && target != null && target > 1f)
+        return when {
+            portrait && !landscape -> listOf("phone")
+            landscape && !portrait -> listOf("desktop")
+            else -> listOf("desktop", "phone")
+        }
     }
 
-    fun build(request: FeedRequest, cursor: PageCursor, key: String): Map<String, String> {
+    fun type(request: FeedRequest): String = variants(request).first()
+
+    fun build(request: FeedRequest, cursor: PageCursor, key: String, type: String = type(request)): Map<String, String> {
         val q = request.normalizedQuery
         val params = linkedMapOf("auth" to key)
         if (q.isEmpty()) {

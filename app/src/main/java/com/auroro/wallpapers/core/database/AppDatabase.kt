@@ -38,7 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
 }
 
 /**
- * Add one [Migration] per schema bump here (and commit the new `schemas/*.json`).
+ * Add one [Migration] per schema bump here (and commit the generated schema JSON).
  * `MigrationsTest` verifies the chain is contiguous up to [AppDatabase.VERSION].
  */
 object Migrations {

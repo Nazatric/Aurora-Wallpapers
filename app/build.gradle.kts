@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -7,14 +5,9 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Optional, local-only configuration. Never commit credentials.
-// Values are read from (in order): environment variable, local.properties.
-val localProps = Properties().apply {
-    val f = rootProject.file("local.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}
-fun config(name: String): String =
-    (System.getenv(name) ?: localProps.getProperty(name) ?: "").trim()
+// Provider credentials are entered into the app and stored encrypted by AndroidKeyStore.
+// Signing values are read from environment variables only; no key material is committed.
+fun config(name: String): String = System.getenv(name)?.trim().orEmpty()
 
 android {
     namespace = "com.auroro.wallpapers"
@@ -28,9 +21,6 @@ android {
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Optional build-time default for the user's own Alpha Coders (Wallpaper Abyss)
-        // API key. Empty by default; the key can also be pasted into Settings at runtime.
-        buildConfigField("String", "ABYSS_API_KEY", "\"${config("ABYSS_API_KEY")}\"")
     }
 
     signingConfigs {
@@ -65,7 +55,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     lint {
@@ -137,4 +126,5 @@ dependencies {
     testImplementation(libs.androidx.room.testing)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.okhttp)
+    testImplementation(libs.mockwebserver)
 }

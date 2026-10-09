@@ -21,7 +21,7 @@ data class ProviderCapabilities(
 )
 
 /** Pagination state for a single provider. Providers paginate independently. */
-data class PageCursor(val page: Int = 1, val seed: String? = null)
+data class PageCursor(val page: Int = 1, val seed: String? = null, /** Provider-specific lane index (e.g. desktop vs phone catalogues). */ val variant: Int = 0)
 
 data class ProviderPage(
     val items: List<Wallpaper>,

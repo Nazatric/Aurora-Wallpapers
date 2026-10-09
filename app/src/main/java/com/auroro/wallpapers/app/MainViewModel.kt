@@ -1,0 +1,442 @@
+package com.auroro.wallpapers.app
+
+import android.net.Uri
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.auroro.wallpapers.core.data.CollectionNameResult
+import com.auroro.wallpapers.core.data.FeedPager
+import com.auroro.wallpapers.core.data.PageResult
+import com.auroro.wallpapers.core.data.SourceState
+import com.auroro.wallpapers.core.data.SourceStatus
+import com.auroro.wallpapers.core.data.WallpaperMapper
+import com.auroro.wallpapers.core.data.download.ApplyResult
+import com.auroro.wallpapers.core.data.download.ApplyTarget
+import com.auroro.wallpapers.core.data.download.DownloadErrorKind
+import com.auroro.wallpapers.core.data.download.LocalFiles
+import com.auroro.wallpapers.core.database.CollectionSummary
+import com.auroro.wallpapers.core.database.DownloadEntity
+import com.auroro.wallpapers.core.database.DownloadStatus
+import com.auroro.wallpapers.core.model.FeedRequest
+import com.auroro.wallpapers.core.model.SortOption
+import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.core.model.WallpaperFilter
+import com.auroro.wallpapers.core.model.WallpaperSource
+import com.auroro.wallpapers.core.network.ProviderErrorKind
+import com.auroro.wallpapers.core.network.ProviderException
+import com.auroro.wallpapers.core.network.UrlPolicy
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import java.io.File
+
+/** Home feed tabs that providers actually support. */
+enum class HomeTab(val label: String, val sort: SortOption?) {
+    FOR_YOU("For you", null), POPULAR("Popular", SortOption.POPULAR), LATEST("Latest", SortOption.NEWEST), RANDOM("Random", SortOption.RANDOM),
+}
+
+data class FeedUiState(
+    val request: FeedRequest = FeedRequest(),
+    val items: List<Wallpaper> = emptyList(),
+    val statuses: List<SourceStatus> = emptyList(),
+    val loading: Boolean = false,
+    val initialLoadFinished: Boolean = false,
+    val endReached: Boolean = false,
+    val pageError: String? = null,
+    val appendCount: Int = 0,
+    val forYouLabel: String? = null,
+)
+
+data class DetailUiState(
+    val wallpaper: Wallpaper,
+    val loading: Boolean = false,
+    val related: List<Wallpaper> = emptyList(),
+    val error: String? = null,
+)
+
+data class OfflineRow(val download: DownloadEntity, val wallpaper: Wallpaper?, val fileExists: Boolean)
+
+/** One state owner for navigation-independent app data and provider-backed feed/search requests. */
+class MainViewModel(val app: AppContainer) : ViewModel() {
+    private val _feed = MutableStateFlow(FeedUiState())
+    val feed: StateFlow<FeedUiState> = _feed.asStateFlow()
+    private var pager: FeedPager? = null
+    private var feedJob: Job? = null
+    private var currentTab = HomeTab.FOR_YOU
+
+    val settings = app.settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.auroro.wallpapers.core.data.AppSettings())
+    val favoriteKeys = app.favorites.observeKeys().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+    val collections = app.collections.observeSummaries().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val downloads = app.downloads.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val history = app.history.observeRecent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    private val _offlineRows = MutableStateFlow<List<OfflineRow>>(emptyList())
+    val offlineRows: StateFlow<List<OfflineRow>> = _offlineRows.asStateFlow()
+
+    private val _detail = MutableStateFlow<DetailUiState?>(null)
+    val detail: StateFlow<DetailUiState?> = _detail.asStateFlow()
+
+    private val _message = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val message = _message.asSharedFlow()
+
+    private val _relatedLoading = MutableStateFlow(false)
+    val relatedLoading: StateFlow<Boolean> = _relatedLoading.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            app.downloads.reconcile()
+        }
+        viewModelScope.launch {
+            app.downloads.observeAll().collect { rows ->
+                val entities = app.database.wallpapers().getAll(rows.map { it.wallpaperKey }.distinct())
+                val metadata = entities.mapNotNull { e -> WallpaperMapper.toModel(e)?.let { it.key to it } }.toMap()
+                val local = withContext(Dispatchers.IO) {
+                    rows.map { row -> OfflineRow(row, metadata[row.wallpaperKey] ?: app.wallpaperStore.get(row.wallpaperKey), app.downloads.fileExists(row)) }
+                }
+                _offlineRows.value = local
+            }
+        }
+    }
+
+    fun openHome(tab: HomeTab = HomeTab.FOR_YOU) {
+        currentTab = tab
+        viewModelScope.launch {
+            val tags = if (tab == HomeTab.FOR_YOU) app.preferenceSignals.topTags() else emptyList()
+            val effectiveSort = tab.sort ?: if (tags.isEmpty()) SortOption.NEWEST else SortOption.RELEVANCE
+            val query = if (tags.isEmpty()) "" else tags.joinToString(" ") { "+$it" }
+            val req = FeedRequest(query = query, filter = WallpaperFilter(sort = effectiveSort))
+            val summary = when {
+                tab != HomeTab.FOR_YOU -> null
+                tags.isNotEmpty() -> "Based on your saved wallpapers · ${tags.joinToString(" · ")}" 
+                else -> "Fresh picks from Wallhaven"
+            }
+            startFeed(req, summary)
+        }
+    }
+
+    fun openSearch(query: String = "", filter: WallpaperFilter = WallpaperFilter.Default) {
+        currentTab = HomeTab.FOR_YOU
+        startFeed(FeedRequest(query = query, filter = filter.forQuery(query)), null)
+    }
+
+    fun submitSearch(query: String, filter: WallpaperFilter = _feed.value.request.filter) {
+        startFeed(FeedRequest(query = query, filter = filter.forQuery(query)), null)
+    }
+
+    fun applyFilters(filter: WallpaperFilter) {
+        val old = _feed.value.request
+        startFeed(old.copy(filter = filter.forQuery(old.query)), null)
+    }
+
+    private fun WallpaperFilter.forQuery(query: String): WallpaperFilter =
+        if (query.isBlank() && sort == SortOption.RELEVANCE) copy(sort = SortOption.NEWEST) else this
+
+    fun selectSources(sources: Set<WallpaperSource>) = applyFilters(_feed.value.request.filter.copy(sources = sources))
+
+    private fun startFeed(request: FeedRequest, forYouLabel: String?) {
+        feedJob?.cancel()
+        val effectiveRequest = request.copy(aspectTolerance = settings.value.aspectTolerance)
+        pager = app.aggregator.newPager(effectiveRequest)
+        _feed.value = FeedUiState(request = effectiveRequest, loading = true, forYouLabel = forYouLabel)
+        feedJob = viewModelScope.launch {
+            loadPage()
+        }
+    }
+
+    fun loadMore() {
+        if (_feed.value.loading || _feed.value.endReached) return
+        if (pager == null) {
+            startFeed(_feed.value.request, _feed.value.forYouLabel)
+            return
+        }
+        feedJob = viewModelScope.launch { loadPage() }
+    }
+
+    fun retryFeed() {
+        pager?.retry()
+        val current = _feed.value
+        _feed.value = current.copy(pageError = null, endReached = false)
+        loadMore()
+    }
+
+    private suspend fun loadPage() {
+        val p = pager ?: return
+        _feed.value = _feed.value.copy(loading = true, pageError = null)
+        try {
+            val result = p.loadNext()
+            app.wallpaperStore.remember(result.items)
+            val before = _feed.value
+            val combined = dedupeByKey(before.items + result.items)
+            _feed.value = before.copy(
+                items = combined,
+                statuses = result.statuses,
+                loading = false,
+                initialLoadFinished = true,
+                endReached = result.endReached,
+                pageError = null,
+                appendCount = before.appendCount + if (result.items.isNotEmpty()) 1 else 0,
+            )
+            if (result.items.isEmpty() && result.hadFailure && before.items.isEmpty()) {
+                val msg = result.statuses.filter { it.state is SourceState.Failed }
+                    .joinToString(" · ") { (it.state as SourceState.Failed).error.message ?: it.source.displayName }
+                if (msg.isNotBlank()) _message.tryEmit(msg)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            _feed.value = _feed.value.copy(
+                loading = false,
+                initialLoadFinished = true,
+                pageError = t.message ?: "Couldn't load wallpapers.",
+            )
+        }
+    }
+
+    private fun dedupeByKey(items: List<Wallpaper>) = items.distinctBy { it.key }
+
+    fun toggleFavorite(w: Wallpaper) {
+        viewModelScope.launch {
+            runCatching { app.favorites.toggle(w) }
+                .onFailure { _message.emit("Couldn't update favorite: ${it.message ?: "database error"}") }
+        }
+    }
+
+    fun openWallpaper(w: Wallpaper) {
+        _detail.value = DetailUiState(w)
+        viewModelScope.launch {
+            runCatching { app.history.record(w) }
+            val full = runCatching { app.aggregator.detail(w.key) }.getOrNull()
+            if (full != null) {
+                app.wallpaperStore.remember(listOf(full))
+                _detail.value = _detail.value?.copy(wallpaper = full)
+            }
+            val provider = app.aggregator.provider(w.source)
+            if (provider?.capabilities?.supportsRelated == true) {
+                _relatedLoading.value = true
+                val related = runCatching { app.aggregator.related(full ?: w) }.getOrDefault(emptyList())
+                _detail.value = _detail.value?.copy(related = related, loading = false)
+                _relatedLoading.value = false
+            } else {
+                _detail.value = _detail.value?.copy(loading = false)
+            }
+        }
+    }
+
+    fun openWallpaper(key: String, fallback: Wallpaper? = null) {
+        viewModelScope.launch {
+            val w = app.wallpaperStore.get(key) ?: fallback
+            if (w == null) {
+                _message.emit("Wallpaper details are no longer available. Search again to refresh.")
+            } else {
+                openWallpaper(w)
+            }
+        }
+    }
+
+    fun loadDetail(key: String) {
+        val existing = _detail.value
+        if (existing?.wallpaper?.key == key) return
+        openWallpaper(key)
+    }
+
+    fun download(w: Wallpaper) {
+        viewModelScope.launch {
+            try {
+                app.downloads.enqueue(w)
+                _message.emit("Original download queued. Progress is in Offline.")
+            } catch (t: Throwable) {
+                _message.emit("Couldn't queue download: ${t.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    fun cancelDownload(key: String) {
+        viewModelScope.launch {
+            app.downloads.cancel(key)
+            _message.emit("Download canceled.")
+        }
+    }
+
+    fun retryDownload(key: String) {
+        viewModelScope.launch {
+            runCatching { app.downloads.retry(key) }
+                .onSuccess { _message.emit("Retry queued.") }
+                .onFailure { _message.emit("Couldn't retry: ${it.message}") }
+        }
+    }
+
+    fun deleteDownload(row: OfflineRow) {
+        viewModelScope.launch {
+            val ok = app.downloads.delete(row.download.wallpaperKey)
+            _message.emit(if (ok) "Saved wallpaper deleted." else "The file couldn't be deleted. Its download record was removed.")
+        }
+    }
+
+    /** Prompts to apply using the full local original; downloads it first if no saved file exists. */
+    fun applyWallpaper(w: Wallpaper, target: ApplyTarget) {
+        viewModelScope.launch {
+            try {
+                val existing = app.database.downloads().get(w.key)
+                val local = existing?.takeIf { it.status == DownloadStatus.COMPLETED.name && app.downloads.fileExists(it) }?.localUri
+                val uri = if (local != null) {
+                    local
+                } else {
+                    app.downloads.enqueue(w)
+                    _message.emit("Downloading the original before applying it…")
+                    val done = withTimeout(APPLY_DOWNLOAD_TIMEOUT_MS) {
+                        app.downloads.observe(w.key).first { row ->
+                            row?.status in setOf(DownloadStatus.COMPLETED.name, DownloadStatus.FAILED.name, DownloadStatus.CANCELED.name)
+                        }
+                    }
+                    if (done?.status != DownloadStatus.COMPLETED.name || !app.downloads.fileExists(done)) {
+                        throw IllegalStateException(done?.errorMessage ?: "The download didn't finish.")
+                    }
+                    done.localUri ?: throw IllegalStateException("The saved image has no local file URI.")
+                }
+                when (val result = app.wallpaperApplier.apply(uri, target)) {
+                    ApplyResult.Success -> _message.emit("Wallpaper applied to ${target.label.lowercase()}.")
+                    is ApplyResult.Failure -> _message.emit(result.message)
+                }
+            } catch (e: TimeoutCancellationException) {
+                _message.emit("The original is still downloading. You can apply it later from Offline.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (t: Throwable) {
+                _message.emit("Couldn't apply wallpaper: ${t.message ?: "unknown error"}")
+            }
+        }
+    }
+
+    /** Apply a cropped preview without another download. */
+    fun applySaved(uri: String, target: ApplyTarget, crop: com.auroro.wallpapers.core.data.download.NormalizedCrop) {
+        viewModelScope.launch {
+            when (val result = app.wallpaperApplier.apply(uri, target, crop)) {
+                ApplyResult.Success -> _message.emit("Wallpaper applied to ${target.label.lowercase()}.")
+                is ApplyResult.Failure -> _message.emit(result.message)
+            }
+        }
+    }
+
+    fun setCollectionMembership(collectionId: Long, w: Wallpaper, contains: Boolean) {
+        viewModelScope.launch {
+            runCatching {
+                if (contains) app.collections.remove(collectionId, w.key) else app.collections.add(collectionId, w)
+            }.onFailure { _message.emit("Couldn't update collection: ${it.message}") }
+        }
+    }
+
+    fun createCollection(raw: String, done: (Long?) -> Unit = {}) {
+        viewModelScope.launch {
+            when (val valid = app.collections.validateName(raw)) {
+                is CollectionNameResult.Error -> {
+                    _message.emit(valid.message)
+                    done(null)
+                }
+                is CollectionNameResult.Ok -> {
+                    app.collections.create(valid.name).onSuccess {
+                        _message.emit("Collection created.")
+                        done(it)
+                    }.onFailure {
+                        _message.emit(it.message ?: "Couldn't create collection.")
+                        done(null)
+                    }
+                }
+            }
+        }
+    }
+
+    fun renameCollection(id: Long, raw: String, done: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            app.collections.rename(id, raw).onSuccess {
+                _message.emit("Collection renamed.")
+                done(true)
+            }.onFailure {
+                _message.emit(it.message ?: "Couldn't rename collection.")
+                done(false)
+            }
+        }
+    }
+
+    fun deleteCollection(id: Long) {
+        viewModelScope.launch {
+            runCatching { app.collections.delete(id) }
+                .onSuccess { _message.emit("Collection deleted.") }
+                .onFailure { _message.emit("Couldn't delete collection: ${it.message}") }
+        }
+    }
+
+    fun addToCollection(id: Long, w: Wallpaper) {
+        viewModelScope.launch {
+            runCatching { app.collections.add(id, w) }
+                .onSuccess { _message.emit("Added to collection.") }
+                .onFailure { _message.emit("Couldn't add to collection: ${it.message}") }
+        }
+    }
+
+    fun openSource(url: String, action: (Uri) -> Unit) {
+        if (UrlPolicy.isAllowedForBrowsing(url)) action(Uri.parse(url))
+        else _message.tryEmit("This link isn't from a supported wallpaper source.")
+    }
+
+    fun updateSettings(transform: (com.auroro.wallpapers.core.data.AppSettings) -> com.auroro.wallpapers.core.data.AppSettings) {
+        viewModelScope.launch {
+            runCatching { app.settings.update(transform) }
+                .onFailure { _message.emit("Couldn't save settings: ${it.message}") }
+        }
+    }
+
+    fun saveAbyssKey(raw: String): Boolean {
+        when (val result = com.auroro.wallpapers.core.data.ConfigValidation.abyssKey(raw)) {
+            is com.auroro.wallpapers.core.data.ConfigValidation.Result.Invalid -> {
+                _message.tryEmit(result.reason)
+                return false
+            }
+            is com.auroro.wallpapers.core.data.ConfigValidation.Result.Valid -> {
+                updateSettings { it.copy(abyssApiKey = result.value) }
+                return true
+            }
+        }
+    }
+
+    fun clearImageCache() {
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching { app.clearImageCache() }
+                .onSuccess { _message.emit("Image cache cleared. Saved originals are unchanged.") }
+                .onFailure { _message.emit("Couldn't clear cache: ${it.message}") }
+        }
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            app.history.clear()
+            _message.emit("History cleared.")
+        }
+    }
+
+    fun storageInfo(done: (com.auroro.wallpapers.core.data.download.StorageInfo) -> Unit) {
+        viewModelScope.launch { runCatching { app.downloads.storageInfo() }.onSuccess(done) }
+    }
+
+    companion object {
+        const val APPLY_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000L
+    }
+}
+
+class MainViewModelFactory(private val app: AppContainer) : androidx.lifecycle.ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MainViewModel::class.java)) return MainViewModel(app) as T
+        throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
+    }
+}

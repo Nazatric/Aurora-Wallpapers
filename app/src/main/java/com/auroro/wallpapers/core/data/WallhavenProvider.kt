@@ -145,12 +145,9 @@ object WallhavenQuery {
         if (aspect is AspectFilter.Preset) {
             WALLHAVEN_RATIO_TOKENS[aspect.preset]?.let { return it }
         }
-        val target = aspect.targetRatio
-        return when {
-            request.filter.orientation == Orientation.PORTRAIT || (target != null && target < 1f) -> "portrait"
-            request.filter.orientation == Orientation.LANDSCAPE || (target != null && target > 1f) -> "landscape"
-            else -> null
-        }
+        // Generic orientation and custom ratios aren't accepted by Wallhaven's ratio parameter.
+        // Those are applied locally from the actual image dimensions instead of sending guessed tokens.
+        return null
     }
 
     private val WALLHAVEN_RATIO_TOKENS = mapOf(
