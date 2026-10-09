@@ -2,6 +2,7 @@ package com.auroro.wallpapers.core.data.download
 
 import android.graphics.BitmapFactory
 import java.io.File
+import java.io.IOException
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -14,7 +15,11 @@ object ImageValidator {
     fun inspect(file: File): ImageInfo? {
         if (!file.isFile || file.length() < 16) return null
         val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(file.absolutePath, opts)
+        try {
+            file.inputStream().use { BitmapFactory.decodeStream(it, null, opts) }
+        } catch (_: IOException) {
+            return null
+        }
         val mime = opts.outMimeType?.lowercase() ?: return null
         if (mime !in SUPPORTED_MIME || opts.outWidth <= 0 || opts.outHeight <= 0) return null
         return ImageInfo(mime, opts.outWidth, opts.outHeight)

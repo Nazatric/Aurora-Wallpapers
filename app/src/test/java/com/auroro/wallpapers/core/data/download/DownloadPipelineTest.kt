@@ -121,13 +121,15 @@ class DownloadPipelineTest {
         assertTrue(row.errorMessage!!.contains("rate limiting"))
     }
 
-    @Test fun imageBoundsValidationAllocatesNoFullResolutionBitmap() {
+    @Test fun imageBoundsValidationReportsDimensionsAndRejectsCorruptData() {
         val file = File(temp.root, "tiny.png").apply { writeBytes(pngBytes()) }
         val info = ImageValidator.inspect(file)!!
         assertEquals("image/png", info.mime)
         assertEquals(2, info.width)
         assertEquals(2, info.height)
         assertEquals(null, ImageValidator.inspect(File(temp.root, "missing.jpg")))
+        val corrupt = File(temp.root, "corrupt.png").apply { writeText("not a decodable image") }
+        assertEquals(null, ImageValidator.inspect(corrupt))
     }
 
     @Test fun fitToScreenDownscalePlanPreservesOrientationAndAspect() {
