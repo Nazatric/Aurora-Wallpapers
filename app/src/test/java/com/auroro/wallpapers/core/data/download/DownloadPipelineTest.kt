@@ -1,7 +1,6 @@
 package com.auroro.wallpapers.core.data.download
 
 import android.content.Context
-import android.graphics.Bitmap
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.room.Room
@@ -27,7 +26,6 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.ByteArrayOutputStream
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -161,12 +159,7 @@ class DownloadPipelineTest {
         urlAllowed = { true },
     )
 
-    private fun pngBytes(): ByteArray {
-        val bitmap = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.CYAN) }
-        return ByteArrayOutputStream().use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-            bitmap.recycle()
-            out.toByteArray()
-        }
-    }
+    private fun pngBytes(): ByteArray = java.util.Base64.getDecoder().decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR4nGNg+P+fAQSBNIgFAEHOCPiQ3ABSAAAAAElFTkSuQmCC",
+    )
 }
