@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -186,7 +185,7 @@ fun WallpaperTile(wallpaper: Wallpaper, favorite: Boolean, onClick: () -> Unit, 
     }
     val scale by animateFloatAsState(if (favorite) 1.12f else 1f, spring(dampingRatio = 0.52f, stiffness = 550f), label = "favorite-scale")
     var imageFailed by remember(wallpaper.thumbUrl) { mutableStateOf(false) }
-    BoxWithConstraints(
+    Box(
         modifier.fillMaxWidth()
             .aspectRatio(ratio)
             .clip(RoundedCornerShape(20.dp))

@@ -139,7 +139,7 @@ object AbyssQuery {
             params["method"] = "search"
             params["term"] = q.take(128)
         }
-        params["type"] = type(request)
+        params["type"] = type
         params["page"] = cursor.page.toString()
         return params
     }

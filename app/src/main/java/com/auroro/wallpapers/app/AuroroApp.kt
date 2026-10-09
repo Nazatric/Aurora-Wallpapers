@@ -2,10 +2,14 @@ package com.auroro.wallpapers.app
 
 import android.app.Application
 import android.content.Context
+import androidx.work.Configuration
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 
-class AuroroApp : Application(), SingletonImageLoader.Factory {
+class AuroroApp : Application(), Configuration.Provider, SingletonImageLoader.Factory {
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder().build()
+
     val container: AppContainer by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { AppContainer(this) }
 
     override fun newImageLoader(context: Context): ImageLoader = container.imageLoader

@@ -29,6 +29,11 @@ class DedupAndFormatTest {
     @Test fun canonicalUrlDropsQueryAndFragmentAndNormalizesHost() {
         assertEquals("wallhaven.cc/w/abc123", Deduplicator.canonicalUrl("https://www.wallhaven.cc/w/abc123?x=1#y"))
         assertEquals("w.wallhaven.cc/file.jpg", Deduplicator.canonicalUrl("https://w.wallhaven.cc/file.jpg"))
+        assertEquals(
+            "wall.alphacoders.com/big.php?i=123",
+            Deduplicator.canonicalUrl("https://wall.alphacoders.com/big.php?i=123&utm_source=example"),
+        )
+        assertEquals("wall.alphacoders.com/big.php?i=124", Deduplicator.canonicalUrl("https://wall.alphacoders.com/big.php?i=124"))
         assertNull(Deduplicator.canonicalUrl("not a url"))
     }
 

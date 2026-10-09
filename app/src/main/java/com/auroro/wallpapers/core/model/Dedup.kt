@@ -32,19 +32,17 @@ class Deduplicator {
         }
 
         /**
-         * Lowercases scheme/host, drops the fragment and known tracking/credential query parameters,
-         * preserves source identifiers such as Wallpaper Abyss's `?i=123`, sorts remaining parameters,
-         * trims a trailing slash and a leading `www.`. Dropping *all* queries would incorrectly merge
-         * every `big.php?i=...` wallpaper from Alpha Coders.
+         * Normalizes the host/path, removes fragments and non-identity query parameters, and trims
+         * a trailing slash. Only content selectors used by provider page URLs (`i`/`id`) survive;
+         * display sizing, credentials, tracking, and referral query strings don't distinguish files.
          */
         fun canonicalUrl(url: String): String? = runCatching {
             if (url.isBlank()) return null
             val u = URI(url.trim())
             val host = u.host?.lowercase(Locale.US)?.removePrefix("www.") ?: return null
             val path = (u.path ?: "").trimEnd('/')
-            val ignored = setOf("utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "fbclid", "gclid", "apikey", "auth", "token", "access_token", "ref")
             val query = u.rawQuery.orEmpty().split('&').filter { it.isNotBlank() }
-                .filter { part -> part.substringBefore('=').lowercase(Locale.US) !in ignored }
+                .filter { part -> part.substringBefore('=').lowercase(Locale.US) in setOf("i", "id") }
                 .sorted()
                 .joinToString("&")
                 .takeIf { it.isNotEmpty() }
