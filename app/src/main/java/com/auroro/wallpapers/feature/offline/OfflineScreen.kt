@@ -115,13 +115,13 @@ fun OfflineScreen(
                 }
                 if (active.isNotEmpty()) {
                     item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
-                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = StaggeredGridItemSpan.FullLine) { row ->
+                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
                         DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
                     }
                 }
                 if (failed.isNotEmpty()) {
                     item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("Needs attention", "Interrupted or unavailable files") }
-                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = StaggeredGridItemSpan.FullLine) { row ->
+                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
                         DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
                     }
                 }
