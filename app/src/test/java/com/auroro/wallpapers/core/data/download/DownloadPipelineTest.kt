@@ -26,6 +26,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowStatFs
 import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
@@ -76,8 +77,12 @@ class DownloadPipelineTest {
             urlAllowed = { true }, // Isolated local mock server; release builds retain UrlPolicy's strict allow-list.
         )
 
+        // Robolectric's StatFs defaults to zero free blocks unless a fixture is registered.
+        ShadowStatFs.registerStats(File(temp.root, "temp"), 100_000, 100_000, 100_000)
         val progress = ArrayList<Pair<Long, Long>>()
-        assertTrue(executor.execute(w.key) { bytes, total -> progress += bytes to total })
+        val completed = executor.execute(w.key) { bytes, total -> progress += bytes to total }
+        val failure = db.downloads().get(w.key)
+        assertTrue("Download failed: ${failure?.errorKind}: ${failure?.errorMessage}", completed)
         val request = server.takeRequest()
         assertEquals("/full-resolution.png", request.url.encodedPath)
         assertTrue(progress.isNotEmpty())
