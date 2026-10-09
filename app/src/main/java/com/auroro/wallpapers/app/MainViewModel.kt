@@ -86,6 +86,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
 
     private val _detail = MutableStateFlow<DetailUiState?>(null)
     val detail: StateFlow<DetailUiState?> = _detail.asStateFlow()
+    private var detailJob: Job? = null
 
     private val _message = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val message = _message.asSharedFlow()
@@ -213,22 +214,31 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     fun openWallpaper(w: Wallpaper) {
-        _detail.value = DetailUiState(w)
-        viewModelScope.launch {
-            runCatching { app.history.record(w) }
-            val full = runCatching { app.aggregator.detail(w.key) }.getOrNull()
-            if (full != null) {
-                app.wallpaperStore.remember(listOf(full))
-                _detail.value = _detail.value?.copy(wallpaper = full)
-            }
-            val provider = app.aggregator.provider(w.source)
-            if (provider?.capabilities?.supportsRelated == true) {
-                _relatedLoading.value = true
-                val related = runCatching { app.aggregator.related(full ?: w) }.getOrDefault(emptyList())
-                _detail.value = _detail.value?.copy(related = related, loading = false)
+        detailJob?.cancel()
+        _relatedLoading.value = false
+        _detail.value = DetailUiState(w, loading = true)
+        detailJob = viewModelScope.launch {
+            try {
+                runCatching { app.history.record(w) }
+                val full = app.aggregator.detail(w.key)
+                if (full != null && _detail.value?.wallpaper?.key == w.key) {
+                    app.wallpaperStore.remember(listOf(full))
+                    _detail.value = _detail.value?.copy(wallpaper = full)
+                }
+                val provider = app.aggregator.provider(w.source)
+                if (provider?.capabilities?.supportsRelated == true) {
+                    _relatedLoading.value = true
+                    val related = app.aggregator.related(full ?: w)
+                    if (_detail.value?.wallpaper?.key == w.key) _detail.value = _detail.value?.copy(related = related, loading = false)
+                    _relatedLoading.value = false
+                } else {
+                    if (_detail.value?.wallpaper?.key == w.key) _detail.value = _detail.value?.copy(loading = false)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Throwable) {
+                if (_detail.value?.wallpaper?.key == w.key) _detail.value = _detail.value?.copy(loading = false)
                 _relatedLoading.value = false
-            } else {
-                _detail.value = _detail.value?.copy(loading = false)
             }
         }
     }

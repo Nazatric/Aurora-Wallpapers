@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.Manifest
 import android.content.pm.PackageManager
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.EnterTransition
@@ -58,6 +59,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,7 +68,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -137,6 +142,20 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val drawer = androidx.compose.material3.rememberDrawerState(androidx.compose.material3.DrawerValue.Closed)
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val context = LocalContext.current
+    val view = LocalView.current
+    val darkAppearance = Aero.colors.isDark
+    SideEffect {
+        val window = (view.context as? Activity)?.window
+        if (window != null) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            window.statusBarColor = android.graphics.Color.TRANSPARENT
+            window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            WindowInsetsControllerCompat(window, view).apply {
+                isAppearanceLightStatusBars = !darkAppearance
+                isAppearanceLightNavigationBars = !darkAppearance
+            }
+        }
+    }
     val snackbar = remember { SnackbarHostState() }
     val feed by vm.feed.collectAsState()
     val favorites by vm.favoriteKeys.collectAsState()

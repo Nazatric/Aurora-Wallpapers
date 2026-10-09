@@ -37,7 +37,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -182,6 +184,7 @@ fun WallpaperTile(wallpaper: Wallpaper, favorite: Boolean, onClick: () -> Unit, 
         else 0.83f
     }
     val scale by animateFloatAsState(if (favorite) 1.12f else 1f, spring(dampingRatio = 0.52f, stiffness = 550f), label = "favorite-scale")
+    var imageFailed by remember(wallpaper.thumbUrl) { mutableStateOf(false) }
     BoxWithConstraints(
         modifier.fillMaxWidth()
             .aspectRatio(ratio)
@@ -199,7 +202,14 @@ fun WallpaperTile(wallpaper: Wallpaper, favorite: Boolean, onClick: () -> Unit, 
             contentDescription = "${wallpaper.source.displayName} wallpaper, ${wallpaper.width} by ${wallpaper.height}${wallpaper.category?.let { ", $it" } ?: ""}",
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
+            onError = { imageFailed = true },
         )
+        if (imageFailed) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White.copy(alpha = .65f), modifier = Modifier.size(22.dp))
+                Text("Preview unavailable", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .85f))
+            }
+        }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.69f)))))
         Box(Modifier.align(Alignment.TopStart).padding(8.dp)) { SourceDot(wallpaper.source) }
         Box(
@@ -243,6 +253,7 @@ fun OfflineTile(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    var imageFailed by remember(localUri, wallpaper?.thumbUrl) { mutableStateOf(false) }
     Box(
         modifier.fillMaxWidth().aspectRatio(.79f).clip(RoundedCornerShape(19.dp)).background(Brush.verticalGradient(listOf(Color(0xFF164666), Color(0xFF08283A))))
             .clickable(role = Role.Button, onClick = onClick),
@@ -253,6 +264,7 @@ fun OfflineTile(
                 contentDescription = wallpaper?.let { "Saved ${it.source.displayName} wallpaper, ${it.width} by ${it.height}" } ?: "Saved wallpaper",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                onError = { imageFailed = true },
             )
         } else if (wallpaper != null) {
             AsyncImage(
@@ -260,7 +272,14 @@ fun OfflineTile(
                 contentDescription = "${wallpaper.source.displayName} wallpaper preview",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
+                onError = { imageFailed = true },
             )
+        }
+        if (imageFailed) {
+            Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(Icons.Rounded.AutoAwesome, null, tint = Color.White.copy(alpha = .65f), modifier = Modifier.size(22.dp))
+                Text("Image unavailable", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = .85f))
+            }
         }
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .78f)))))
         Column(Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(10.dp)) {

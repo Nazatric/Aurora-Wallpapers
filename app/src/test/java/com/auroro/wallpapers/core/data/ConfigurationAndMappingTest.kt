@@ -1,6 +1,7 @@
 package com.auroro.wallpapers.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import java.io.File
 import com.auroro.wallpapers.core.model.WallpaperSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,7 +46,7 @@ class ConfigurationAndMappingTest {
     }
 
     @Test fun settingsPersistFunctionalPreferencesAndKeepSecretOutOfDataStore() = runBlocking {
-        val store = PreferenceDataStoreFactory.create(produceFile = { temp.newFile("settings.preferences_pb") })
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "settings.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null, secrets = null)
         settings.update { it.copy(themeMode = ThemeMode.DARK, accent = AccentTheme.EMERALD, cacheLimitMb = 500, abyssEnabled = false) }
         val saved = settings.current()

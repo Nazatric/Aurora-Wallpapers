@@ -106,10 +106,23 @@ class FeedPager(
                 val reason = st.provider.unsupportedReason(request)
                 if (reason != null) st.skipped = SourceState.Skipped(reason)
             }
-            is SourceAvailability.NeedsConfiguration -> st.skipped = SourceState.Skipped(a.reason, a.handoffUrl, needsConfiguration = true)
-            is SourceAvailability.BlockedByPolicy -> st.skipped = SourceState.Skipped(a.reason, a.handoffUrl)
+            is SourceAvailability.NeedsConfiguration -> st.skipped = SourceState.Skipped(
+                a.reason,
+                handoffFor(st.provider.source, request.normalizedQuery, a.handoffUrl),
+                needsConfiguration = true,
+            )
+            is SourceAvailability.BlockedByPolicy -> st.skipped = SourceState.Skipped(
+                a.reason,
+                handoffFor(st.provider.source, request.normalizedQuery, a.handoffUrl),
+            )
             is SourceAvailability.DisabledByUser -> st.skipped = SourceState.Skipped(a.reason)
         }
+    }
+
+    private fun handoffFor(source: WallpaperSource, query: String, fallback: String?): String? = when (source) {
+        WallpaperSource.ABYSS -> Handoff.abyssSearchUrl(query)
+        WallpaperSource.UNSPLASH -> UnsplashProvider.searchUrl(query)
+        WallpaperSource.WALLHAVEN -> fallback
     }
 
     private suspend fun loadProvider(st: ProviderState): List<Wallpaper> {

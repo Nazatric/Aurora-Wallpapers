@@ -101,6 +101,7 @@ fun WallpaperDetailScreen(
     val context = LocalContext.current
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
     var showApply by remember(wallpaper.key) { mutableStateOf(false) }
+    var previewFailed by remember(wallpaper.key, localPreviewUri) { mutableStateOf(false) }
     val isSaved = download?.status == DownloadStatus.COMPLETED.name && localPreviewUri != null
 
     Column(Modifier.fillMaxSize()) {
@@ -115,7 +116,15 @@ fun WallpaperDetailScreen(
                 contentDescription = "Wallpaper preview from ${wallpaper.source.displayName}, ${wallpaper.width} by ${wallpaper.height}",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
+                onError = { previewFailed = true },
             )
+            if (previewFailed) {
+                Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Rounded.Info, null, tint = Aero.colors.accent, modifier = Modifier.size(28.dp))
+                    Text("Preview unavailable", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                    TextButton(onClick = { onOpenSource(wallpaper.pageUrl) }) { Text("Open the source page", color = Aero.colors.accentLight) }
+                }
+            }
             Box(Modifier.fillMaxWidth().height(136.dp).background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .62f), Color.Transparent))))
             Row(
                 Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -183,6 +192,12 @@ fun WallpaperDetailScreen(
                             InfoCell("File size", Format.fileSize(wallpaper.fileSizeBytes), Modifier.weight(1f))
                         }
                         if (wallpaper.creatorName != null) Text("Creator · ${wallpaper.creatorName}", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                        wallpaper.creatorUrl?.takeIf { UrlPolicy.isAllowedForBrowsing(it) }?.let { creatorUrl ->
+                            TextButton(onClick = { onOpenSource(creatorUrl) }) {
+                                Text("View creator profile", color = Aero.colors.accent)
+                                Spacer(Modifier.width(5.dp)); Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent)
+                            }
+                        }
                         wallpaper.createdAt?.let { Text("Added · $it", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary) }
                         wallpaper.colors.takeIf { it.isNotEmpty() }?.let { Text("Colors · ${it.joinToString("  ")}", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary) }
                         if (wallpaper.tags.isNotEmpty()) {
@@ -202,7 +217,7 @@ fun WallpaperDetailScreen(
             }
         }
 
-        if (wallpaper.tags.isNotEmpty() || state.related.isNotEmpty() || relatedLoading) {
+        if (state.related.isNotEmpty() || relatedLoading) {
             GlassPanel(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), shape = RoundedCornerShape(20.dp), elevation = 4.dp) {
                 Column(Modifier.padding(12.dp)) {
                     Text("Related wallpapers", style = MaterialTheme.typography.titleSmall, color = Aero.colors.textPrimary)
