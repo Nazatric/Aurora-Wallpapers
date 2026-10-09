@@ -1,23 +1,15 @@
-# Source and verification blockers
+# Verification status
 
-This file records genuine access/verification limits; it is not a substitute for implemented work.
+## Android build and device checks
 
-## Wallpaper Abyss API key and subscription
+- This sandbox has no `java`, `javac`, `JAVA_HOME`, Android SDK, `adb` or emulator, so it cannot run `./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease` or inspect the UI on a device.
+- GitHub Actions run [37920685262](https://github.com/Nazatric/Aurora-Wallpapers/actions/runs/37920685262) passed `testDebugUnitTest`, `lintDebug`, `assembleDebug` and `assembleRelease` for parent commit `741fdefb69af752d9cb6bab748835d48093788ad`. Its APK artifact does **not** include the changes currently being prepared.
+- Kotlin compilation, unit tests, lint, APK generation and on-device UI checks for the current changes therefore remain unverified until a fresh CI run completes. The repository workflow builds and uploads a debug APK; release signing requires configured private signing secrets.
 
-- The official Alpha Coders API exists and Auroro has implemented the documented API 3.0 `search` and `newest` requests, response normalization, desktop/phone lanes and pagination.
-- Alpha Coders requires an API subscription and an individually issued key. No subscription key was provided, so a live Wallpaper Abyss response could not be tested from this project build.
-- Add the user's own key in **Settings → Wallpaper sources** to make this integration available. The key is encrypted locally with AndroidKeyStore; the app does not provide or proxy a shared key.
-- Without a key, the source is marked unavailable and can be opened on the official Wallpaper Abyss site. No site scraping or private endpoint is used.
+## Provider research and live checks
 
-## Unsplash API authorization
+- Openverse's current API reference says anonymous requests are supported and sufficient for most use; registered OAuth clients receive higher limits. Auroro sends no credentials, uses a persistent local request window, observes the provider's rate headers and pages incrementally. The official `GET /v1/images/` endpoint was also checked without an authorization header and returned an image-search response. References: <https://api.openverse.org/v1/> and <https://docs.openverse.org/api/reference/authentication_and_throttling.html>.
+- Wallhaven's official API documents ratio tokens but does not specify their exact boundary tolerance. A current public `ratios=21x9` response included 3440×1440 (43:18, within Auroro's default 3% relative tolerance of 21:9); returned dimensions are still checked locally. Reference: <https://wallhaven.cc/help/api>.
+- The optional `scripts/live_source_smoke.sh` has not been run from the shell in this sandbox. It calls only the public Wallhaven SFW endpoint and the Openverse endpoint anonymously; neither provider requires a committed key for these checks.
 
-- The current Unsplash guidelines explicitly say that the API may not replicate the core experience of an unofficial client or wallpaper application; they give downloading Unsplash images from a wallpaper app as a prohibited example. The guidelines also require a confidential key and download tracking.
-- Auroro therefore makes **no Unsplash API calls** and does not scrape, proxy or disguise a client. The app offers an official-site browser handoff with referral parameters.
-- Implementing an API client would require prior explicit written permission from Unsplash for this exact wallpaper-aggregation use case (and an authorized credential path). No such approval or key was supplied.
-
-## Environment verification limits
-
-- This sandbox has no JDK, Android SDK, emulator or attached reference image file. Android compilation, lint and unit tests are therefore delegated to the checked-in GitHub Actions workflow; screenshot capture, physical-device verification, frame profiling and pixel comparison against the concept image cannot be performed here.
-- The build sandbox permits outbound access only to a small set of package/code hosts, not `wallhaven.cc` or `alphacoders.com`. No live source smoke test was run from this environment. Mock HTTP fixtures cover repeatable local tests; `scripts/live_source_smoke.sh` is an optional manual live check for a networked machine.
-
-These constraints do not affect the on-device public Wallhaven SFW integration. User-visible status always distinguishes an unavailable source from an empty successful result.
+The source-independent unit tests use fixtures and a local mock HTTP server. Their existence is not evidence that they passed; check the fresh CI run above for results applicable to the latest commit.

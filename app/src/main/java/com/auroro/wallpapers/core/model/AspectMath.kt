@@ -135,21 +135,25 @@ sealed interface ResolutionFilter {
     @Immutable
     data class Preset(val preset: ResolutionPreset) : ResolutionFilter
 
-    /** Literal minimum width and height (orientation-sensitive: width must be >= minWidth). */
+    /** Minimum short/long edges; portrait and landscape images are treated identically. */
     @Immutable
-    data class Custom(val minWidth: Int, val minHeight: Int) : ResolutionFilter
+    data class Custom(val minWidth: Int, val minHeight: Int) : ResolutionFilter {
+        val shortEdge: Int get() = min(minWidth, minHeight)
+        val longEdge: Int get() = max(minWidth, minHeight)
+    }
 
     val label: String
         get() = when (this) {
             Any -> "Any"
             is Preset -> preset.label
-            is Custom -> "≥ ${minWidth}×${minHeight}"
+            is Custom -> "≥ ${min(minWidth, minHeight)} × ${max(minWidth, minHeight)} px"
         }
 
     fun matches(width: Int, height: Int): Boolean = when (this) {
         Any -> true
         is Preset -> width > 0 && height > 0 &&
             min(width, height) >= preset.shortEdge && max(width, height) >= preset.longEdge
-        is Custom -> width >= minWidth && height >= minHeight
+        is Custom -> width > 0 && height > 0 &&
+            min(width, height) >= shortEdge && max(width, height) >= longEdge
     }
 }

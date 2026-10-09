@@ -115,35 +115,47 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         viewModelScope.launch {
             val tags = if (tab == HomeTab.FOR_YOU) app.preferenceSignals.topTags() else emptyList()
             val effectiveSort = tab.sort ?: if (tags.isEmpty()) SortOption.NEWEST else SortOption.RELEVANCE
-            val query = if (tags.isEmpty()) "" else tags.joinToString(" ") { "+$it" }
-            val req = FeedRequest(query = query, filter = WallpaperFilter(sort = effectiveSort))
-            val summary = when {
-                tab != HomeTab.FOR_YOU -> null
-                tags.isNotEmpty() -> "Based on your saved wallpapers · ${tags.joinToString(" · ")}" 
-                else -> "Fresh picks from Wallhaven"
-            }
+            val query = if (tags.isEmpty()) "" else tags.joinToString(" ")
+            val sources = if (tab == HomeTab.FOR_YOU) emptySet() else setOf(WallpaperSource.WALLHAVEN)
+            val req = FeedRequest(query = query, filter = WallpaperFilter(sort = effectiveSort, sources = sources))
+            val summary = tags.takeIf { tab == HomeTab.FOR_YOU && it.isNotEmpty() }
+                ?.joinToString(" · ", prefix = "Based on your saved tags: ")
             startFeed(req, summary)
         }
     }
 
     fun openSearch(query: String = "", filter: WallpaperFilter = WallpaperFilter.Default) {
         currentTab = HomeTab.FOR_YOU
-        startFeed(FeedRequest(query = query, filter = filter.forQuery(query)), null)
+        startFeed(FeedRequest(query = query, filter = filter), null)
     }
 
     fun submitSearch(query: String, filter: WallpaperFilter = _feed.value.request.filter) {
-        startFeed(FeedRequest(query = query, filter = filter.forQuery(query)), null)
+        startFeed(FeedRequest(query = query, filter = filter), null)
     }
 
     fun applyFilters(filter: WallpaperFilter) {
         val old = _feed.value.request
-        startFeed(old.copy(filter = filter.forQuery(old.query)), null)
+        startFeed(old.copy(filter = filter), null)
     }
 
-    private fun WallpaperFilter.forQuery(query: String): WallpaperFilter =
-        if (query.isBlank() && sort == SortOption.RELEVANCE) copy(sort = SortOption.NEWEST) else this
-
-    fun selectSources(sources: Set<WallpaperSource>) = applyFilters(_feed.value.request.filter.copy(sources = sources))
+    fun selectSources(sources: Set<WallpaperSource>, query: String = _feed.value.request.query) {
+        val current = _feed.value.request.filter
+        val selected = when {
+            sources.isEmpty() -> current.copy(
+                sources = emptySet(), wallhavenCategories = emptySet(), colorHex = null,
+                openverseTag = null, openverseCategory = null, openverseLicense = null,
+            )
+            WallpaperSource.OPENVERSE in sources && WallpaperSource.WALLHAVEN !in sources -> current.copy(
+                sources = sources, sort = SortOption.RELEVANCE,
+                wallhavenCategories = emptySet(), colorHex = null,
+            )
+            WallpaperSource.WALLHAVEN in sources && WallpaperSource.OPENVERSE !in sources -> current.copy(
+                sources = sources, openverseTag = null, openverseCategory = null, openverseLicense = null,
+            )
+            else -> current.copy(sources = sources)
+        }
+        startFeed(_feed.value.request.copy(query = query, filter = selected), null)
+    }
 
     private fun startFeed(request: FeedRequest, forYouLabel: String?) {
         feedJob?.cancel()
@@ -179,20 +191,19 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             app.wallpaperStore.remember(result.items)
             val before = _feed.value
             val combined = dedupeByKey(before.items + result.items)
+            val sourceErrors = result.statuses.mapNotNull { status ->
+                val error = (status.state as? SourceState.Failed)?.error ?: return@mapNotNull null
+                "${status.source.displayName}: ${error.message ?: error.kind.title}"
+            }
             _feed.value = before.copy(
                 items = combined,
                 statuses = result.statuses,
                 loading = false,
                 initialLoadFinished = true,
                 endReached = result.endReached,
-                pageError = null,
+                pageError = sourceErrors.takeIf { it.isNotEmpty() }?.joinToString(" · "),
                 appendCount = before.appendCount + if (result.items.isNotEmpty()) 1 else 0,
             )
-            if (result.items.isEmpty() && result.hadFailure && before.items.isEmpty()) {
-                val msg = result.statuses.filter { it.state is SourceState.Failed }
-                    .joinToString(" · ") { (it.state as SourceState.Failed).error.message ?: it.source.displayName }
-                if (msg.isNotBlank()) _message.tryEmit(msg)
-            }
         } catch (e: CancellationException) {
             throw e
         } catch (t: Throwable) {
@@ -289,16 +300,24 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     fun deleteDownload(row: OfflineRow) {
         viewModelScope.launch {
             val ok = app.downloads.delete(row.download.wallpaperKey)
-            _message.emit(if (ok) "Saved wallpaper deleted." else "The file couldn't be deleted. Its download record was removed.")
+            _message.emit(if (ok) "Saved wallpaper deleted." else "Android couldn't remove the file; its record and attribution were kept.")
         }
     }
 
     /** Prompts to apply using the full local original; downloads it first if no saved file exists. */
     fun applyWallpaper(w: Wallpaper, target: ApplyTarget) {
         viewModelScope.launch {
+            if (!w.setWallpaperAllowed) {
+                _message.emit("This image's licence doesn't permit setting it as a wallpaper.")
+                return@launch
+            }
             try {
                 val existing = app.database.downloads().get(w.key)
                 val local = existing?.takeIf { it.status == DownloadStatus.COMPLETED.name && app.downloads.fileExists(it) }?.localUri
+                if (local == null && !w.downloadAllowed) {
+                    _message.emit("The original isn't available to download from this retired source. Check Offline for a saved copy.")
+                    return@launch
+                }
                 val uri = if (local != null) {
                     local
                 } else {
@@ -403,19 +422,6 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         viewModelScope.launch {
             runCatching { app.settings.update(transform) }
                 .onFailure { _message.emit("Couldn't save settings: ${it.message}") }
-        }
-    }
-
-    fun saveAbyssKey(raw: String): Boolean {
-        when (val result = com.auroro.wallpapers.core.data.ConfigValidation.abyssKey(raw)) {
-            is com.auroro.wallpapers.core.data.ConfigValidation.Result.Invalid -> {
-                _message.tryEmit(result.reason)
-                return false
-            }
-            is com.auroro.wallpapers.core.data.ConfigValidation.Result.Valid -> {
-                updateSettings { it.copy(abyssApiKey = result.value) }
-                return true
-            }
         }
     }
 

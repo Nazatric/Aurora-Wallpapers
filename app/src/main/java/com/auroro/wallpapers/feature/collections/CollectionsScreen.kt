@@ -16,9 +16,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as columnItems
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -94,8 +95,8 @@ fun CollectionsScreen(
         if (collections.isEmpty()) {
             item {
                 EmptyState(
-                    "Make it yours",
-                    "Create a collection, then add any wallpaper you discover. Collections are private and stored on this device.",
+                    "No collections yet",
+                    "Create a collection, then add wallpapers from their detail pages. Collections stay on this device.",
                     icon = Icons.Rounded.CollectionsBookmark,
                     action = { Button(onClick = { creating = true }) { Icon(Icons.Rounded.Add, null); Text("  New collection") } },
                 )
@@ -179,16 +180,16 @@ fun CollectionDetailScreen(
             trailing = { GlassIconButton(onClick = onAddMore, description = "Find wallpapers to add", icon = Icons.Rounded.Add) },
         )
         if (wallpapers.isEmpty()) {
-            EmptyState("An open horizon", "There are no wallpapers in this collection yet. Search and add some you love.", icon = Icons.Rounded.PhotoLibrary, action = {
+            EmptyState("Collection is empty", "Add a wallpaper from its detail page, or find one to save here.", icon = Icons.Rounded.PhotoLibrary, action = {
                 Button(onClick = onAddMore) { Text("Find wallpapers") }
             })
         } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(152.dp),
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Adaptive(152.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(15.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(11.dp),
+                verticalItemSpacing = 11.dp,
             ) {
                 items(wallpapers, key = { it.key }) { w ->
                     Box {

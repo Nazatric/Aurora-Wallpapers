@@ -46,12 +46,12 @@ fun Throwable.toProviderException(providerName: String): ProviderException {
             when (val c = code()) {
                 401, 403 -> ProviderException(
                     ProviderErrorKind.AUTH_FAILED,
-                    "$providerName rejected the request (HTTP $c). The API key may be missing, invalid or not permitted.",
+                    "$providerName denied this public request (HTTP $c). Check the source page or try again later.",
                     cause = this,
                 )
                 429 -> ProviderException(
                     ProviderErrorKind.RATE_LIMITED,
-                    "$providerName rate limit reached. Try again in a minute.",
+                    "$providerName rate limit reached." + (retryAfter?.takeIf { it > 0 }?.let { " Retry after $it seconds." } ?: " Try again later."),
                     retryAfter,
                     this,
                 )

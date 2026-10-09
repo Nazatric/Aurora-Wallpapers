@@ -11,6 +11,7 @@ Auroro Wallpapers is licensed under Apache License 2.0; third-party components r
 | Material Icons Extended | 1.7.8 | <https://developer.android.com/jetpack/compose/designsystems/material> | Apache-2.0; icons from the Material Icons project |
 | AndroidX Core, Activity, Lifecycle, Navigation Compose | See version catalogue | <https://github.com/androidx/androidx> | Apache-2.0 |
 | AndroidX Room | 2.8.4 | <https://developer.android.com/jetpack/androidx/releases/room> | Apache-2.0 |
+| AndroidX SQLite Framework | 2.6.2 | <https://developer.android.com/jetpack/androidx/releases/sqlite> | Apache-2.0; used by the Room migration test |
 | AndroidX DataStore | 1.2.0 | <https://developer.android.com/topic/libraries/architecture/datastore> | Apache-2.0 |
 | AndroidX WorkManager | 2.11.0 | <https://developer.android.com/topic/libraries/architecture/workmanager> | Apache-2.0 |
 | Coil | 3.6.3 | <https://github.com/coil-kt/coil> | Apache-2.0 |

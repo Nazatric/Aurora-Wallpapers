@@ -91,14 +91,15 @@ fun GlassPill(
 ) {
     val c = Aero.colors
     val shape = CircleShape
+    val active = selected && enabled
     Row(
         modifier = modifier
             .clip(shape)
             .background(
-                if (selected) Brush.verticalGradient(listOf(c.accentLight.copy(alpha = 0.95f), c.accent.copy(alpha = 0.94f), c.accentDeep.copy(alpha = 0.88f)))
+                if (active) Brush.verticalGradient(listOf(c.accentLight.copy(alpha = 0.95f), c.accent.copy(alpha = 0.94f), c.accentDeep.copy(alpha = 0.88f)))
                 else Brush.verticalGradient(listOf(c.glassTint.copy(alpha = if (c.isDark) 0.48f else 0.7f), c.glassTint.copy(alpha = if (c.isDark) 0.32f else 0.58f))),
             )
-            .border(0.8.dp, if (selected) c.glassHighlight.copy(alpha = 0.42f) else c.glassRimLight.copy(alpha = 0.32f), shape)
+            .border(0.8.dp, if (active) c.glassHighlight.copy(alpha = 0.42f) else c.glassRimLight.copy(alpha = 0.32f), shape)
             .clickable(enabled = enabled, role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 15.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -107,7 +108,7 @@ fun GlassPill(
             leading()
             Spacer(Modifier.width(6.dp))
         }
-        Text(text, style = MaterialTheme.typography.labelLarge, color = if (selected) c.onAccent else c.textSecondary.copy(alpha = if (enabled) 1f else 0.5f))
+        Text(text, style = MaterialTheme.typography.labelLarge, color = if (active) c.onAccent else c.textSecondary.copy(alpha = if (enabled) 1f else 0.5f))
     }
 }
 

@@ -78,7 +78,7 @@ class RepositoryPersistenceTest {
 
     @Test fun historyIsSeparateAndCanBeClearedWithoutTouchingFavorites() = runBlocking {
         val favorite = wallpaper(id = "favorite02")
-        val viewed = wallpaper(source = WallpaperSource.ABYSS, id = "viewed03")
+        val viewed = wallpaper(source = WallpaperSource.ARCHIVED, id = "viewed03")
         favorites.setFavorite(favorite, true)
         history.record(viewed)
         assertEquals(listOf(viewed.key), history.observeRecent().first().map { it.key })

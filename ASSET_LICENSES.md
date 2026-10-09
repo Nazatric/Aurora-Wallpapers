@@ -1,16 +1,16 @@
-# Artwork and font licenses
+# Artwork and font licences
+
+## Wallpaper imagery
+
+Auroro does not bundle wallpaper photographs. Images are requested at runtime from the integrated Wallhaven or Openverse API and, for Openverse results, the media host identified by the catalogue. Copyright, licence terms and attribution requirements remain with the relevant creator or rights holder. Auroro displays available attribution and licence metadata and links to the originating page; confirm the terms there before reuse.
 
 ## Original Auroro artwork
 
-- The glossy aqua sphere/orbit mark, adaptive launcher icon, notification mark, Aero glass decoration, gradients and screen motifs are original vector artwork created for Auroro Wallpapers. No wallpaper photographs or third-party provider logo are bundled.
-- The actual gallery obtains photos at runtime from Wallhaven or (when configured) the official Alpha Coders API. Unsplash is an external browser handoff only. Each source's rights and attribution remain with its publisher and original creators.
+The app mark, launcher sphere, Aero glass motifs, gradients and screen illustrations are original project artwork. No provider logos or third-party wallpaper images are bundled.
 
 ## Open Sans
 
-Open Sans regular, semibold and bold TTF files are bundled as a readable, open-license humanist sans. The font family is by the Open Sans Project Authors; this does **not** imply endorsement or reproduce the proprietary Frutiger or Segoe UI faces.
+Open Sans regular, semibold and bold TTF files are bundled under the SIL Open Font License 1.1. The font is by the Open Sans Project Authors; it is not a copy of the proprietary Frutiger or Segoe UI typefaces and does not imply endorsement.
 
 - Source: <https://github.com/google/fonts/tree/main/ofl/opensans>
-- License: SIL Open Font License 1.1 (OFL-1.1)
-- Full license text: [`licenses/OpenSans-OFL.txt`](licenses/OpenSans-OFL.txt)
-
-The Open Sans typeface may be bundled/embedded under OFL-1.1. The original copyright notice and license file are retained in this repository.
+- Licence text: [`licenses/OpenSans-OFL.txt`](licenses/OpenSans-OFL.txt)

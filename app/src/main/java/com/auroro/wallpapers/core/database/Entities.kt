@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -33,6 +34,15 @@ data class WallpaperEntity(
     val favorites: Int?,
     val originSourceUrl: String?,
     val updatedAt: Long,
+    val title: String?,
+    val attribution: String?,
+    val licenseCode: String?,
+    val licenseVersion: String?,
+    val licenseUrl: String?,
+    val providerName: String?,
+    val catalogSource: String?,
+    @ColumnInfo(defaultValue = "1") val downloadAllowed: Boolean = true,
+    @ColumnInfo(defaultValue = "1") val setWallpaperAllowed: Boolean = true,
 )
 
 @Entity(tableName = "favorite")

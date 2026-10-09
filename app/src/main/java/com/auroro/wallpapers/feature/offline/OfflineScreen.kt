@@ -12,10 +12,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as columnItems
@@ -87,46 +87,46 @@ fun OfflineScreen(
             val active = rows.filter { it.download.status == DownloadStatus.RUNNING.name || it.download.status == DownloadStatus.QUEUED.name }
             val failed = rows.filter { it.download.status == DownloadStatus.FAILED.name || it.download.status == DownloadStatus.CANCELED.name }
             val completed = rows.filter { it.download.status == DownloadStatus.COMPLETED.name }
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(158.dp),
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Adaptive(158.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(11.dp),
+                verticalItemSpacing = 11.dp,
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(span = { StaggeredGridItemSpan.FullLine }) {
                     HeaderBar("Offline", "Files saved on this device", onMenu = onMenu)
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(span = { StaggeredGridItemSpan.FullLine }) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OfflineTab.entries.forEach { tab -> GlassPill(tab.label, selectedTab == tab, onClick = { selectedTab = tab }) }
                     }
                 }
-                if (localStorage != null) item(span = { GridItemSpan(maxLineSpan) }) { StorageSummary(localStorage!!) }
+                if (localStorage != null) item(span = { StaggeredGridItemSpan.FullLine }) { StorageSummary(localStorage!!) }
                 if (rows.isEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(span = { StaggeredGridItemSpan.FullLine }) {
                         EmptyState(
-                            "A clear sky, for now",
-                            "Download a wallpaper to keep the original file on this device. Image cache entries are not shown here.",
+                            "No downloads yet",
+                            "Download a wallpaper to save its original file on this device. Cached previews aren't listed here.",
                             icon = Icons.Rounded.Download,
                             action = { Text("Browse wallpapers from Home or Search.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.accent) },
                         )
                     }
                 }
                 if (active.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
-                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = { GridItemSpan(maxLineSpan) }) { row ->
+                    item(span = { StaggeredGridItemSpan.FullLine }) { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
+                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
                         DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
                     }
                 }
                 if (failed.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { SectionTitle("Needs attention", "Interrupted or unavailable files") }
-                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = { GridItemSpan(maxLineSpan) }) { row ->
+                    item(span = { StaggeredGridItemSpan.FullLine }) { SectionTitle("Needs attention", "Interrupted or unavailable files") }
+                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
                         DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
                     }
                 }
                 if (completed.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { SectionTitle("Saved wallpapers", "${completed.count { it.fileExists }} files available offline") }
+                    item(span = { StaggeredGridItemSpan.FullLine }) { SectionTitle("Saved wallpapers", "${completed.count { it.fileExists }} files available offline") }
                     items(completed, key = { it.download.wallpaperKey }) { row ->
                         val w = row.wallpaper
                         val title = w?.category ?: w?.source?.displayName ?: row.download.fileName ?: "Saved wallpaper"
@@ -141,7 +141,7 @@ fun OfflineScreen(
                                 onClick = { if (w != null) onOpen(w) },
                                 onFavorite = if (w != null) ({ onFavorite(w) }) else null,
                             )
-                            if (row.fileExists && w != null) {
+                            if (row.fileExists && w != null && w.setWallpaperAllowed) {
                                 Box(Modifier.align(Alignment.TopStart).padding(6.dp)) {
                                     GlassIconButton(onClick = { onApply(w) }, description = "Set as wallpaper", icon = Icons.Rounded.Wallpaper, tint = Aero.colors.accent)
                                 }
@@ -152,7 +152,7 @@ fun OfflineScreen(
                         }
                     }
                 }
-                item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(18.dp)) }
+                item(span = { StaggeredGridItemSpan.FullLine }) { Spacer(Modifier.height(18.dp)) }
             }
         }
 
@@ -204,7 +204,7 @@ private fun DownloadRow(row: OfflineRow, onOpen: (Wallpaper) -> Unit, onCancel: 
     val w = row.wallpaper
     GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(19.dp), elevation = 5.dp) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (w != null) OfflineTile(w, d.localUri.takeIf { row.fileExists }, w.category ?: w.source.displayName, Format.dimensions(w.width, w.height), false, { onOpen(w) }, modifier = Modifier.size(76.dp))
+            if (w != null) OfflineTile(w, d.localUri.takeIf { row.fileExists }, w.category ?: w.source.displayName, Format.dimensions(w.width, w.height), false, { onOpen(w) }, modifier = Modifier.size(76.dp), respectAspectRatio = false)
             else Box(Modifier.size(68.dp).background(Brush.verticalGradient(listOf(Aero.colors.accent.copy(alpha = .22f), Aero.colors.emerald.copy(alpha = .12f))), RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Download, null, tint = Aero.colors.accent) }
             Column(Modifier.weight(1f).padding(horizontal = 11.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(w?.source?.displayName ?: d.fileName ?: "Wallpaper", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
@@ -221,9 +221,12 @@ private fun DownloadRow(row: OfflineRow, onOpen: (Wallpaper) -> Unit, onCancel: 
                 }
                 if (d.status == DownloadStatus.COMPLETED.name && !row.fileExists) Text("The file was moved or deleted.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
             }
-            when (d.status) {
-                DownloadStatus.RUNNING.name, DownloadStatus.QUEUED.name -> GlassIconButton(onClick = { onCancel(d.wallpaperKey) }, description = "Cancel download", icon = Icons.Rounded.DeleteOutline, tint = Aero.colors.textSecondary)
-                DownloadStatus.FAILED.name, DownloadStatus.CANCELED.name -> GlassIconButton(onClick = { onRetry(d.wallpaperKey) }, description = "Retry download", icon = Icons.Rounded.Refresh, tint = Aero.colors.accent)
+            when {
+                d.status == DownloadStatus.RUNNING.name || d.status == DownloadStatus.QUEUED.name ->
+                    GlassIconButton(onClick = { onCancel(d.wallpaperKey) }, description = "Cancel download", icon = Icons.Rounded.DeleteOutline, tint = Aero.colors.textSecondary)
+                d.status == DownloadStatus.FAILED.name || d.status == DownloadStatus.CANCELED.name ||
+                    d.status == DownloadStatus.COMPLETED.name && !row.fileExists && w?.downloadAllowed == true ->
+                    GlassIconButton(onClick = { onRetry(d.wallpaperKey) }, description = "Retry download", icon = Icons.Rounded.Refresh, tint = Aero.colors.accent)
                 else -> GlassIconButton(onClick = { onDelete(row) }, description = "Delete downloaded file", icon = Icons.Rounded.DeleteOutline, tint = Aero.colors.error)
             }
         }
@@ -234,7 +237,7 @@ private fun DownloadRow(row: OfflineRow, onOpen: (Wallpaper) -> Unit, onCancel: 
 private fun HistoryRow(w: Wallpaper, favorite: Boolean, onOpen: () -> Unit, onFavorite: () -> Unit) {
     com.auroro.wallpapers.core.design.GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), onClick = onOpen) {
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            OfflineTile(w, null, w.category ?: w.source.displayName, Format.dimensions(w.width, w.height), favorite, onOpen, modifier = Modifier.size(76.dp))
+            OfflineTile(w, null, w.category ?: w.source.displayName, Format.dimensions(w.width, w.height), favorite, onOpen, modifier = Modifier.size(76.dp), respectAspectRatio = false)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(w.source.displayName, style = MaterialTheme.typography.titleSmall, color = Aero.colors.textPrimary)
                 Text("${w.width} × ${w.height} · ${Format.fileSize(w.fileSizeBytes)}", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)

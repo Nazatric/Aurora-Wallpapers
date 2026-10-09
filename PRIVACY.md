@@ -1,44 +1,42 @@
 # Auroro Wallpapers privacy notice
 
-**Last updated: 2026-10-09**
+**Last updated: 2026-10-10**
 
-Auroro Wallpapers does not require an account and does not operate an application server. The app contains no advertising, analytics, telemetry, social tracking or in-app purchase SDK. We do not receive a copy of your wallpaper searches or files.
+Auroro has no account, app server, advertising, analytics or telemetry. Searches and local wallpaper data are not sent to Auroro.
 
 ## Network requests
 
-When you use a source, your device connects directly to that source over HTTPS:
+When you browse, search, open a source page or download an image, your device connects directly to the selected provider or the image host:
 
-- **Wallhaven:** the public SFW API at `wallhaven.cc` and its published thumbnail/original image hosts. Searches, pagination, source-page opens and image downloads are visible to Wallhaven from your network address as described by Wallhaven's own policies.
-- **Wallpaper Abyss:** `api.alphacoders.com` and Alpha Coders image hosts only if you add your own API key and use this source. Requests use the API key you supplied. The key is encrypted on this device with AndroidKeyStore AES-GCM and is not included in Auroro's source, APK build configuration or backups. Alpha Coders handles API request data under its terms.
-- **Unsplash:** Auroro makes no Unsplash API or image request. If you choose the browser handoff, the external browser opens Unsplash, which is then governed by Unsplash's own privacy policy. Referral parameters are included on the official-site link.
+- **Wallhaven:** the public SFW API and Wallhaven's published image hosts. Search terms, filters, pagination and image requests are visible to Wallhaven from your network address under its policies.
+- **Openverse:** `api.openverse.org` for anonymous image search, followed by the third-party media host and original source page named in a result. Auroro sends no Openverse API key, OAuth secret or bearer token. Openverse and image/source hosts may receive standard request data such as your IP address, requested URL, time and user agent. Their own privacy policies and terms apply.
 
-Image thumbnail and original URLs are served by the relevant publisher. Android/Coil keeps a bounded **temporary** image cache in the app cache directory; it is not displayed as an offline download. You can clear it in Settings. A source may log standard web request data (such as IP address, requested URL, time and user agent); Auroro does not control publisher retention.
+Openverse indexes works hosted by third parties. It does not verify every work's licence claim; inspect the original source page and licence before reuse. Auroro retains and displays available creator, source and licence metadata, but does not guarantee its completeness or accuracy.
 
-## Data stored on your device
+Image responses may be held in a bounded temporary HTTP/image cache in app cache storage. That cache is disposable and is not an Offline download. You can clear it in Settings. Original files you save are separate.
 
-Room stores wallpaper source IDs and page/image URLs, metadata, favorites, collection membership, recent viewing history, and download status/file references. DataStore stores display, filter, source and download preferences. These are used only to provide the features in the app. They are not synced to an Auroro server.
+## Data on your device
 
-The optional Alpha Coders key is encrypted using a device-bound AndroidKeyStore key. If app data is moved to another device, the key cannot be decrypted and is discarded; re-enter it on the new device.
+Room stores wallpaper identifiers, image/source URLs, available metadata and licence information, favorites, collections, viewing history, and download status plus local file references. DataStore stores settings such as appearance, aspect tolerance, enabled providers, cache size and download preferences. These records are used by the app and are not synced to an Auroro server. Provider query pacing is also stored locally so it can continue across process restarts.
 
-Original downloads are saved to `Pictures/Auroro Wallpapers` through Android MediaStore by default, where other apps such as Gallery can access them. You may choose private app storage instead; Android removes those private files if the app is uninstalled. The app does not request broad shared-storage permissions.
+By default, downloads are saved through Android MediaStore to `Pictures/Auroro Wallpapers` and remain in Gallery until you delete them. You can instead save privately in app storage; Android removes those files if Auroro is uninstalled. App backup is disabled. Clearing the temporary image cache does not delete saved downloads.
 
-Android app data backup is disabled. Favorites, settings and collection metadata are local and do not transfer through Auroro cloud backup.
+## Permissions
 
-## Permissions and notifications
+- `INTERNET` and `ACCESS_NETWORK_STATE` support provider requests and network status.
+- `SET_WALLPAPER` is used when you choose to set a wallpaper, or if you explicitly enable Set after download.
+- `POST_NOTIFICATIONS` is requested if you enable download notifications; downloads can continue when notifications are denied.
+- Foreground-service permissions support a user-started background download.
 
-- `INTERNET` and `ACCESS_NETWORK_STATE` are used for supported provider requests and useful offline/network error handling.
-- `SET_WALLPAPER` is used only after you choose **Set wallpaper** (or enable the optional set-after-download setting).
-- `POST_NOTIFICATIONS` is requested only if you enable download notifications. Downloads still work if notifications are denied.
-- Foreground-service permission is used by WorkManager for an active, user-started wallpaper download.
+Auroro does not request location, camera, microphone, contacts or broad shared-storage permissions.
 
-No contacts, location, camera, microphone, advertising ID, or unrelated device permission is requested.
+## Deleting data
 
-## Retention and deletion
+Favorites, collections and history can be managed in the app. Completed downloads can be deleted from Offline; Android may prevent deletion of a file the app no longer controls. Uninstalling removes app-private files, database and preferences. MediaStore downloads in Pictures remain until deleted in Gallery or Android storage settings.
 
-Favorites, collections, history and download records can be managed in the app. Deleting a completed download removes its saved file when Android permits it. Clearing the image cache does not delete originals. Uninstalling removes app-private files and app database/preferences; MediaStore downloads in Pictures remain until you delete them in Gallery or Android storage settings.
+## Contact and provider policies
 
-## Changes and contact
+For a privacy question or correction, open an issue in the project repository: <https://github.com/Nazatric/Aurora-Wallpapers/issues>.
 
-This notice may change as the app changes. Review the privacy notice shipped with the source at the version you install. For a privacy question or correction to this notice, open an issue in the project repository: <https://github.com/Nazatric/Aurora-Wallpapers/issues>.
-
-Publisher privacy policies: <https://wallhaven.cc/privacy-policy>, <https://alphacoders.com/privacy> and <https://unsplash.com/privacy>.
+- Wallhaven privacy policy: <https://wallhaven.cc/privacy-policy>
+- Openverse API documentation and terms: <https://api.openverse.org/v1/> · <https://docs.openverse.org/terms_of_service.html>

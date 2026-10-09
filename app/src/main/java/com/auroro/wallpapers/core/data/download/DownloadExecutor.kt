@@ -1,9 +1,6 @@
 package com.auroro.wallpapers.core.data.download
 
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.os.StatFs
-import com.auroro.wallpapers.core.data.DownloadQuality
 import com.auroro.wallpapers.core.data.SaveLocation
 import com.auroro.wallpapers.core.data.SettingsRepository
 import com.auroro.wallpapers.core.data.WallpaperStore
@@ -12,6 +9,7 @@ import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.model.Format
 import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.UrlPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +33,7 @@ import java.net.UnknownHostException
 enum class DownloadErrorKind(val label: String) {
     NOT_FOUND("Missing metadata"),
     BLOCKED_URL("Blocked URL"),
+    LICENSE_RESTRICTED("Licence restrictions"),
     HTTP("Server error"),
     RATE_LIMITED("Rate limited"),
     AUTH("Access denied"),
@@ -44,6 +43,7 @@ enum class DownloadErrorKind(val label: String) {
     INTERRUPTED("Interrupted"),
     STORAGE_FULL("Not enough storage"),
     SAVE_FAILED("Couldn't save"),
+    TOO_LARGE("Image exceeds download limit"),
     UNKNOWN("Failed"),
 }
 
@@ -51,21 +51,20 @@ class DownloadFailure(val kind: DownloadErrorKind, message: String) : Exception(
 
 /**
  * The actual download pipeline, independent of WorkManager so it can be unit-tested:
- * resolve URL → stream to a temp file with real progress → validate the image → optional downscale →
- * save via the chosen [MediaSaver] → record metadata. Temp files are always cleaned up.
+ * resolve the original URL → stream to a temp file with real progress → validate the image →
+ * save the exact downloaded bytes via the chosen [MediaSaver] → record metadata. Temp files are always cleaned up.
  */
 class DownloadExecutor(
     private val tempDir: File,
     private val db: AppDatabase,
     private val store: WallpaperStore,
     private val settings: SettingsRepository,
-    private val client: OkHttpClient,
+    private val clientForSource: (WallpaperSource) -> OkHttpClient,
     private val saver: (SaveLocation) -> MediaSaver,
-    private val screenLongEdge: () -> Int,
     private val applier: WallpaperApplier? = null,
     private val notifier: DownloadNotifier? = null,
-    /** Overridden only by isolated mock-HTTP tests; production always uses the strict provider allow-list. */
-    private val urlAllowed: (String) -> Boolean = UrlPolicy::isAllowedForNetwork,
+    /** Overridden only by isolated mock-HTTP tests; production validates each provider's asset URLs. */
+    private val urlAllowed: (WallpaperSource, String) -> Boolean = UrlPolicy::isAllowedForNetwork,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     /** @return true when the file was saved. Rethrows [CancellationException] after recording CANCELED. */
@@ -76,18 +75,25 @@ class DownloadExecutor(
             fail(key, "Wallpaper", DownloadFailure(DownloadErrorKind.NOT_FOUND, "Wallpaper details are missing. Open it again and retry."))
             return false
         }
-        val title = "${wallpaper.source.displayName} #${wallpaper.sourceId}"
+        val title = wallpaper.title?.takeIf(String::isNotBlank) ?: "${wallpaper.source.displayName} #${wallpaper.sourceId}"
+        if (!wallpaper.downloadAllowed) {
+            fail(key, title, DownloadFailure(DownloadErrorKind.LICENSE_RESTRICTED, "This image's licence or original URL doesn't permit a direct download in Auroro."))
+            return false
+        }
+        if (!urlAllowed(wallpaper.source, wallpaper.originalUrl)) {
+            fail(key, title, DownloadFailure(DownloadErrorKind.BLOCKED_URL, "This image's address isn't an approved secure URL, so it was not downloaded."))
+            return false
+        }
         val prefs = settings.current()
         val base = dao.get(key) ?: DownloadEntity(key, DownloadStatus.QUEUED.name, createdAt = clock())
         dao.upsert(base.copy(status = DownloadStatus.RUNNING.name, bytesDownloaded = 0, totalBytes = -1, errorKind = null, errorMessage = null))
 
         tempDir.mkdirs()
         val part = File(tempDir, safeName(key) + ".part")
-        var scaled: File? = null
         try {
             part.delete()
             var lastDb = 0L
-            val total = fetch(wallpaper.originalUrl, part) { bytes, tot ->
+            val total = fetch(wallpaper.source, wallpaper.originalUrl, part) { bytes, tot ->
                 val t = clock()
                 if (t - lastDb >= 300 || bytes == tot) {
                     lastDb = t
@@ -97,27 +103,37 @@ class DownloadExecutor(
             }
             currentCoroutineContext().ensureActive()
 
+            if (total <= 0) ensureSpace(part, total = -1, downloaded = part.length())
             val info = ImageValidator.inspect(part)
                 ?: throw DownloadFailure(DownloadErrorKind.INVALID_IMAGE, "The server didn't return a valid JPEG, PNG or WebP image.")
 
-            var toSave = part
-            var mime = info.mime
-            var outW = info.width
-            var outH = info.height
-            if (prefs.downloadQuality == DownloadQuality.SCREEN_FIT) {
-                Downscaler.plan(info.width, info.height, screenLongEdge() * 2)?.let { (nw, nh) ->
-                    val out = File(tempDir, safeName(key) + ".scaled")
-                    scaled = out
-                    mime = downscale(part, out, info.mime, nw, nh)
-                    toSave = out
-                    outW = nw
-                    outH = nh
-                }
-            }
-
+            val mime = info.mime
             val name = fileNameFor(wallpaper, mime)
+            val description = buildString {
+                val attribution = wallpaper.attribution?.takeIf(String::isNotBlank)
+                if (attribution != null) {
+                    append(attribution)
+                } else {
+                    val contributor = when (wallpaper.source) {
+                        WallpaperSource.OPENVERSE -> wallpaper.creatorName?.let { "Creator: $it" }
+                        WallpaperSource.WALLHAVEN -> wallpaper.creatorName?.let { "Uploader: $it" }
+                        WallpaperSource.ARCHIVED -> null
+                    }
+                    listOfNotNull(wallpaper.title, contributor)
+                        .takeIf { it.isNotEmpty() }
+                        ?.joinToString(" · ")
+                        ?.let { append(it) }
+                }
+                if (isNotEmpty()) append('\n')
+                append("Source: ").append(wallpaper.pageUrl)
+                wallpaper.licenseCode?.let { code ->
+                    append("\nLicence: ").append(code)
+                    wallpaper.licenseVersion?.let { append(' ').append(it) }
+                    wallpaper.licenseUrl?.let { append("\nLicence terms: ").append(it) }
+                }
+            }.take(2_000)
             val saved = try {
-                saver(prefs.saveLocation).save(toSave, name, mime)
+                saver(prefs.saveLocation).save(part, name, mime, description)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: IOException) {
@@ -140,10 +156,10 @@ class DownloadExecutor(
                     fileName = saved.fileName,
                     mimeType = mime,
                     savedSizeBytes = saved.sizeBytes,
-                    savedWidth = outW,
-                    savedHeight = outH,
+                    savedWidth = info.width,
+                    savedHeight = info.height,
                     storage = prefs.saveLocation.name,
-                    quality = prefs.downloadQuality.name,
+                    quality = "ORIGINAL",
                     errorKind = null,
                     errorMessage = null,
                     completedAt = clock(),
@@ -152,9 +168,13 @@ class DownloadExecutor(
 
             var note: String? = null
             if (prefs.setAfterDownload && applier != null) {
-                note = when (val r = applier.apply(saved.uri, ApplyTarget.BOTH)) {
-                    ApplyResult.Success -> "Saved and set as wallpaper"
-                    is ApplyResult.Failure -> "Saved, but couldn't set it: ${r.message}"
+                note = if (!wallpaper.setWallpaperAllowed) {
+                    "Saved, but this image's licence doesn't permit setting it as a wallpaper."
+                } else {
+                    when (val r = applier.apply(saved.uri, ApplyTarget.BOTH)) {
+                        ApplyResult.Success -> "Saved and set as wallpaper"
+                        is ApplyResult.Failure -> "Saved, but couldn't set it: ${r.message}"
+                    }
                 }
             }
             notifier?.completed(key, title, note)
@@ -173,7 +193,6 @@ class DownloadExecutor(
         } finally {
             withContext(NonCancellable) {
                 part.delete()
-                scaled?.delete()
             }
         }
     }
@@ -186,11 +205,11 @@ class DownloadExecutor(
     }
 
     /** Streams [url] into [dest]. Returns Content-Length (or -1). Cancels the HTTP call when the coroutine is cancelled. */
-    private suspend fun fetch(url: String, dest: File, onProgress: suspend (Long, Long) -> Unit): Long = coroutineScope {
-        if (!urlAllowed(url)) {
-            throw DownloadFailure(DownloadErrorKind.BLOCKED_URL, "This image's address isn't on the allowed provider list, so it was not downloaded.")
+    private suspend fun fetch(source: WallpaperSource, url: String, dest: File, onProgress: suspend (Long, Long) -> Unit): Long = coroutineScope {
+        if (!urlAllowed(source, url)) {
+            throw DownloadFailure(DownloadErrorKind.BLOCKED_URL, "This image's address isn't an approved secure URL, so it was not downloaded.")
         }
-        val call = client.newCall(Request.Builder().url(url).header("Accept", "image/*").build())
+        val call = clientForSource(source).newCall(Request.Builder().url(url).header("Accept", "image/*").build())
         // A blocking socket read can't observe coroutine cancellation, so a watcher cancels the call instead.
         val watcher = launch(Dispatchers.Default) {
             try {
@@ -231,8 +250,12 @@ class DownloadExecutor(
                 throw DownloadFailure(DownloadErrorKind.INVALID_IMAGE, "The server returned $type instead of an image.")
             }
             val total = body.contentLength()
+            if (total > MAX_DOWNLOAD_BYTES) {
+                throw DownloadFailure(DownloadErrorKind.TOO_LARGE, "This original exceeds Auroro's ${Format.fileSize(MAX_DOWNLOAD_BYTES)} download limit.")
+            }
             ensureSpace(dest, total)
             var downloaded = 0L
+            var nextUnknownLengthCheck = UNKNOWN_SIZE_SPACE_CHECK_BYTES
             body.byteStream().use { input ->
                 dest.outputStream().buffered(64 * 1024).use { out ->
                     val buf = ByteArray(64 * 1024)
@@ -240,8 +263,16 @@ class DownloadExecutor(
                         ctx.ensureActive()
                         val n = input.read(buf)
                         if (n < 0) break
+                        if (downloaded + n > MAX_DOWNLOAD_BYTES) {
+                            throw DownloadFailure(DownloadErrorKind.TOO_LARGE, "This original exceeds Auroro's ${Format.fileSize(MAX_DOWNLOAD_BYTES)} download limit.")
+                        }
+                        val nextDownloaded = downloaded + n
+                        if (total <= 0 && nextDownloaded >= nextUnknownLengthCheck) {
+                            ensureSpace(dest, total = nextDownloaded, downloaded = downloaded)
+                            nextUnknownLengthCheck += UNKNOWN_SIZE_SPACE_CHECK_BYTES
+                        }
                         out.write(buf, 0, n)
-                        downloaded += n
+                        downloaded = nextDownloaded
                         onProgress(downloaded, total)
                     }
                 }
@@ -253,41 +284,15 @@ class DownloadExecutor(
         }
     }
 
-    private fun ensureSpace(dest: File, total: Long) {
+    private fun ensureSpace(dest: File, total: Long, downloaded: Long = 0) {
         val dir = dest.parentFile ?: return
         val available = runCatching { StatFs(dir.path).availableBytes }.getOrDefault(Long.MAX_VALUE)
-        // Need room for the temp copy and the final copy, plus a safety margin.
-        val needed = if (total > 0) total * 2 + SAFETY_MARGIN else SAFETY_MARGIN * 4
+        val needed = requiredSpaceBytes(total, downloaded)
         if (available < needed) {
             throw DownloadFailure(
                 DownloadErrorKind.STORAGE_FULL,
                 "Not enough free storage: need about ${Format.fileSize(needed)}, have ${Format.fileSize(available)}.",
             )
-        }
-    }
-
-    /** Memory-safe downscale: ImageDecoder decodes straight to the target size. Returns the output MIME type. */
-    private suspend fun downscale(src: File, dst: File, mime: String, w: Int, h: Int): String = withContext(Dispatchers.IO) {
-        try {
-            val bmp = ImageDecoder.decodeBitmap(ImageDecoder.createSource(src)) { decoder, _, _ ->
-                decoder.setTargetSize(w, h)
-                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
-            }
-            try {
-                val png = mime == "image/png"
-                dst.outputStream().buffered().use { out ->
-                    if (!bmp.compress(if (png) Bitmap.CompressFormat.PNG else Bitmap.CompressFormat.JPEG, 95, out)) {
-                        throw IOException("Encoding failed")
-                    }
-                }
-                if (png) "image/png" else "image/jpeg"
-            } finally {
-                bmp.recycle()
-            }
-        } catch (e: IOException) {
-            throw e
-        } catch (e: OutOfMemoryError) {
-            throw DownloadFailure(DownloadErrorKind.STORAGE_FULL, "Not enough memory to downscale this image. Use the Original quality setting.")
         }
     }
 
@@ -297,7 +302,18 @@ class DownloadExecutor(
     }
 
     companion object {
+        const val MAX_DOWNLOAD_BYTES = 512L * 1024 * 1024
         private const val SAFETY_MARGIN = 16L * 1024 * 1024
+        private const val UNKNOWN_SIZE_SPACE_CHECK_BYTES = 8L * 1024 * 1024
+
+        internal fun requiredSpaceBytes(total: Long, downloaded: Long): Long = when {
+            total > 0 -> {
+                val alreadyWritten = downloaded.coerceIn(0, total)
+                (total - alreadyWritten) + total + SAFETY_MARGIN
+            }
+            downloaded > 0 -> downloaded + SAFETY_MARGIN
+            else -> SAFETY_MARGIN * 4
+        }
 
         fun fileNameFor(w: Wallpaper, mime: String): String =
             "auroro_${w.source.id}_${safeName(w.sourceId)}.${Format.extensionForMime(mime)}"

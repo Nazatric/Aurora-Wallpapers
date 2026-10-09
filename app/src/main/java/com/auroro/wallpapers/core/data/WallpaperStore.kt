@@ -69,6 +69,15 @@ object WallpaperMapper {
         favorites = w.favorites,
         originSourceUrl = w.originSourceUrl,
         updatedAt = now,
+        title = w.title,
+        attribution = w.attribution,
+        licenseCode = w.licenseCode,
+        licenseVersion = w.licenseVersion,
+        licenseUrl = w.licenseUrl,
+        providerName = w.providerName,
+        catalogSource = w.catalogSource,
+        downloadAllowed = w.downloadAllowed,
+        setWallpaperAllowed = w.setWallpaperAllowed,
     )
 
     fun toModel(e: WallpaperEntity): Wallpaper? {
@@ -96,6 +105,15 @@ object WallpaperMapper {
             views = e.views,
             favorites = e.favorites,
             originSourceUrl = e.originSourceUrl,
+            title = e.title,
+            attribution = e.attribution,
+            licenseCode = e.licenseCode,
+            licenseVersion = e.licenseVersion,
+            licenseUrl = e.licenseUrl,
+            providerName = e.providerName,
+            catalogSource = e.catalogSource,
+            downloadAllowed = e.downloadAllowed,
+            setWallpaperAllowed = e.setWallpaperAllowed,
         )
     }
 }

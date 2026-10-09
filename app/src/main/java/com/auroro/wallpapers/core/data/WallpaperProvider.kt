@@ -32,13 +32,6 @@ data class ProviderPage(
 /** Why a source is (not) usable right now. */
 sealed interface SourceAvailability {
     data object Available : SourceAvailability
-
-    /** Works once the user supplies something (e.g. their own API key). */
-    data class NeedsConfiguration(val reason: String, val handoffUrl: String? = null) : SourceAvailability
-
-    /** Not usable because the publisher's terms don't allow it for this kind of app. */
-    data class BlockedByPolicy(val reason: String, val handoffUrl: String? = null) : SourceAvailability
-
     data class DisabledByUser(val reason: String = "Turned off in Settings") : SourceAvailability
 }
 
@@ -50,8 +43,11 @@ interface WallpaperProvider {
     val source: WallpaperSource
     val capabilities: ProviderCapabilities
 
-    /** Current availability; may depend on user configuration. */
+    /** Current availability; may depend on a source toggle. */
     suspend fun availability(): SourceAvailability
+
+    /** Pagination budget for one explicit feed load. Conservative sources can opt into one page at a time. */
+    fun maxPagesPerLoad(request: FeedRequest): Int = 4
 
     /**
      * Explains why this provider can't serve [request] (e.g. unsupported sort), or null if it can.

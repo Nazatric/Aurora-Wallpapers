@@ -71,6 +71,7 @@ import com.auroro.wallpapers.core.design.SourceGlyph
 import com.auroro.wallpapers.core.model.AspectMath
 import com.auroro.wallpapers.core.model.Format
 import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.data.download.WallpaperCapabilities
 import com.auroro.wallpapers.feature.home.WallpaperTile
 import com.auroro.wallpapers.core.network.UrlPolicy
@@ -104,6 +105,8 @@ fun WallpaperDetailScreen(
     var showApply by remember(wallpaper.key) { mutableStateOf(false) }
     var previewFailed by remember(wallpaper.key, localPreviewUri) { mutableStateOf(false) }
     val isSaved = download?.status == DownloadStatus.COMPLETED.name && localPreviewUri != null
+    val hasOriginalForApply = wallpaper.downloadAllowed || localPreviewUri != null
+    val canApplyThisWallpaper = canSetWallpaper && wallpaper.setWallpaperAllowed && hasOriginalForApply
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f).fillMaxWidth().background(Color(0xFF020912))) {
@@ -151,7 +154,12 @@ fun WallpaperDetailScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(wallpaper.category ?: wallpaper.tags.firstOrNull()?.name ?: "Wallpaper", style = MaterialTheme.typography.labelLarge, color = Color.White)
                 }
-                if (wallpaper.creatorName != null) Text("Uploaded by ${wallpaper.creatorName}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .82f))
+                val contributorLabel = when (wallpaper.source) {
+                    WallpaperSource.OPENVERSE -> wallpaper.creatorName?.let { "Creator · $it" }
+                    WallpaperSource.WALLHAVEN -> wallpaper.creatorName?.let { "Uploader · $it" }
+                    WallpaperSource.ARCHIVED -> null
+                }
+                contributorLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = .82f)) }
             }
         }
 
@@ -163,8 +171,22 @@ fun WallpaperDetailScreen(
             Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
                     ActionPill("Favorite", Icons.Rounded.Favorite, favorite, onFavorite, if (favorite) Color(0xFFFF93A4) else Aero.colors.accent)
-                    ActionPill(if (isSaved) "Saved" else "Download", if (isSaved) Icons.Rounded.CheckCircle else Icons.Rounded.CloudDownload, isSaved, { onDownload(wallpaper) }, Aero.colors.accent)
-                    ActionPill("Set wallpaper", Icons.Rounded.Wallpaper, false, { showApply = true }, if (canSetWallpaper) Aero.colors.accent else Aero.colors.textTertiary, enabled = canSetWallpaper)
+                    ActionPill(
+                        if (isSaved) "Saved" else "Download",
+                        if (isSaved) Icons.Rounded.CheckCircle else Icons.Rounded.CloudDownload,
+                        isSaved,
+                        { onDownload(wallpaper) },
+                        if (wallpaper.downloadAllowed) Aero.colors.accent else Aero.colors.textTertiary,
+                        enabled = wallpaper.downloadAllowed,
+                    )
+                    ActionPill(
+                        "Set wallpaper",
+                        Icons.Rounded.Wallpaper,
+                        false,
+                        { showApply = true },
+                        if (canApplyThisWallpaper) Aero.colors.accent else Aero.colors.textTertiary,
+                        enabled = canApplyThisWallpaper,
+                    )
                     ActionPill("Collection", Icons.Rounded.BookmarkAdd, false, { onAddToCollection(wallpaper) }, Aero.colors.accent)
                     ActionPill("Share", Icons.Rounded.Share, false, { onShare(wallpaper) }, Aero.colors.accent)
                 }
@@ -176,6 +198,43 @@ fun WallpaperDetailScreen(
                 }
                 if (download?.status == DownloadStatus.FAILED.name) {
                     Text(download.errorMessage ?: "Download failed.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.error)
+                }
+                if (!wallpaper.downloadAllowed) {
+                    val message = if (wallpaper.source == WallpaperSource.ARCHIVED) {
+                        "This saved item is from a source no longer integrated; Auroro won't fetch it again."
+                    } else {
+                        "Direct download is unavailable because this licence or file format is not verified here. Review the source page."
+                    }
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                }
+                when (wallpaper.source) {
+                    WallpaperSource.OPENVERSE -> {
+                        val credit = wallpaper.attribution?.takeIf(String::isNotBlank) ?: buildString {
+                            wallpaper.creatorName?.let { append("Creator: ").append(it) }
+                            wallpaper.licenseCode?.let { code ->
+                                if (isNotEmpty()) append(" · ")
+                                append("Licence: ").append(code)
+                                wallpaper.licenseVersion?.let { append(' ').append(it) }
+                            }
+                        }
+                        if (credit.isNotBlank()) Text(credit, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text("Made using Openverse; not endorsed or certified by Openverse.", style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
+                    }
+                    WallpaperSource.WALLHAVEN -> Text(
+                        "Uploader names aren't necessarily creators. Image rights remain with the original owner; review the source page before reuse.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.textTertiary,
+                    )
+                    WallpaperSource.ARCHIVED -> Unit
+                }
+                if (wallpaper.downloadAllowed && !wallpaper.setWallpaperAllowed) {
+                    Text("This licence does not allow adaptations; Auroro won't crop or set this image as wallpaper.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                }
+                if (wallpaper.setWallpaperAllowed && !canSetWallpaper && setUnavailableReason != null) {
+                    Text(setUnavailableReason, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
+                }
+                if (wallpaper.setWallpaperAllowed && !hasOriginalForApply) {
+                    Text("A saved original is required to set this image; a new download isn't available.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(if (showInfo) "Less about this wallpaper" else "About this wallpaper", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary, modifier = Modifier.weight(1f))
@@ -199,6 +258,29 @@ fun WallpaperDetailScreen(
                                 Spacer(Modifier.width(5.dp)); Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent)
                             }
                         }
+                        if (wallpaper.source == WallpaperSource.OPENVERSE) {
+                            wallpaper.attribution?.let { attribution ->
+                                Text(attribution, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                            }
+                            wallpaper.licenseCode?.let { code ->
+                                val licence = buildString {
+                                    append(code)
+                                    wallpaper.licenseVersion?.let { append(" ").append(it) }
+                                }
+                                Text("Licence · $licence", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                            }
+                            wallpaper.licenseUrl?.takeIf(UrlPolicy::isAllowedForBrowsing)?.let { licenceUrl ->
+                                TextButton(onClick = { onOpenSource(licenceUrl) }) {
+                                    Text("Read licence terms", color = Aero.colors.accent)
+                                    Spacer(Modifier.width(5.dp)); Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent)
+                                }
+                            }
+                            wallpaper.providerName?.let { Text("Indexed provider · $it", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary) }
+                            wallpaper.catalogSource?.takeIf { it != wallpaper.providerName }?.let {
+                                Text("Catalogue source · $it", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                            }
+                            Text("Openverse indexes third-party works; metadata and licence claims may need confirmation on the source page.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
+                        }
                         wallpaper.createdAt?.let { Text("Added · $it", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary) }
                         wallpaper.colors.takeIf { it.isNotEmpty() }?.let { Text("Colors · ${it.joinToString("  ")}", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary) }
                         if (wallpaper.tags.isNotEmpty()) {
@@ -207,10 +289,10 @@ fun WallpaperDetailScreen(
                             }
                         }
                         if (wallpaper.originSourceUrl != null && UrlPolicy.isAllowedForBrowsing(wallpaper.originSourceUrl)) {
-                            TextButton(onClick = { onOpenSource(wallpaper.originSourceUrl) }) { Text("Open creator's original link", color = Aero.colors.accent); Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent) }
+                            TextButton(onClick = { onOpenSource(wallpaper.originSourceUrl) }) { Text("Open source-provided link", color = Aero.colors.accent); Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent) }
                         }
                         TextButton(onClick = { onOpenSource(wallpaper.pageUrl) }) {
-                            Text("View on ${wallpaper.source.displayName}", color = Aero.colors.accent)
+                            Text("View source page", color = Aero.colors.accent)
                             Spacer(Modifier.width(5.dp)); Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent)
                         }
                     }
@@ -280,7 +362,7 @@ fun ApplyTargetDialog(enabled: Boolean, unavailableReason: String?, onDismiss: (
         title = { Text("Set wallpaper", color = Aero.colors.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Auroro downloads the original image first, then opens Android's wallpaper system with this crop.", style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textSecondary)
+                Text("Auroro uses the saved original, downloading it if needed, then applies this crop with Android's wallpaper service.", style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textSecondary)
                 if (!enabled) Text(unavailableReason ?: "Changing wallpaper is unavailable on this device.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.error)
             }
         },
@@ -299,8 +381,25 @@ fun ApplyTargetDialog(enabled: Boolean, unavailableReason: String?, onDismiss: (
 }
 
 fun shareWallpaper(context: android.content.Context, w: Wallpaper) {
-    val attribution = if (w.creatorName != null) "Photo by ${w.creatorName} · ${w.source.displayName}" else w.source.displayName
-    val text = "$attribution\n${w.pageUrl}"
+    val text = buildString {
+        val attribution = w.attribution?.takeIf(String::isNotBlank)
+        if (attribution != null) {
+            append(attribution)
+        } else {
+            when (w.source) {
+                WallpaperSource.OPENVERSE -> append(w.creatorName?.let { "Creator: $it · Openverse" } ?: "Openverse image")
+                WallpaperSource.WALLHAVEN -> append(w.creatorName?.let { "Uploaded by $it · Wallhaven" } ?: "Wallhaven wallpaper")
+                WallpaperSource.ARCHIVED -> append("Saved wallpaper")
+            }
+        }
+        append("\nSource: ").append(w.pageUrl)
+        w.licenseCode?.let { code ->
+            append("\nLicence: ").append(code)
+            w.licenseVersion?.let { append(' ').append(it) }
+            w.licenseUrl?.takeIf(UrlPolicy::isAllowedForBrowsing)?.let { append("\nLicence terms: ").append(it) }
+        }
+        if (w.source == WallpaperSource.OPENVERSE) append("\nMade using Openverse; not endorsed or certified by Openverse.")
+    }
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, "Wallpaper from ${w.source.displayName}")

@@ -18,13 +18,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.RemoveRedEye
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -79,13 +77,16 @@ fun CropScreen(
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     var fileExists by remember(download?.localUri) { mutableStateOf(false) }
+    val canApplyWallpaper = wallpaper?.setWallpaperAllowed != false
     LaunchedEffect(download?.localUri, download?.status) {
         fileExists = withContext(Dispatchers.IO) {
             download?.status == DownloadStatus.COMPLETED.name && LocalFiles.exists(context, download.localUri)
         }
     }
     LaunchedEffect(wallpaper?.key, fileExists, download?.status) {
-        if (!fileExists && wallpaper != null && download?.status != DownloadStatus.RUNNING.name && download?.status != DownloadStatus.QUEUED.name) {
+        if (!fileExists && wallpaper != null && wallpaper.downloadAllowed && wallpaper.setWallpaperAllowed &&
+            download?.status != DownloadStatus.RUNNING.name && download?.status != DownloadStatus.QUEUED.name
+        ) {
             onEnsureDownload(wallpaper)
         }
     }
@@ -98,14 +99,15 @@ fun CropScreen(
                 Text("Preview & crop", style = MaterialTheme.typography.titleLarge, color = Aero.colors.textPrimary)
                 Text("${target.label} · drag to pan, pinch to zoom", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
             }
-            GlassIconButton(onClick = { }, description = "Crop preview", icon = Icons.Rounded.CenterFocusStrong, tint = Aero.colors.accent)
         }
 
         val localUri = download?.localUri?.takeIf { fileExists }
         if (localUri == null) {
             Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                when (download?.status) {
-                    DownloadStatus.FAILED.name -> {
+                when {
+                    wallpaper?.setWallpaperAllowed == false -> Text("This licence does not allow an adapted crop. Wallpaper setting is disabled.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                    wallpaper?.downloadAllowed == false -> Text("Auroro cannot download this original under its reported licence or file type.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                    download?.status == DownloadStatus.FAILED.name -> {
                         Text("Couldn't prepare the original image", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
                         Text(download.errorMessage ?: "Download failed.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.error)
                         TextButton(onClick = { wallpaper?.let { onRetry(it.key) } }) { Text("Retry download", color = Aero.colors.accent) }
@@ -185,9 +187,13 @@ fun CropScreen(
                         valueRange = 1f..4f,
                         colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Aero.colors.accent, activeTrackColor = Aero.colors.accent),
                     )
+                    if (!canApplyWallpaper) {
+                        Text("This licence does not permit an adapted wallpaper crop.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                    }
                     Button(
-                        onClick = { onApply(localUri, target, crop) },
+                        onClick = { if (canApplyWallpaper) onApply(localUri, target, crop) },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = canApplyWallpaper,
                     ) {
                         Icon(Icons.Rounded.Wallpaper, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))

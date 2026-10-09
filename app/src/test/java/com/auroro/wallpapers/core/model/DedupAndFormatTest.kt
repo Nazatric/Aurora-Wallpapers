@@ -11,10 +11,10 @@ class DedupAndFormatTest {
     @Test fun deduplicatesByStableProviderIdAndCanonicalUrlOnly() {
         val a = wallpaper(id = "abc123", original = "https://w.wallhaven.cc/full/ab/file.jpg?size=large#x")
         val sameUrl = wallpaper(
-            source = WallpaperSource.ABYSS,
+            source = WallpaperSource.OPENVERSE,
             id = "778899",
             original = "https://www.w.wallhaven.cc/full/ab/file.jpg?token=other",
-            page = "https://wall.alphacoders.com/big.php?i=778899",
+            page = "https://openverse.org/image/778899",
         )
         val visuallySimilarButDistinct = wallpaper(id = "def456", original = "https://w.wallhaven.cc/full/de/another.jpg")
         val dedup = Deduplicator()
@@ -30,16 +30,17 @@ class DedupAndFormatTest {
         assertEquals("wallhaven.cc/w/abc123", Deduplicator.canonicalUrl("https://www.wallhaven.cc/w/abc123?x=1#y"))
         assertEquals("w.wallhaven.cc/file.jpg", Deduplicator.canonicalUrl("https://w.wallhaven.cc/file.jpg"))
         assertEquals(
-            "wall.alphacoders.com/big.php?i=123",
-            Deduplicator.canonicalUrl("https://wall.alphacoders.com/big.php?i=123&utm_source=example"),
+            "openverse.org/image?id=123",
+            Deduplicator.canonicalUrl("https://openverse.org/image?id=123&utm_source=example"),
         )
-        assertEquals("wall.alphacoders.com/big.php?i=124", Deduplicator.canonicalUrl("https://wall.alphacoders.com/big.php?i=124"))
+        assertEquals("openverse.org/image?id=124", Deduplicator.canonicalUrl("https://openverse.org/image?id=124"))
         assertNull(Deduplicator.canonicalUrl("not a url"))
     }
 
     @Test fun providerIdsIncludeSourceNamespace() {
-        assertNotEquals(Wallpaper.keyOf(WallpaperSource.WALLHAVEN, "1"), Wallpaper.keyOf(WallpaperSource.ABYSS, "1"))
+        assertNotEquals(Wallpaper.keyOf(WallpaperSource.WALLHAVEN, "1"), Wallpaper.keyOf(WallpaperSource.OPENVERSE, "1"))
         assertEquals(WallpaperSource.WALLHAVEN, Wallpaper.sourceOfKey("wallhaven:abc123"))
+        assertEquals(WallpaperSource.OPENVERSE, Wallpaper.sourceOfKey("openverse:abc123"))
         assertEquals("abc123", Wallpaper.idOfKey("wallhaven:abc123"))
     }
 

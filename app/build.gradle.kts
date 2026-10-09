@@ -5,8 +5,7 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-// Provider credentials are entered into the app and stored encrypted by AndroidKeyStore.
-// Signing values are read from environment variables only; no key material is committed.
+// Release signing values are read from environment variables only; no key material is committed.
 fun config(name: String): String = System.getenv(name)?.trim().orEmpty()
 
 android {
@@ -124,6 +123,7 @@ dependencies {
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.androidx.sqlite.framework)
     testImplementation(libs.androidx.work.testing)
     testImplementation(libs.okhttp)
     testImplementation(libs.mockwebserver)

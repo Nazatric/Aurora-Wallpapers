@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Optional live smoke checks for upstreams. Not part of unit tests: it needs real network access.
-# It never prints the user's Alpha Coders API key. No Unsplash API request is made.
+# Optional live checks for the two integrated public APIs. Not part of unit tests.
+# Openverse is deliberately called without OAuth credentials to verify anonymous access.
 set -euo pipefail
 
 if ! command -v curl >/dev/null || ! command -v python3 >/dev/null; then
@@ -20,34 +20,38 @@ curl --fail --silent --show-error --connect-timeout 10 --max-time 25 \
   --data-urlencode 'page=1' > "$work/wallhaven.json"
 python3 - "$work/wallhaven.json" <<'PY'
 import json, sys
-body = json.load(open(sys.argv[1], encoding="utf-8"))
-assert isinstance(body.get("data"), list), "missing Wallhaven data array"
-for item in body["data"]:
+
+with open(sys.argv[1], encoding="utf-8") as file:
+    body = json.load(file)
+rows = body.get("data")
+assert isinstance(rows, list), "missing Wallhaven data array"
+for item in rows:
     assert item.get("purity") == "sfw", f"non-SFW record returned: {item.get('id')}"
     assert item.get("id") and item.get("path", "").startswith("https://w.wallhaven.cc/"), "unexpected result metadata"
-print(f"OK ({len(body['data'])} result records; SFW checked)")
+print(f"OK ({len(rows)} result records; SFW checked)")
 PY
 
-if [[ -z "${ALPHA_CODERS_API_KEY:-}" ]]; then
-  echo "Wallpaper Abyss: SKIP (set ALPHA_CODERS_API_KEY to your own active Alpha Coders subscription key)."
-else
-  printf 'Wallpaper Abyss official API: '
-  curl --fail --silent --show-error --connect-timeout 10 --max-time 25 \
-    --get 'https://api.alphacoders.com/3.0' \
-    --data-urlencode "auth=${ALPHA_CODERS_API_KEY}" \
-    --data-urlencode 'method=newest' \
-    --data-urlencode 'type=phone' \
-    --data-urlencode 'page=1' > "$work/abyss.json"
-  python3 - "$work/abyss.json" <<'PY'
+printf 'Openverse anonymous image search: '
+curl --fail --silent --show-error --connect-timeout 10 --max-time 25 \
+  --get 'https://api.openverse.org/v1/images/' \
+  --data-urlencode 'q=nature' \
+  --data-urlencode 'page=1' \
+  --data-urlencode 'page_size=3' \
+  --data-urlencode 'filter_dead=true' \
+  --data-urlencode 'mature=false' \
+  --data-urlencode 'size=medium,large' > "$work/openverse.json"
+python3 - "$work/openverse.json" <<'PY'
 import json, sys
-body = json.load(open(sys.argv[1], encoding="utf-8"))
-assert body.get("success") is True, f"Alpha Coders returned an error: {body.get('error', 'unknown')}"
-assert isinstance(body.get("wallpapers"), list), "missing wallpapers array"
-for item in body["wallpapers"]:
-    assert item.get("id") is not None
-    assert item.get("url_page", "").startswith("https://wall.alphacoders.com/")
-print(f"OK ({len(body['wallpapers'])} phone wallpaper records)")
-PY
-fi
+from urllib.parse import urlparse
 
-echo "Unsplash: SKIP by policy. The app intentionally makes no Unsplash API request; see BLOCKERS.md."
+with open(sys.argv[1], encoding="utf-8") as file:
+    body = json.load(file)
+rows = body.get("results")
+assert isinstance(rows, list), "missing Openverse results array (anonymous request may have been rejected)"
+for item in rows:
+    assert item.get("id"), "result is missing its stable id"
+    for field in ("url", "foreign_landing_url"):
+        parsed = urlparse(item.get(field, ""))
+        assert parsed.scheme == "https" and parsed.hostname, f"unsafe or missing {field}"
+print(f"OK ({len(rows)} records returned without an Authorization header)")
+PY

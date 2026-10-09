@@ -25,13 +25,25 @@ object HttpClients {
             .followRedirects(true)
             .followSslRedirects(false) // never follow an https -> http downgrade
             .addInterceptor(UserAgentInterceptor(USER_AGENT))
-            .addInterceptor(RetryInterceptor())
+            .addInterceptor(RetryInterceptor(noRetryHosts = setOf("api.openverse.org")))
             .addNetworkInterceptor(HostAllowlistInterceptor())
             .build()
     }
 
-    /** For large file downloads: no overall call timeout, but a 30 s stall timeout per read. */
-    fun downloads(base: OkHttpClient): OkHttpClient = base.newBuilder()
+    /** Coil requests use provider-validated original image URLs hosted by third-party HTTPS domains. */
+    fun images(base: OkHttpClient): OkHttpClient = base.newBuilder()
+        .apply {
+            networkInterceptors().removeAll { it is HostAllowlistInterceptor }
+            addNetworkInterceptor(HostAllowlistInterceptor(allowPublicHttpsAssets = true))
+        }
+        .build()
+
+    /** File downloads have no overall timeout, but retain a 30 s stall timeout for each read. */
+    fun downloads(base: OkHttpClient, allowPublicHttpsAssets: Boolean = false): OkHttpClient = base.newBuilder()
+        .apply {
+            networkInterceptors().removeAll { it is HostAllowlistInterceptor }
+            addNetworkInterceptor(HostAllowlistInterceptor(allowPublicHttpsAssets))
+        }
         .callTimeout(0, TimeUnit.MILLISECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()

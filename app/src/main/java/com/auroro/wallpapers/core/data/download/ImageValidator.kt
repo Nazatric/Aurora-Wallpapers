@@ -1,40 +1,53 @@
 package com.auroro.wallpapers.core.data.download
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
 import java.io.IOException
 import kotlin.math.max
-import kotlin.math.roundToInt
 
 data class ImageInfo(val mime: String, val width: Int, val height: Int)
 
-/** Confirms a downloaded file really is a decodable image, using only a bounds decode (no pixel allocation). */
+/**
+ * Confirms a saved payload is a decodable JPEG, PNG or WebP. It first reads bounds, then performs a
+ * sampled decode so truncated/corrupt payloads are rejected without allocating a full-size bitmap.
+ * The original file is never rewritten or downscaled.
+ */
 object ImageValidator {
     val SUPPORTED_MIME = setOf("image/jpeg", "image/png", "image/webp")
+    private const val MAX_DIMENSION = 32_000
+    private const val VALIDATION_LONG_EDGE = 256
 
     fun inspect(file: File): ImageInfo? {
         if (!file.isFile || file.length() < 16) return null
-        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         try {
-            file.inputStream().use { BitmapFactory.decodeStream(it, null, opts) }
+            file.inputStream().use { BitmapFactory.decodeStream(it, null, bounds) }
         } catch (_: IOException) {
             return null
         }
-        val mime = opts.outMimeType?.lowercase() ?: return null
-        if (mime !in SUPPORTED_MIME || opts.outWidth <= 0 || opts.outHeight <= 0) return null
-        return ImageInfo(mime, opts.outWidth, opts.outHeight)
-    }
-}
+        val mime = bounds.outMimeType?.lowercase() ?: return null
+        val width = bounds.outWidth
+        val height = bounds.outHeight
+        if (mime !in SUPPORTED_MIME || width <= 0 || height <= 0 || width > MAX_DIMENSION || height > MAX_DIMENSION) return null
 
-object Downscaler {
-    /**
-     * For "Fit to screen": returns the target size when the long edge exceeds [maxLongEdge], otherwise null
-     * (no downscale needed). Aspect ratio is preserved.
-     */
-    fun plan(width: Int, height: Int, maxLongEdge: Int): Pair<Int, Int>? {
-        val long = max(width, height)
-        if (maxLongEdge <= 0 || long <= maxLongEdge) return null
-        val scale = maxLongEdge.toFloat() / long
-        return (width * scale).roundToInt().coerceAtLeast(1) to (height * scale).roundToInt().coerceAtLeast(1)
+        var sample = 1
+        while (max(width, height) / (sample * 2) >= VALIDATION_LONG_EDGE) sample *= 2
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.RGB_565
+        }
+        val decoded = try {
+            file.inputStream().use { BitmapFactory.decodeStream(it, null, options) }
+        } catch (_: Exception) {
+            null
+        } catch (_: OutOfMemoryError) {
+            null
+        } ?: return null
+
+        val decodes = decoded.width > 0 && decoded.height > 0
+        decoded.recycle()
+        if (!decodes) return null
+        return ImageInfo(mime, width, height)
     }
 }

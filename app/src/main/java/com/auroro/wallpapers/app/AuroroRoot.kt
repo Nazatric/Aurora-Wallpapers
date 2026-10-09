@@ -82,7 +82,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.auroro.wallpapers.core.data.SourceAvailability
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.data.download.LocalFiles
 import com.auroro.wallpapers.core.data.download.NormalizedCrop
@@ -123,7 +122,7 @@ private val drawerEntries = listOf(
     DrawerEntry("Collections", "collections", Icons.Rounded.CollectionsBookmark),
     DrawerEntry("Offline downloads", "offline", Icons.Rounded.Download),
     DrawerEntry("Favorites", "favorites", Icons.Rounded.Favorite),
-    DrawerEntry("Categories", "categories", Icons.Rounded.Category),
+    DrawerEntry("Search topics", "categories", Icons.Rounded.Category),
     DrawerEntry("Wallpaper sources", "sources", Icons.Rounded.Info),
     DrawerEntry("Settings", "settings", Icons.Rounded.Settings),
 )
@@ -166,10 +165,16 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val detail by vm.detail.collectAsState()
     val relatedLoading by vm.relatedLoading.collectAsState()
     val settings by vm.settings.collectAsState()
+    val enabledSources = remember(settings.wallhavenEnabled, settings.openverseEnabled) {
+        buildSet {
+            if (settings.wallhavenEnabled) add(WallpaperSource.WALLHAVEN)
+            if (settings.openverseEnabled) add(WallpaperSource.OPENVERSE)
+        }
+    }
     val reducedMotion = LocalReducedMotion.current
     val goWallpaper: (Wallpaper) -> Unit = { w -> openWallpaper(nav, w) }
     var homeTab by rememberSaveable { mutableStateOf(HomeTab.FOR_YOU) }
-    var providerAvailability by remember { mutableStateOf<Map<WallpaperSource, SourceAvailability>>(emptyMap()) }
+    var searchText by rememberSaveable { mutableStateOf("") }
     var addToCollection by remember { mutableStateOf<Wallpaper?>(null) }
     var storageInfo by remember { mutableStateOf<com.auroro.wallpapers.core.data.download.StorageInfo?>(null) }
 
@@ -179,9 +184,6 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
     LaunchedEffect(vm) {
         vm.message.collect { snackbar.showSnackbar(it) }
-    }
-    LaunchedEffect(settings.wallhavenEnabled, settings.abyssEnabled, settings.abyssApiKey) {
-        providerAvailability = vm.app.aggregator.availability()
     }
     LaunchedEffect(incomingRoute) {
         if (incomingRoute == "offline") {
@@ -281,43 +283,52 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             feed = feed,
                             favorites = favorites,
                             selectedTab = homeTab,
+                            enabledSources = enabledSources,
                             onTab = { tab -> homeTab = tab; vm.openHome(tab) },
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
                             onSettings = { nav.navigate("settings") },
-                            onSource = vm::selectSources,
+                            onSource = { sources ->
+                                if (WallpaperSource.OPENVERSE in sources) homeTab = HomeTab.FOR_YOU
+                                vm.selectSources(sources)
+                            },
                             onCategory = { startSearch(it) },
                             onOpen = goWallpaper,
                             onFavorite = vm::toggleFavorite,
                             onLoadMore = vm::loadMore,
                             onRetry = vm::retryFeed,
-                            onOpenExternal = ::openExternal,
                         )
                     }
 
                     composable("search") {
+                        LaunchedEffect(feed.request.query) {
+                            if (searchText != feed.request.query) searchText = feed.request.query
+                        }
                         SearchScreen(
                             feed = feed,
-                            favoriteKeys = favorites,
-                            initialQuery = feed.request.query,
+                            favorites = favorites,
+                            queryText = searchText,
+                            enabledSources = enabledSources,
+                            onQueryText = { searchText = it },
                             onMenu = { scope.launch { drawer.open() } },
+                            onSource = { sources -> vm.selectSources(sources, searchText) },
                             onOpenFilters = { nav.navigate("filters") },
-                            onSubmit = { query, filter -> vm.submitSearch(query, filter) },
-                            onFiltersChanged = vm::applyFilters,
+                            onSubmit = { query -> vm.submitSearch(query, feed.request.filter) },
                             onOpen = goWallpaper,
                             onFavorite = vm::toggleFavorite,
                             onLoadMore = vm::loadMore,
                             onRetry = vm::retryFeed,
-                            onOpenExternal = ::openExternal,
                         )
                     }
 
                     composable("filters") {
                         FilterScreen(
                             initial = feed.request.filter,
-                            query = feed.request.query,
+                            query = searchText,
+                            aspectTolerance = settings.aspectTolerance,
+                            enabledSources = enabledSources,
                             onBack = { nav.popBackStack() },
-                            onApply = { filter -> vm.applyFilters(filter); nav.popBackStack() },
+                            onApply = { filter -> vm.submitSearch(searchText, filter); nav.popBackStack() },
                         )
                     }
 
@@ -383,10 +394,18 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
                     composable("sources") {
                         SourcesScreen(
-                            availability = providerAvailability,
+                            settings = settings,
                             onBack = { nav.popBackStack() },
                             onOpen = ::openExternal,
-                            onConfigure = { nav.navigate("settings") },
+                            onToggle = { source, enabled ->
+                                vm.updateSettings { current ->
+                                    when (source) {
+                                        WallpaperSource.WALLHAVEN -> current.copy(wallhavenEnabled = enabled)
+                                        WallpaperSource.OPENVERSE -> current.copy(openverseEnabled = enabled)
+                                        WallpaperSource.ARCHIVED -> current
+                                    }
+                                }
+                            },
                             onSearch = { source -> startSearch(filter = WallpaperFilter(sources = setOf(source))) },
                         )
                     }
@@ -394,13 +413,10 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     composable("settings") {
                         SettingsScreen(
                             settings = settings,
-                            availability = providerAvailability,
                             onMenu = { scope.launch { drawer.open() } },
                             onSettings = vm::updateSettings,
                             onClearCache = vm::clearImageCache,
-                            onSaveAbyssKey = vm::saveAbyssKey,
-                            onOpenSource = ::openExternal,
-                            onAbout = { scope.launch { snackbar.showSnackbar("Auroro Wallpapers · version 1.0.0 · native Android, free and ad-free.") } },
+                            onAbout = { scope.launch { snackbar.showSnackbar("Auroro Wallpapers is a free, ad-free Android app. Made using Openverse; not endorsed or certified by Openverse.") } },
                             onPrivacy = { openExternal("https://github.com/Nazatric/Aurora-Wallpapers/blob/main/PRIVACY.md") },
                             onLicenses = { openExternal("https://github.com/Nazatric/Aurora-Wallpapers/blob/main/THIRD_PARTY_NOTICES.md") },
                             onSources = { nav.navigate("sources") },
@@ -483,7 +499,7 @@ private fun DrawerContent(selectedRoute: String, onChoose: (String) -> Unit) {
                 AppLogo(Modifier.size(52.dp), 52.dp)
                 Column(Modifier.padding(start = 12.dp)) {
                     Text("Auroro Wallpapers", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
-                    Text("A little more sky.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Text("Wallhaven · Openverse", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                 }
             }
         }
@@ -506,7 +522,6 @@ private fun DrawerContent(selectedRoute: String, onChoose: (String) -> Unit) {
             )
         }
         Spacer(Modifier.weight(1f))
-        Text("Real sources · no ads · no accounts", Modifier.padding(horizontal = 14.dp, vertical = 8.dp), style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
     }
 }
 

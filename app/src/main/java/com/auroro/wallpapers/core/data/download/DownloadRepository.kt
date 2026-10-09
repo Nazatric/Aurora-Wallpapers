@@ -16,6 +16,7 @@ import com.auroro.wallpapers.core.database.AppDatabase
 import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.core.network.UrlPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -38,10 +39,13 @@ class DownloadRepository(
      * is already downloading or saved (and its file still exists).
      */
     suspend fun enqueue(w: Wallpaper) {
+        require(w.downloadAllowed) { "This image's licence or original URL doesn't permit a direct download in Auroro." }
+        require(UrlPolicy.isAllowedForNetwork(w.source, w.originalUrl)) { "This image's address isn't an approved secure URL." }
         val existing = db.downloads().get(w.key)
         if (existing != null) {
             val active = existing.status == DownloadStatus.QUEUED.name || existing.status == DownloadStatus.RUNNING.name
-            val saved = existing.status == DownloadStatus.COMPLETED.name && LocalFiles.exists(context, existing.localUri)
+            val saved = existing.status == DownloadStatus.COMPLETED.name &&
+                withContext(Dispatchers.IO) { LocalFiles.exists(context, existing.localUri) }
             if (active || saved) return
         }
         store.persist(w)
@@ -64,7 +68,17 @@ class DownloadRepository(
     }
 
     suspend fun retry(key: String) {
-        val w = store.get(key) ?: return
+        val existing = db.downloads().get(key) ?: return
+        val missingCompletedFile = existing.status == DownloadStatus.COMPLETED.name &&
+            !withContext(Dispatchers.IO) { LocalFiles.exists(context, existing.localUri) }
+        require(
+            existing.status == DownloadStatus.FAILED.name ||
+                existing.status == DownloadStatus.CANCELED.name || missingCompletedFile,
+        ) { "Only a failed, canceled, or missing-file download can be retried." }
+        val w = store.get(key) ?: throw IllegalStateException("Wallpaper details are missing; search again to refresh.")
+        require(w.downloadAllowed && UrlPolicy.isAllowedForNetwork(w.source, w.originalUrl)) {
+            "This source or licence no longer allows a new download. Any saved local copy is unchanged."
+        }
         db.downloads().delete(key)
         enqueue(w)
     }
@@ -74,9 +88,10 @@ class DownloadRepository(
         cancel(key)
         val d = db.downloads().get(key)
         val deleted = withContext(Dispatchers.IO) { LocalFiles.delete(context, d?.localUri) }
+        if (!deleted) return false // Keep the identity, attribution and retry context if Android denied deletion.
         db.downloads().delete(key)
         db.wallpapers().deleteUnreferenced()
-        return deleted
+        return true
     }
 
     suspend fun fileExists(entity: DownloadEntity): Boolean = withContext(Dispatchers.IO) { LocalFiles.exists(context, entity.localUri) }
@@ -94,7 +109,8 @@ class DownloadRepository(
     }
 
     suspend fun storageInfo(): StorageInfo = withContext(Dispatchers.IO) {
-        val completed = db.downloads().observeAll().first().filter { it.status == DownloadStatus.COMPLETED.name }
+        val completed = db.downloads().observeAll().first()
+            .filter { it.status == DownloadStatus.COMPLETED.name && LocalFiles.exists(context, it.localUri) }
         val stat = runCatching { StatFs(Environment.getExternalStorageDirectory().path) }.getOrNull()
             ?: StatFs(context.filesDir.path)
         StorageInfo(

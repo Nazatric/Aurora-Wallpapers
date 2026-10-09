@@ -9,10 +9,11 @@ import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.model.WallpaperTag
+import com.auroro.wallpapers.core.network.ProviderErrorKind
+import com.auroro.wallpapers.core.network.ProviderException
 import com.auroro.wallpapers.core.network.RateLimitedCall
 import com.auroro.wallpapers.core.network.SlidingWindowLimiter
 import com.auroro.wallpapers.core.network.UrlPolicy
-import com.auroro.wallpapers.core.network.toProviderException
 import com.auroro.wallpapers.core.network.wallhaven.WallhavenApi
 import com.auroro.wallpapers.core.network.wallhaven.WallhavenWallpaperDto
 import java.util.Locale
@@ -25,7 +26,8 @@ import java.util.Locale
  */
 class WallhavenProvider(
     private val api: WallhavenApi,
-    private val limiter: SlidingWindowLimiter = SlidingWindowLimiter(maxEvents = 40, windowMs = 60_000),
+    // Each call may retry twice on transient failures; 15 call slots × 3 attempts stays below Wallhaven's 45/minute quota.
+    private val limiter: SlidingWindowLimiter = SlidingWindowLimiter(maxEvents = 15, windowMs = 60_000),
     private val isEnabled: suspend () -> Boolean = { true },
 ) : WallpaperProvider {
 
@@ -45,9 +47,20 @@ class WallhavenProvider(
     override suspend fun availability(): SourceAvailability =
         if (isEnabled()) SourceAvailability.Available else SourceAvailability.DisabledByUser()
 
+    private suspend fun <T> rateLimited(block: suspend () -> T): T = try {
+        RateLimitedCall.run(limiter, source.displayName, block)
+    } catch (error: ProviderException) {
+        val retryAfter = error.retryAfterSeconds
+        if (error.kind == ProviderErrorKind.RATE_LIMITED && retryAfter != null && retryAfter > 0) {
+            // Bound malformed Retry-After values before converting seconds to milliseconds.
+            limiter.pauseFor(retryAfter.coerceAtMost(604_800L) * 1_000L)
+        }
+        throw error
+    }
+
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
         val params = WallhavenQuery.build(request, cursor)
-        val response = RateLimitedCall.run(limiter, source.displayName) { api.search(params) }
+        val response = rateLimited { api.search(params) }
         val items = response.data.mapNotNull(WallhavenMapper::toWallpaper)
         val meta = response.meta
         val next = if (response.data.isNotEmpty() && meta.currentPage < meta.lastPage) {
@@ -59,7 +72,7 @@ class WallhavenProvider(
     }
 
     override suspend fun detail(sourceId: String): Wallpaper? {
-        val dto = RateLimitedCall.run(limiter, source.displayName) { api.wallpaper(sourceId) }.data
+        val dto = rateLimited { api.wallpaper(sourceId) }.data
         return WallhavenMapper.toWallpaper(dto)
     }
 
@@ -71,7 +84,7 @@ class WallhavenProvider(
             "sorting" to "relevance",
             "page" to "1",
         )
-        val response = RateLimitedCall.run(limiter, source.displayName) { api.search(params) }
+        val response = rateLimited { api.search(params) }
         return response.data.mapNotNull(WallhavenMapper::toWallpaper).filter { it.sourceId != wallpaper.sourceId }
     }
 }
@@ -94,7 +107,7 @@ object WallhavenQuery {
         params["purity"] = "100" // SFW only. Never widened.
 
         when (f.sort) {
-            SortOption.RELEVANCE -> params["sorting"] = if (q.isEmpty()) "date_added" else "relevance"
+            SortOption.RELEVANCE -> params["sorting"] = "relevance"
             SortOption.NEWEST -> params["sorting"] = "date_added"
             SortOption.POPULAR -> {
                 params["sorting"] = "toplist"
@@ -123,20 +136,22 @@ object WallhavenQuery {
     internal fun atLeast(request: FeedRequest): String? {
         val res = request.filter.resolution
         val targetRatio = request.filter.aspect.targetRatio
-        val portrait = request.filter.orientation == Orientation.PORTRAIT || (targetRatio != null && targetRatio < 1f)
-        val landscape = request.filter.orientation == Orientation.LANDSCAPE || (targetRatio != null && targetRatio > 1f)
-        return when (res) {
-            ResolutionFilter.Any -> null
-            is ResolutionFilter.Custom -> "${res.minWidth}x${res.minHeight}"
-            is ResolutionFilter.Preset -> {
-                val s = res.preset.shortEdge
-                val l = res.preset.longEdge
-                when {
-                    portrait && !landscape -> "${s}x$l"
-                    landscape && !portrait -> "${l}x$s"
-                    else -> "${s}x$s"
-                }
-            }
+        val tolerance = request.aspectTolerance.coerceIn(0f, 0.25f)
+        val portraitByRatio = targetRatio != null && targetRatio * (1f + tolerance) < 1f
+        val landscapeByRatio = targetRatio != null && targetRatio * (1f - tolerance) > 1f
+        val portrait = request.filter.orientation == Orientation.PORTRAIT || portraitByRatio
+        val landscape = request.filter.orientation == Orientation.LANDSCAPE || landscapeByRatio
+        val (shortEdge, longEdge) = when (res) {
+            ResolutionFilter.Any -> return null
+            is ResolutionFilter.Custom -> res.shortEdge to res.longEdge
+            is ResolutionFilter.Preset -> res.preset.shortEdge to res.preset.longEdge
+        }
+        return when {
+            portrait && !landscape -> "${shortEdge}x$longEdge"
+            landscape && !portrait -> "${longEdge}x$shortEdge"
+            // A square lower bound is a safe broad pre-filter in either orientation; local checks
+            // enforce the requested short and long edges independently.
+            else -> "${shortEdge}x$shortEdge"
         }
     }
 
@@ -164,8 +179,15 @@ object WallhavenMapper {
     fun toWallpaper(dto: WallhavenWallpaperDto): Wallpaper? {
         if (dto.id.isBlank() || dto.path.isBlank()) return null
         if (dto.purity != null && dto.purity != "sfw") return null // defence in depth: never surface non-SFW
-        val thumb = dto.thumbs.large.ifBlank { dto.thumbs.small }
-        if (!UrlPolicy.isAllowedForNetwork(dto.path) || !UrlPolicy.isAllowedForNetwork(thumb)) return null
+        if (dto.dimensionX !in 1..32_000 || dto.dimensionY !in 1..32_000) return null
+        val ratio = dto.dimensionX.toFloat() / dto.dimensionY
+        if (!ratio.isFinite() || ratio !in 0.05f..20f) return null
+        if (!UrlPolicy.isAllowedForNetwork(dto.path)) return null
+        // Use Wallhaven's own original-size preview for gallery cells; the detail view and downloads
+        // retain the full media URL. Never trust a thumbnail URL outside the provider's HTTPS hosts.
+        val cardPreview = sequenceOf(dto.thumbs.original, dto.thumbs.large)
+            .firstOrNull(UrlPolicy::isAllowedForNetwork)
+            ?: dto.path
         val page = dto.url.ifBlank { "https://wallhaven.cc/w/${dto.id}" }
         if (!UrlPolicy.isAllowedForBrowsing(page)) return null
         val username = dto.uploader?.username?.takeIf { it.isNotBlank() }
@@ -173,8 +195,8 @@ object WallhavenMapper {
             source = WallpaperSource.WALLHAVEN,
             sourceId = dto.id,
             pageUrl = page,
-            thumbUrl = thumb,
-            previewUrl = thumb,
+            thumbUrl = cardPreview,
+            previewUrl = dto.path,
             originalUrl = dto.path,
             width = dto.dimensionX,
             height = dto.dimensionY,

@@ -2,13 +2,17 @@ package com.auroro.wallpapers.core.model
 
 import androidx.compose.runtime.Immutable
 
-/** The wallpaper catalogues Auroro knows about. Display names match each publisher's official name. */
+/** The only catalogues queried by the app, plus an internal value for records saved by older versions. */
 enum class WallpaperSource(val id: String, val displayName: String, val siteUrl: String) {
     WALLHAVEN("wallhaven", "Wallhaven", "https://wallhaven.cc"),
-    ABYSS("abyss", "Wallpaper Abyss", "https://wall.alphacoders.com"),
-    UNSPLASH("unsplash", "Unsplash", "https://unsplash.com");
+    OPENVERSE("openverse", "Openverse", "https://openverse.org"),
+    /** Keeps old Room records and downloads readable without treating their former provider as integrated. */
+    ARCHIVED("archived", "Saved item", "");
+
+    val isIntegrated: Boolean get() = this == WALLHAVEN || this == OPENVERSE
 
     companion object {
+        val integrated: List<WallpaperSource> = listOf(WALLHAVEN, OPENVERSE)
         fun fromId(id: String): WallpaperSource? = entries.firstOrNull { it.id == id }
     }
 }
@@ -17,9 +21,8 @@ enum class WallpaperSource(val id: String, val displayName: String, val siteUrl:
 data class WallpaperTag(val id: Long?, val name: String)
 
 /**
- * Provider-agnostic wallpaper record. Nothing provider-specific is thrown away:
- * original ids, URLs, dimensions, attribution and extra metadata are all kept so the detail,
- * licensing and download flows can rely on them.
+ * Provider-agnostic record. Original dimensions, attribution and licence metadata are retained so
+ * filters, saved records, downloads and the wallpaper-setting flow can make decisions from facts.
  */
 @Immutable
 data class Wallpaper(
@@ -28,11 +31,11 @@ data class Wallpaper(
     val sourceId: String,
     /** Canonical page of this wallpaper on the provider's website. */
     val pageUrl: String,
-    /** Small thumbnail suited for gallery tiles. Never the full-resolution file. */
+    /** Provider-supplied preview suitable for a gallery tile. */
     val thumbUrl: String,
-    /** Larger preview, used by the detail screen before the user asks for the original. */
+    /** Provider-supplied preview used by the detail screen before the original is requested. */
     val previewUrl: String,
-    /** Original-quality file as published by the provider. */
+    /** Original file URL, never a locally recompressed or resized substitute. */
     val originalUrl: String,
     val width: Int,
     val height: Int,
@@ -49,11 +52,26 @@ data class Wallpaper(
     val favorites: Int? = null,
     /** Link to where the uploader says the image came from, if any. */
     val originSourceUrl: String? = null,
+    /** Provider-supplied title. Null means the source did not give us one. */
+    val title: String? = null,
+    /** Openverse attribution string, when supplied. */
+    val attribution: String? = null,
+    /** Exact Openverse licence code, e.g. `by-sa`. */
+    val licenseCode: String? = null,
+    val licenseVersion: String? = null,
+    val licenseUrl: String? = null,
+    /** Openverse metadata for the indexed publisher and the content-source slug. */
+    val providerName: String? = null,
+    val catalogSource: String? = null,
+    /** False unless the provider URL and known licence allow an original file to be saved. */
+    val downloadAllowed: Boolean = true,
+    /** Non-derivative licences may be downloaded but cannot be cropped/set as wallpaper. */
+    val setWallpaperAllowed: Boolean = true,
 ) {
     val key: String get() = keyOf(source, sourceId)
 
     /** width / height. Portrait images are < 1, landscape > 1. */
-    val aspectRatio: Float get() = if (height > 0) width.toFloat() / height else 1f
+    val aspectRatio: Float get() = if (height > 0) width.toFloat() / height else 0f
 
     val hasKnownDimensions: Boolean get() = width > 0 && height > 0
 
@@ -64,7 +82,7 @@ data class Wallpaper(
     }
 }
 
-/** User-facing sort choices. Not every provider supports every choice; see [ProviderCapabilities]. */
+/** User-facing sort choices. Provider-specific sort orders are never described as a global rank. */
 enum class SortOption(val label: String) {
     RELEVANCE("Relevance"),
     NEWEST("Newest"),
@@ -78,17 +96,40 @@ enum class Orientation(val label: String) {
     LANDSCAPE("Landscape"),
 }
 
-/** Wallhaven's own top-level categories (the only provider that exposes them). */
 enum class WallhavenCategory(val label: String, val bitIndex: Int) {
     GENERAL("General", 0),
     ANIME("Anime", 1),
     PEOPLE("People", 2),
 }
 
+/** Real image categories returned by Openverse's image endpoint. */
+enum class OpenverseCategory(val label: String, val apiValue: String) {
+    PHOTOGRAPH("Photographs", "photograph"),
+    ILLUSTRATION("Illustrations", "illustration"),
+    DIGITIZED_ARTWORK("Digitized artwork", "digitized_artwork"),
+}
+
+/** Exact image licences and Openverse's documented licence groups. */
+enum class OpenverseLicense(val label: String, val apiValue: String, val isGroup: Boolean = false) {
+    CC0("CC0", "cc0"),
+    PUBLIC_DOMAIN("Public domain", "pdm"),
+    CC_BY("CC BY", "by"),
+    CC_BY_SA("CC BY-SA", "by-sa"),
+    CC_BY_ND("CC BY-ND", "by-nd"),
+    CC_BY_NC("CC BY-NC", "by-nc"),
+    CC_BY_NC_SA("CC BY-NC-SA", "by-nc-sa"),
+    CC_BY_NC_ND("CC BY-NC-ND", "by-nc-nd"),
+    CC_SAMPLING_PLUS("CC Sampling+", "sampling+"),
+    CC_NC_SAMPLING_PLUS("CC NC Sampling+", "nc-sampling+"),
+    COMMERCIAL("Commercial-use group", "commercial", true),
+    MODIFICATION("Adaptation group", "modification", true),
+    ALL_CC("All CC incl. CC0 & sampling", "all-cc", true),
+}
+
 /** Everything the user can change on the filter screen. */
 @Immutable
 data class WallpaperFilter(
-    /** Empty set means "all available sources". */
+    /** Empty set means both integrated sources. */
     val sources: Set<WallpaperSource> = emptySet(),
     val aspect: AspectFilter = AspectFilter.Any,
     val resolution: ResolutionFilter = ResolutionFilter.Any,
@@ -98,6 +139,10 @@ data class WallpaperFilter(
     val wallhavenCategories: Set<WallhavenCategory> = emptySet(),
     /** Wallhaven only; lowercase `rrggbb` without '#'. */
     val colorHex: String? = null,
+    /** Openverse only. A tag must be reported on the returned image. */
+    val openverseTag: String? = null,
+    val openverseCategory: OpenverseCategory? = null,
+    val openverseLicense: OpenverseLicense? = null,
 ) {
     /** Number of non-default settings, shown as a badge on the filter button. */
     val activeCount: Int
@@ -109,7 +154,18 @@ data class WallpaperFilter(
             sort != SortOption.RELEVANCE,
             wallhavenCategories.isNotEmpty(),
             colorHex != null,
+            !openverseTag.isNullOrBlank(),
+            openverseCategory != null,
+            openverseLicense != null,
         ).count { it }
+
+    val requiredSources: Set<WallpaperSource>
+        get() = buildSet {
+            if (wallhavenCategories.isNotEmpty() || colorHex != null) add(WallpaperSource.WALLHAVEN)
+            if (!openverseTag.isNullOrBlank() || openverseCategory != null || openverseLicense != null) add(WallpaperSource.OPENVERSE)
+        }
+
+    val hasConflictingSourceFilters: Boolean get() = requiredSources.size > 1
 
     companion object {
         val Default = WallpaperFilter()

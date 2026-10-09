@@ -12,18 +12,19 @@ import java.io.IOException
 data class SavedMedia(val uri: String, val fileName: String, val sizeBytes: Long)
 
 interface MediaSaver {
-    /** Copies the finished temp [file] to its permanent, user-visible home. */
-    suspend fun save(file: File, displayName: String, mime: String): SavedMedia
+    /** Copies the finished temp [file] to its permanent, user-visible home with source/licence notes when supported. */
+    suspend fun save(file: File, displayName: String, mime: String, description: String? = null): SavedMedia
 }
 
 /** Saves into Pictures/Auroro Wallpapers using MediaStore (scoped storage, no storage permission needed). */
 class GalleryMediaSaver(private val context: Context) : MediaSaver {
-    override suspend fun save(file: File, displayName: String, mime: String): SavedMedia = withContext(Dispatchers.IO) {
+    override suspend fun save(file: File, displayName: String, mime: String, description: String?): SavedMedia = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
             put(MediaStore.Images.Media.MIME_TYPE, mime)
             put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/$FOLDER")
+            description?.takeIf(String::isNotBlank)?.let { put(MediaStore.Images.Media.DESCRIPTION, it) }
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
         val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
@@ -52,7 +53,7 @@ class GalleryMediaSaver(private val context: Context) : MediaSaver {
 
 /** App-private storage: not shown in the gallery, removed on uninstall. */
 class AppStorageSaver(private val dir: File) : MediaSaver {
-    override suspend fun save(file: File, displayName: String, mime: String): SavedMedia = withContext(Dispatchers.IO) {
+    override suspend fun save(file: File, displayName: String, mime: String, description: String?): SavedMedia = withContext(Dispatchers.IO) {
         if (!dir.exists() && !dir.mkdirs()) throw IOException("Could not create ${dir.path}")
         var target = File(dir, displayName)
         var n = 1

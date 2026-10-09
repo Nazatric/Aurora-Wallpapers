@@ -1,102 +1,72 @@
 # Auroro Wallpapers
 
-**A native Android wallpaper finder with a little more sky, sea and glass.** Built in Kotlin and Jetpack Compose with a restrained Frutiger Aero visual language: deep ocean colour, environmental imagery from real wallpaper sources, polished glass controls and soft aqua/emerald highlights.
+A native Android wallpaper browser built with Kotlin and Jetpack Compose. The interface uses deep-ocean glass surfaces, restrained aqua/emerald accents and images loaded from real provider catalogues. Auroro has no bundled wallpaper gallery, account, advertising, analytics or in-app purchase SDK.
 
-> **Auroro Wallpapers is free and ad-free.** No account, advertising SDK, subscription, in-app purchase, analytics or bundled wallpaper catalogue. A result is shown only when a permitted source actually returns it.
+## Integrated sources
 
-## What works today
+Only **Wallhaven** and **Openverse** are searched in the app.
 
-- **Home and discovery:** For You, Popular, Latest and Random; the For You query is deterministic and based on locally saved/viewed wallpaper tags, with a useful latest feed when there is no history. It is not an AI recommendation service.
-- **Live search:** actual Wallhaven results, and Wallpaper Abyss results when the user has configured their own Alpha Coders API key. Sources page independently and report errors or unavailable access without dropping other providers' results.
-- **Filters:** real image dimensions drive aspect ratio, orientation and resolution checks. The documented ratio tolerance defaults to 3% and can be changed in Settings. 4K/8K checks use short and long edges, so portrait images are classified correctly. Wallhaven-only categories, palette and sorting are sent using documented API parameters.
-- **Wallpaper details:** provider page, source, dimensions, uploader where supplied, file information, tags and source-supported related results; share and open-source actions work.
-- **Favorites, local collections and history:** persistent Room metadata; favoriting never downloads the original image.
-- **Downloads:** cancellable, streamed original-quality transfers; real progress, image validation, retry/failure states and MediaStore or private-app saves. “Offline” lists persisted files, not Coil/HTTP cache entries.
-- **Set wallpaper:** crop preview (pinch, pan and zoom), then Android's `WallpaperManager` applies the chosen crop to Home, Lock or Both. The original is downloaded first when needed.
-- **Settings:** system/dark/light appearance, AMOLED option, accents, transparency/contrast, aspect tolerance, bounded cache, download quality/destination, notification preferences, source availability and encrypted Wallpaper Abyss key storage.
-- **Navigation:** Home, Search, Collections and Offline bottom navigation; drawer entries for Favorites, Categories, Sources and Settings.
+### Wallhaven
 
-## Wallpaper source status — read before enabling a source
+Auroro uses the public Wallhaven API v1 over HTTPS; a key is not required for public search. Requests always specify SFW purity. Search results include provider-reported dimensions, tags, colours, uploader and source-page details where available. Relevance, newest, popular and random ordering use Wallhaven's own API. Categories, its colour palette, supported ratio tokens and minimum-size hints are provider filters; exact ratio and edge thresholds are checked locally against returned pixel dimensions. Results link to their Wallhaven page. Its API does not report an image licence; images remain the responsibility of their original rights holders.
 
-### Wallhaven — real in-app API integration
+Official API reference: <https://wallhaven.cc/help/api>
 
-Auroro calls the **official Wallhaven API v1** over HTTPS (`GET https://wallhaven.cc/api/v1/search` and `GET /w/{id}`). Public SFW search does not require a key. Every API search explicitly fixes `purity=100`; Auroro cannot return sketchy or NSFW results. Search, pagination, relevant/general/anime/people categories, SFW defaults, newest/popularity/random sorting, server-side supported ratio/resolution/color filters, metadata and original/thumbnail URLs are implemented. Geometry is also checked locally against the returned pixel dimensions. The provider documents a limit of 45 API calls/minute; Auroro paces its own calls below that limit and does not retry HTTP 401/403/429. Images remain the property of their original owners; Auroro links back to the Wallhaven page.
+### Openverse
 
-Official documentation: <https://wallhaven.cc/help/api>
+Auroro searches the documented Images API at `https://api.openverse.org/v1/images/`. The current API reference says anonymous access is supported and anonymous requests are sufficient for most users; registering for OAuth credentials gives higher limits. Auroro therefore sends **no API key, client secret or bearer token**. It persists a local 20-request/minute burst ceiling based on the current public response header and observes Openverse's `anon_burst` and `anon_sustained` search quotas; provider limits may change. A rate-limit response is shown rather than repeatedly retried. Search pages are fetched incrementally and capped to avoid treating the API as a bulk-download service.
 
-### Wallpaper Abyss — official API integration, key required
+Search uses documented query, tag, category, licence, format-extension, aspect-bucket, size-band and dead-link filters where applicable. Openverse's general `q` search and tag-field search are alternatives: its API ignores tag-field search when `q` is present, so Auroro prevents that combination. Openverse remains relevance-ranked. Its aspect bucket is orientation-only (`tall`, `wide`, or exact `square`), not an exact ratio; Auroro sends it only when the full local tolerance interval fits that orientation (or the user explicitly selects one). Its size filter uses coarse pixel-area bands. Both are safe prefilters, and actual provider-reported dimensions remain authoritative on-device. Creator, attribution text, originating page, provider, tags and licence details are retained and shown when supplied. Openverse indexes third-party works and does not verify every licence claim; check the original page and licence terms before reuse. Direct downloads are enabled only for recognized licences and supported image formats. No-derivatives licences can be saved as originals but are not offered for wallpaper-setting/cropping; deprecated sampling licences are browse-only in Auroro.
 
-Wallpaper Abyss (Alpha Coders) documents an API at `https://api.alphacoders.com/3.0`. Auroro implements its documented `search` and `newest` calls, independent desktop/phone pagination, metadata, source links and original/thumbnail URLs. The API requires an **Alpha Coders API subscription and an individually issued key**. No key is embedded or included in this repository. Add your own key at **Settings → Wallpaper sources**; Auroro encrypts it on-device using AndroidKeyStore and sends it only as the API's `auth` parameter to `api.alphacoders.com`. Without a configured key, the source is honestly shown as unavailable and the app offers an official-site browser handoff. The API has source-specific capabilities; unsupported sort/category/color combinations are reported, not fabricated.
+Official API reference: <https://api.openverse.org/v1/>; API documentation: <https://docs.openverse.org/>; search behavior: <https://docs.openverse.org/api/reference/search_algorithm.html>
 
-Official API documentation and subscription details: <https://api.alphacoders.com/api/instructions>
+## Search, filters and local data
 
-### Unsplash — **browser handoff only; no API calls**
+- Home topics run real searches. For You uses tags from locally saved or viewed wallpapers; it falls back to the latest feed when there are no such tags. It is not an AI recommendation service.
+- Search combines enabled providers without inventing a cross-provider popularity score. Each provider keeps its own pagination and ordering; failures are reported alongside results from another source.
+- Aspect ratio is `width / height` from provider dimensions. A match uses a relative tolerance (3% by default; adjustable in Settings). Presets include 9:16, 16:9, 4:3, 1:1, 21:9 and 9:19.5, plus custom ratios. Minimum-size filters use the short and long edges so portrait and landscape images are treated consistently. Openverse's coarse server filters never replace local checks. Some provider/filter combinations are unavailable and are not presented as supported.
+- Wallpaper cards preserve each image's own aspect ratio in a staggered grid. They use provider-supplied previews when safe; detail views and downloads retain the media URL, and the full composition is fit rather than forced into a crop.
+- Favorites, collections, history and wallpaper metadata are stored locally with Room. Collections support creation, rename, deletion and membership changes. Favoriting does not download an image. The database migration keeps existing records and download URIs; retired-provider records cannot be downloaded again, but an existing local file can still be applied.
+- Downloads stream and validate the original JPEG, PNG or WebP file, expose progress and cancellation, check storage capacity (including periodic checks when the server omits its content length), and save through MediaStore or private app storage. Offline items refer to saved files, not the disposable image cache. Wallpaper setting uses Android's `WallpaperManager`, with a crop preview and Home, Lock or Both targets where supported.
+- Settings include appearance, accent, transparency, aspect tolerance, cache size, download location, notifications, source availability and optional set-after-download behavior. Favorites are never automatically downloaded.
 
-Unsplash's current published API guidelines prohibit replicating the core experience of a wallpaper app, and explicitly describe a wallpaper app that returns Unsplash images for downloading as disallowed. The same guidelines require a confidential API credential and download tracking. Auroro has **no Unsplash API client, scraper, proxy or hidden endpoint**. Its source entry opens Unsplash in the user's browser with the requested referral parameters. It does not show Unsplash images as in-app results or present this handoff as an API integration. A future API integration requires explicit written authorization from Unsplash for this specific use case.
+## Build and test
 
-Official guidelines: <https://help.unsplash.com/en/articles/2511245-unsplash-api-guidelines> and <https://help.unsplash.com/en/articles/2511257-guideline-replicating-unsplash>
+Requires JDK 17, Android SDK Platform 37 and Build Tools 37.0.0.
 
-See [`BLOCKERS.md`](BLOCKERS.md) for the precise outstanding access and test limitations.
+```bash
+./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
+```
 
-## Tech and structure
+Install the debug build on a connected device with `./gradlew installDebug`, or install `app/build/outputs/apk/debug/app-debug.apk` with `adb`. A debug APK is debug-signed. Release signing requires a private keystore supplied locally or through the documented GitHub Actions secrets; never commit signing material.
 
-- Kotlin, **Jetpack Compose**, Material 3 with a custom Aero theme, Navigation Compose and ViewModel-owned observable state.
-- Gradle Kotlin DSL, version catalogue, Kotlin serialization, Retrofit 3 / OkHttp 5, Coroutines/Flow, Coil 3.
-- Room (favorites, collections, viewing history, wallpaper/download metadata); DataStore (settings); AndroidKeyStore AES-GCM for the user's Alpha Coders key; WorkManager (cancellable foreground downloads); MediaStore and WallpaperManager.
-- The common provider contract retains each provider's ID, page/original/thumbnail URLs, dimensions, metadata and attribution. Pagination cursors are independent. Results deduplicate only by stable identifiers and canonical URLs—never by visual similarity. Popularity/relevance scores are not compared across providers.
-- `minSdk 29` (Android 10); `targetSdk 36`; `compileSdk 37`; JDK 17.
+Unit tests use local fixtures and a mock HTTP server; they do not require provider credentials or call live catalogues. An optional manual smoke check calls only the two official public APIs:
 
-Project structure:
+```bash
+./scripts/live_source_smoke.sh
+```
+
+See [BLOCKERS.md](BLOCKERS.md) for verification that could not be run in the current environment, and [PRIVACY.md](PRIVACY.md) for network and on-device data details.
+
+## Design and implementation references
+
+The visual research combines Frutiger Aero's nature-and-technology imagery with restrained translucent surfaces; Apple's Liquid Glass material guidance is used as a visual reference, not as an Android dependency. The Compose UI uses simple layered surfaces instead of continuous blur, and lazy image grids use stable keys. Image loading uses Coil's maintained Compose library. No gallery or wallpaper application code is copied into Auroro.
+
+References: [Frutiger Aero overview](https://frutiger-aero.org/frutiger-aero) · [Waterloo Computer Museum](https://uwaterloo.ca/computer-museum/exhibits/frutiger-aero-future-2000s) · [Apple materials](https://developer.apple.com/design/human-interface-guidelines/materials) · [Liquid Glass overview](https://developer.apple.com/documentation/technologyoverviews/liquid-glass) · [Compose performance guidance](https://developer.android.com/develop/ui/compose/performance) · [Coil](https://github.com/coil-kt/coil) · [Muzei (Apache-2.0)](https://github.com/muzei/muzei) · [Aves (BSD-3-Clause)](https://github.com/deckerst/aves).
+
+## Project layout
 
 ```text
 app/src/main/java/com/auroro/wallpapers/
-  app/                 Application container, activity, navigation and state
-  core/model/          Wallpaper, aspect/resolution rules, local filters and deduplication
-  core/network/        HTTPS clients, host allow-list, retries and error mapping
-  core/network/*/      Official Wallhaven and Alpha Coders API DTOs
-  core/data/           Providers, independent-source paging, repositories and preferences
-  core/database/       Room entities, DAOs and migration entry point
-  core/data/download/  Streaming downloads, MediaStore, crop and WallpaperManager
-  core/design/         Aero palette, glass materials, type, motion and reusable components
-  feature/             Home, search, filters, details, collections, offline and settings screens
-app/src/test/           Model, provider/pager, Room repository, configuration and download tests
+  app/                 Application container, navigation and state
+  core/model/          Wallpaper metadata, geometry, filters and deduplication
+  core/network/        HTTPS clients, URL policy, pacing and error mapping
+  core/data/           Wallhaven/Openverse providers, paging and repositories
+  core/database/       Room entities, DAOs and migrations
+  core/data/download/  Streaming downloads, file storage, crop and WallpaperManager
+  core/design/         Aero palette, glass surfaces and reusable components
+  feature/             Home, search, filters, detail, collections, offline and settings
+app/src/test/           Model, provider, paging, migration, persistence and download tests
 ```
 
-## Build, install and tests
-
-Prerequisites: JDK 17, Android SDK Platform 37, Android build-tools 37.0.0, and network access to Google's/Maven dependency repositories.
-
-```bash
-# Verify tests, Android lint, and both APK variants
-./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
-
-# Install the debug APK on a connected Android device (USB debugging enabled)
-./gradlew installDebug
-
-# Or install the generated file with adb
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-The debug APK is **debug-signed**, not release-signed. A release build is signed only when you configure a private release keystore. Never commit signing files or passwords. For the GitHub Actions release-signing job, configure these repository secrets: `AURORO_KEYSTORE_BASE64`, `AURORO_KEYSTORE_PASSWORD`, `AURORO_KEY_ALIAS`, and `AURORO_KEY_PASSWORD`. If those four secrets are absent, the workflow reports that it did not sign a release APK and publishes the installable debug APK instead.
-
-The CI workflow runs `testDebugUnitTest`, `lintDebug`, `assembleDebug` and `assembleRelease`, and uploads APKs plus test/lint reports as artifacts. Open **Actions → Android CI → the successful run → Artifacts → `auroro-wallpapers-apk`** to download the universal APK. A `v*` tag build also attaches generated APKs to its GitHub Release when signing is configured.
-
-Tests use deterministic local fixtures and a mock HTTP server; they do not call live wallpaper services or require a provider key. On a networked machine, optional live source checks are separate from unit tests: `./scripts/live_source_smoke.sh` (set `ALPHA_CODERS_API_KEY` only if you have your own active subscription key). Unsplash is deliberately skipped by policy. Upstream rate limits and keys are never unit-test prerequisites.
-
-## Configuration and privacy
-
-- **Wallpaper Abyss key:** enter the key you obtained from Alpha Coders in Settings. It is encrypted at rest with a device-bound AndroidKeyStore key. It is never compiled into `BuildConfig`, tracked by Git or backed up by Auroro.
-- **Wallhaven:** no key needed for the public SFW API. The application never sends a sketchy/NSFW request.
-- **Unsplash:** no API key is accepted or sent; this source opens the official website externally.
-- Download location defaults to `Pictures/Auroro Wallpapers` through MediaStore. “App storage only” is available when the user prefers private files. No broad storage permission is requested.
-- Favorites, collections, history and settings are local. Saved images use the chosen Android storage location. There is no Auroro account, backend, telemetry or analytics.
-
-See [`PRIVACY.md`](PRIVACY.md), [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md), [`ASSET_LICENSES.md`](ASSET_LICENSES.md) and [`LICENSE`](LICENSE).
-
-## Design research and visual verification
-
-The design draws on the optimistic nature-plus-technology imagery and translucent Aero Glass of 2004–2013 interfaces, while using Liquid Glass guidance only as a reference for a separate, restrained controls/navigation layer. It uses original vector sphere artwork, Open Sans (not a copied Frutiger/Segoe font), luminous edge highlights and opaque enough content surfaces for contrast. Expensive blur and continuously running effects are intentionally avoided.
-
-References read: <https://frutiger-aero.org/frutiger-aero>, <https://uwaterloo.ca/computer-museum/exhibits/frutiger-aero-future-2000s>, <https://developer.apple.com/design/human-interface-guidelines/materials>, <https://developer.apple.com/documentation/technologyoverviews/liquid-glass> and <https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass>.
-
-The current coding environment has no Android SDK, emulator or supplied reference image file, so it cannot capture a running-device screenshot or compare pixels against the concept. The Android CI build and automated tests are the available verification path; no screenshot-based visual test or physical-device profiling is claimed.
+The app targets Android 36 (minimum Android 10 / API 29) and uses Material 3, Room, DataStore, WorkManager, Coil, Retrofit and OkHttp. Third-party software licences are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Artwork and font notices are in [ASSET_LICENSES.md](ASSET_LICENSES.md).

@@ -7,11 +7,14 @@ import java.io.InterruptedIOException
 import kotlin.random.Random
 
 /** Blocks any hop (including redirects) that leaves the provider allow-list. Install as a *network* interceptor. */
-class HostAllowlistInterceptor : Interceptor {
+class HostAllowlistInterceptor(private val allowPublicHttpsAssets: Boolean = false) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
-        val url = chain.request().url
-        if (!UrlPolicy.isAllowedForNetwork(url)) throw BlockedUrlException(url.host)
-        return chain.proceed(chain.request())
+        val request = chain.request()
+        val url = request.url
+        val allowed = UrlPolicy.isAllowedForNetwork(url) ||
+            (allowPublicHttpsAssets && UrlPolicy.isAllowedOpenverseAsset(url.toString()))
+        if (!allowed) throw BlockedUrlException(url.host)
+        return chain.proceed(request)
     }
 }
 
@@ -22,16 +25,17 @@ class UserAgentInterceptor(private val userAgent: String) : Interceptor {
 
 /**
  * Safe retries for idempotent GETs: connection failures, timeouts and 5xx/408 with exponential backoff
- * plus jitter. Never retries 401, 403 or 429 (those are returned as-is for the caller to explain).
+ * plus jitter. Never retries 401, 403 or 429; quota-sensitive hosts can also opt out entirely.
  */
 class RetryInterceptor(
     private val maxRetries: Int = 2,
     private val baseDelayMs: Long = 400,
     private val sleeper: (Long) -> Unit = { Thread.sleep(it) },
+    private val noRetryHosts: Set<String> = emptySet(),
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        if (request.method != "GET") return chain.proceed(request)
+        if (request.method != "GET" || request.url.host in noRetryHosts) return chain.proceed(request)
         var attempt = 0
         while (true) {
             if (chain.call().isCanceled()) throw IOException("Canceled")

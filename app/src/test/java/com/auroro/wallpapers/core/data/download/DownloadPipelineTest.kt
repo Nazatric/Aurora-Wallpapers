@@ -71,10 +71,9 @@ class DownloadPipelineTest {
             db = db,
             store = store,
             settings = settings,
-            client = OkHttpClient.Builder().build(),
+            clientForSource = { OkHttpClient.Builder().build() },
             saver = { AppStorageSaver(destination) },
-            screenLongEdge = { 1080 },
-            urlAllowed = { true }, // Isolated local mock server; release builds retain UrlPolicy's strict allow-list.
+            urlAllowed = { _, _ -> true }, // Isolated local mock server; production validates provider URLs.
         )
 
         // Robolectric's StatFs defaults to zero free blocks unless a fixture is registered.
@@ -92,6 +91,7 @@ class DownloadPipelineTest {
         assertEquals(2, row.savedWidth)
         assertEquals(2, row.savedHeight)
         assertEquals(png.size.toLong(), row.savedSizeBytes)
+        assertEquals("ORIGINAL", row.quality)
         assertNotNull(row.localUri)
         val saved = File(android.net.Uri.parse(row.localUri).path!!)
         assertTrue(saved.isFile)
@@ -135,12 +135,16 @@ class DownloadPipelineTest {
         assertEquals(null, ImageValidator.inspect(File(temp.root, "missing.jpg")))
         val corrupt = File(temp.root, "corrupt.png").apply { writeText("not a decodable image") }
         assertEquals(null, ImageValidator.inspect(corrupt))
+        val truncated = File(temp.root, "truncated.png").apply { writeBytes(pngBytes().copyOf(40)) }
+        assertEquals(null, ImageValidator.inspect(truncated))
     }
 
-    @Test fun fitToScreenDownscalePlanPreservesOrientationAndAspect() {
-        assertEquals(1080 to 1920, Downscaler.plan(2160, 3840, 1920))
-        assertEquals(1920 to 1080, Downscaler.plan(3840, 2160, 1920))
-        assertEquals(null, Downscaler.plan(1920, 1080, 1920))
+    @Test fun unknownLengthDownloadsReserveSpaceForTheTempAndFinalFiles() {
+        val mb = 1024L * 1024
+        assertEquals(100L * 2 + 16 * mb, DownloadExecutor.requiredSpaceBytes(total = 100, downloaded = 0))
+        assertEquals(40L + 100 + 16 * mb, DownloadExecutor.requiredSpaceBytes(total = 100, downloaded = 60))
+        assertEquals(64 * mb, DownloadExecutor.requiredSpaceBytes(total = -1, downloaded = 0))
+        assertEquals(10 * mb + 16 * mb, DownloadExecutor.requiredSpaceBytes(total = -1, downloaded = 10 * mb))
     }
 
     @Test fun cropGeometryHandlesPortraitAndPanning() {
@@ -160,10 +164,9 @@ class DownloadPipelineTest {
         db = db,
         store = store,
         settings = settings,
-        client = OkHttpClient.Builder().build(),
+        clientForSource = { OkHttpClient.Builder().build() },
         saver = { AppStorageSaver(File(temp.root, "saved")) },
-        screenLongEdge = { 1080 },
-        urlAllowed = { true },
+        urlAllowed = { _, _ -> true },
     )
 
     private fun pngBytes(): ByteArray = java.util.Base64.getDecoder().decode(

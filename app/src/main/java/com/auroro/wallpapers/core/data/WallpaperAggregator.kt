@@ -9,10 +9,16 @@ class WallpaperAggregator(val providers: List<WallpaperProvider>) {
 
     fun provider(source: WallpaperSource): WallpaperProvider? = providers.firstOrNull { it.source == source }
 
-    /** Providers selected by the filter (empty selection means every provider). */
+    /** Providers selected by the filter (empty selection means both integrated sources). */
     fun selected(request: FeedRequest): List<WallpaperProvider> {
-        val wanted = request.filter.sources
-        return if (wanted.isEmpty()) providers else providers.filter { it.source in wanted }
+        val filter = request.filter
+        if (filter.hasConflictingSourceFilters) return emptyList()
+        val wanted = filter.sources
+        val required = filter.requiredSources
+        return providers.filter { provider ->
+            (wanted.isEmpty() || provider.source in wanted) &&
+                (required.isEmpty() || provider.source in required)
+        }
     }
 
     fun newPager(request: FeedRequest): FeedPager = FeedPager(selected(request), request)

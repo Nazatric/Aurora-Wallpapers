@@ -46,11 +46,12 @@ class AspectAndFilterTest {
         assertFalse(ResolutionFilter.Preset(ResolutionPreset.P1080).matches(1079, 1920))
     }
 
-    @Test fun customResolutionIsLiteralAndOrientationSensitive() {
-        val portrait = ResolutionFilter.Custom(1080, 1920)
-        assertTrue(portrait.matches(1080, 2400))
-        assertFalse(portrait.matches(2400, 1080))
-        assertFalse(portrait.matches(1079, 2400))
+    @Test fun customResolutionComparesShortAndLongEdgesForEitherOrientation() {
+        val minimum = ResolutionFilter.Custom(1080, 1920)
+        assertTrue(minimum.matches(1080, 2400))
+        assertTrue(minimum.matches(2400, 1080))
+        assertFalse(minimum.matches(1079, 2400))
+        assertFalse(minimum.matches(2400, 1919))
         assertTrue(ResolutionFilter.Any.matches(0, 0))
     }
 

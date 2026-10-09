@@ -63,7 +63,7 @@ class FeedPager(
         var lastError: ProviderException? = null
         var totalLoaded = 0
         val exhausted get() = cursor == null
-        val canLoad get() = skipped == null && halted == null && cursor != null
+        val canLoad get() = skipped == null && halted == null && lastError == null && cursor != null
     }
 
     private val states = providers.map { ProviderState(it) }
@@ -101,35 +101,21 @@ class FeedPager(
         if (st.prepared) return
         st.prepared = true
         st.skipped = null
-        when (val a = st.provider.availability()) {
+        when (val availability = st.provider.availability()) {
             SourceAvailability.Available -> {
                 val reason = st.provider.unsupportedReason(request)
                 if (reason != null) st.skipped = SourceState.Skipped(reason)
             }
-            is SourceAvailability.NeedsConfiguration -> st.skipped = SourceState.Skipped(
-                a.reason,
-                handoffFor(st.provider.source, request.normalizedQuery, a.handoffUrl),
-                needsConfiguration = true,
-            )
-            is SourceAvailability.BlockedByPolicy -> st.skipped = SourceState.Skipped(
-                a.reason,
-                handoffFor(st.provider.source, request.normalizedQuery, a.handoffUrl),
-            )
-            is SourceAvailability.DisabledByUser -> st.skipped = SourceState.Skipped(a.reason)
+            is SourceAvailability.DisabledByUser -> st.skipped = SourceState.Skipped(availability.reason)
         }
-    }
-
-    private fun handoffFor(source: WallpaperSource, query: String, fallback: String?): String? = when (source) {
-        WallpaperSource.ABYSS -> Handoff.abyssSearchUrl(query)
-        WallpaperSource.UNSPLASH -> UnsplashProvider.searchUrl(query)
-        WallpaperSource.WALLHAVEN -> fallback
     }
 
     private suspend fun loadProvider(st: ProviderState): List<Wallpaper> {
         val collected = ArrayList<Wallpaper>()
         var pages = 0
+        val pageBudget = st.provider.maxPagesPerLoad(request).coerceIn(1, maxPagesPerLoad)
         st.lastError = null
-        while (st.cursor != null && collected.size < perProviderTarget && pages < maxPagesPerLoad) {
+        while (st.cursor != null && collected.size < perProviderTarget && pages < pageBudget) {
             val cursor = st.cursor!!
             try {
                 val page = st.provider.fetchPage(request, cursor)
