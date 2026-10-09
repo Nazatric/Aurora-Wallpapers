@@ -94,17 +94,17 @@ fun OfflineScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalItemSpacing = 11.dp,
             ) {
-                item(span = { StaggeredGridItemSpan.FullLine }) {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     HeaderBar("Offline", "Files saved on this device", onMenu = onMenu)
                 }
-                item(span = { StaggeredGridItemSpan.FullLine }) {
+                item(span = StaggeredGridItemSpan.FullLine) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OfflineTab.entries.forEach { tab -> GlassPill(tab.label, selectedTab == tab, onClick = { selectedTab = tab }) }
                     }
                 }
-                if (localStorage != null) item(span = { StaggeredGridItemSpan.FullLine }) { StorageSummary(localStorage!!) }
+                if (localStorage != null) item(span = StaggeredGridItemSpan.FullLine) { StorageSummary(localStorage!!) }
                 if (rows.isEmpty()) {
-                    item(span = { StaggeredGridItemSpan.FullLine }) {
+                    item(span = StaggeredGridItemSpan.FullLine) {
                         EmptyState(
                             "No downloads yet",
                             "Download a wallpaper to save its original file on this device. Cached previews aren't listed here.",
@@ -114,19 +114,19 @@ fun OfflineScreen(
                     }
                 }
                 if (active.isNotEmpty()) {
-                    item(span = { StaggeredGridItemSpan.FullLine }) { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
-                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
+                    item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
+                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = StaggeredGridItemSpan.FullLine) { row ->
                         DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
                     }
                 }
                 if (failed.isNotEmpty()) {
-                    item(span = { StaggeredGridItemSpan.FullLine }) { SectionTitle("Needs attention", "Interrupted or unavailable files") }
-                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
+                    item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("Needs attention", "Interrupted or unavailable files") }
+                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = StaggeredGridItemSpan.FullLine) { row ->
                         DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
                     }
                 }
                 if (completed.isNotEmpty()) {
-                    item(span = { StaggeredGridItemSpan.FullLine }) { SectionTitle("Saved wallpapers", "${completed.count { it.fileExists }} files available offline") }
+                    item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("Saved wallpapers", "${completed.count { it.fileExists }} files available offline") }
                     items(completed, key = { it.download.wallpaperKey }) { row ->
                         val w = row.wallpaper
                         val title = w?.category ?: w?.source?.displayName ?: row.download.fileName ?: "Saved wallpaper"
@@ -152,7 +152,7 @@ fun OfflineScreen(
                         }
                     }
                 }
-                item(span = { StaggeredGridItemSpan.FullLine }) { Spacer(Modifier.height(18.dp)) }
+                item(span = StaggeredGridItemSpan.FullLine) { Spacer(Modifier.height(18.dp)) }
             }
         }
 

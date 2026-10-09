@@ -60,8 +60,8 @@ class OpenverseProvider(
                 api.images(OpenverseQuery.build(request, cursor))
             }
         } catch (error: ProviderException) {
-            val response = (error.cause as? HttpException)?.response()
-            response?.headers()?.let(limiter::observeProviderHeaders)
+            val headers = (error.cause as? HttpException)?.response()?.headers()
+            if (headers != null) limiter.observeProviderHeaders(headers)
             if (error.kind == ProviderErrorKind.RATE_LIMITED && error.retryAfterSeconds != null && error.retryAfterSeconds > 0) {
                 limiter.pauseFor(error.retryAfterSeconds.coerceAtMost(604_800L) * 1_000L)
             }
