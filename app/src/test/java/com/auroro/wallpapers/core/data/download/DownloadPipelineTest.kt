@@ -81,7 +81,7 @@ class DownloadPipelineTest {
         val progress = ArrayList<Pair<Long, Long>>()
         assertTrue(executor.execute(w.key) { bytes, total -> progress += bytes to total })
         val request = server.takeRequest()
-        assertEquals("/full-resolution.png", request.path)
+        assertEquals("/full-resolution.png", request.url.encodedPath)
         assertTrue(progress.isNotEmpty())
         val row = db.downloads().get(w.key)!!
         assertEquals(DownloadStatus.COMPLETED.name, row.status)

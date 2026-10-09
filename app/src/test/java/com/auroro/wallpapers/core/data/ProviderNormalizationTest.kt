@@ -146,7 +146,16 @@ class ProviderNormalizationTest {
     @Test fun unsupportedWallhavenRatioAndResolutionFiltersStayLocalOrConservative() {
         val portrait = FeedRequest(filter = com.auroro.wallpapers.core.model.WallpaperFilter(orientation = com.auroro.wallpapers.core.model.Orientation.PORTRAIT))
         assertNull(WallhavenQuery.ratios(portrait)) // API doesn't accept made-up "portrait" tokens.
-        assertEquals("2160x3840", WallhavenQuery.atLeast(portrait.copy(filter = portrait.filter.copy(resolution = com.auroro.wallpapers.core.model.ResolutionFilter.Preset(com.auroro.wallpapers.core.model.ResolutionPreset.K4))))
+        val minimum4k = WallhavenQuery.atLeast(
+            portrait.copy(
+                filter = portrait.filter.copy(
+                    resolution = com.auroro.wallpapers.core.model.ResolutionFilter.Preset(
+                        com.auroro.wallpapers.core.model.ResolutionPreset.K4,
+                    ),
+                ),
+            ),
+        )
+        assertEquals("2160x3840", minimum4k)
     }
 
     @Test fun abyssQueriesDesktopAndPhoneIndependentlyWhenOrientationIsUnspecified() {

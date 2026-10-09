@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -117,6 +118,10 @@ private fun CollectionCard(collection: CollectionSummary, onOpen: () -> Unit, on
     var rename by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val createdDate = remember(collection.createdAt, locale) {
+        java.text.SimpleDateFormat("MMM d, yyyy", locale).format(java.util.Date(collection.createdAt))
+    }
     GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(23.dp), onClick = onOpen) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(86.dp).clip(RoundedCornerShape(17.dp)).background(Brush.verticalGradient(listOf(Aero.colors.accent.copy(alpha = .45f), Aero.colors.emerald.copy(alpha = .22f))))) {
@@ -140,7 +145,7 @@ private fun CollectionCard(collection: CollectionSummary, onOpen: () -> Unit, on
                 Text(collection.name, style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("${collection.itemCount} wallpaper${if (collection.itemCount == 1) "" else "s"}", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                 Spacer(Modifier.height(8.dp))
-                Text("Created ${java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.getDefault()).format(java.util.Date(collection.createdAt))}", style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
+                Text("Created $createdDate", style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
             }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, "Collection options", tint = Aero.colors.textSecondary) }

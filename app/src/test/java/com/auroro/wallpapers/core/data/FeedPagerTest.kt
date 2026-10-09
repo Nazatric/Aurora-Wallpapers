@@ -60,7 +60,7 @@ class FeedPagerTest {
 
     @Test fun providerSpecificSortLimitationsAreVisibleInsteadOfSilentlyMisrepresented() = runTest {
         val abyss = ScriptedProvider(WallpaperSource.ABYSS).apply {
-            capabilitiesValue = ProviderCapabilities(
+            capabilities = ProviderCapabilities(
                 sortsWithoutQuery = setOf(SortOption.NEWEST),
                 sortsWithQuery = setOf(SortOption.RELEVANCE),
             )

@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
@@ -76,6 +77,7 @@ fun CropScreen(
     onApply: (String, ApplyTarget, NormalizedCrop) -> Unit,
 ) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     var fileExists by remember(download?.localUri) { mutableStateOf(false) }
     LaunchedEffect(download?.localUri, download?.status) {
         fileExists = withContext(Dispatchers.IO) {
@@ -170,7 +172,7 @@ fun CropScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Zoom", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
                         Spacer(Modifier.weight(1f))
-                        Text("${"%.1f".format(scale)}×", style = MaterialTheme.typography.labelMedium, color = Aero.colors.accent)
+                        Text("${java.lang.String.format(locale, "%.1f", scale)}×", style = MaterialTheme.typography.labelMedium, color = Aero.colors.accent)
                         TextButton(onClick = { scale = 1f; offsetX = 0f; offsetY = 0f }) { Text("Reset", color = Aero.colors.textSecondary) }
                     }
                     Slider(
