@@ -93,7 +93,7 @@ class FeedPagerTest {
     }
 
     private class ScriptedProvider(override val source: WallpaperSource) : WallpaperProvider {
-        var capabilities = ProviderCapabilities(
+        override var capabilities = ProviderCapabilities(
             sortsWithoutQuery = setOf(SortOption.RELEVANCE, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
             sortsWithQuery = setOf(SortOption.RELEVANCE, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
         )

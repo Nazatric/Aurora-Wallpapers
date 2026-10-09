@@ -23,7 +23,7 @@ class RetryInterceptorTest {
             }
             assertEquals(1, server.requestCount)
         } finally {
-            server.shutdown()
+            server.close()
         }
     }
 }
