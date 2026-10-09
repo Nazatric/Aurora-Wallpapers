@@ -18,7 +18,7 @@ fun config(name: String): String =
 
 android {
     namespace = "com.auroro.wallpapers"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.auroro.wallpapers"
