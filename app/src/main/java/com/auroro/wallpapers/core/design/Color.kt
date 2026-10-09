@@ -5,10 +5,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import com.auroro.wallpapers.core.data.AccentTheme
 
-/**
- * Design tokens. The look is "Frutiger Aero": deep ocean blues fading into turquoise, glass panels with a
- * thin luminous rim and a soft specular highlight, aqua/emerald accents. [isDark] false = "Light sky" variant.
- */
+/** Curated Aero tokens: calm ocean depths, fresh leaf light and readable translucent controls. */
 @Immutable
 data class AeroColors(
     val isDark: Boolean,
@@ -17,7 +14,7 @@ data class AeroColors(
     val backdropBottom: Color,
     val glowA: Color,
     val glowB: Color,
-    /** Tint under glass so text stays legible regardless of what's behind. */
+    /** A stable tint beneath glass so controls stay legible over varied artwork. */
     val glassTint: Color,
     val glassHighlight: Color,
     val glassRimLight: Color,
@@ -36,73 +33,71 @@ data class AeroColors(
     val success: Color,
     val surfaceSolid: Color,
     val scrim: Color,
-    /** 1.0 normal; larger = more opaque glass (used by "Reduce transparency"). */
+    /** 1.0 normal; larger values increase panel opacity when transparency is reduced. */
     val opacityBoost: Float,
 )
 
-private val DeepNavy = Color(0xFF031225)
-
 fun aeroColors(dark: Boolean, accent: AccentTheme, amoled: Boolean, reduceTransparency: Boolean): AeroColors {
     val (a, aLight, aDeep) = when (accent) {
-        AccentTheme.AQUA -> Triple(Color(0xFF35D3F0), Color(0xFF9DEEFF), Color(0xFF0B8FB8))
-        AccentTheme.EMERALD -> Triple(Color(0xFF2EDC96), Color(0xFFA6F5D3), Color(0xFF0E9F66))
-        AccentTheme.SKY -> Triple(Color(0xFF5BB6FF), Color(0xFFB3DDFF), Color(0xFF2A7DE1))
+        AccentTheme.AQUA -> Triple(Color(0xFF59B9D0), Color(0xFFBCECF3), Color(0xFF246C80))
+        AccentTheme.EMERALD -> Triple(Color(0xFF45AD83), Color(0xFFB6E9D0), Color(0xFF236B4D))
+        AccentTheme.SKY -> Triple(Color(0xFF659DCD), Color(0xFFC1DDF5), Color(0xFF315F93))
     }
-    val boost = if (reduceTransparency) 1.9f else 1f
+    val boost = if (reduceTransparency) 1.42f else 1f
     return if (dark) {
         AeroColors(
             isDark = true,
-            backdropTop = if (amoled) Color.Black else Color(0xFF04152B),
-            backdropMid = if (amoled) Color(0xFF020A12) else Color(0xFF06355E),
-            backdropBottom = if (amoled) Color(0xFF031A1E) else Color(0xFF0A6670),
-            glowA = a.copy(alpha = if (amoled) 0.10f else 0.22f),
-            glowB = Color(0xFF2EDC96).copy(alpha = if (amoled) 0.06f else 0.14f),
-            glassTint = if (amoled) Color(0xFF02101A) else DeepNavy,
+            backdropTop = if (amoled) Color.Black else Color(0xFF081721),
+            backdropMid = if (amoled) Color(0xFF050B10) else Color(0xFF10242E),
+            backdropBottom = if (amoled) Color(0xFF07110F) else Color(0xFF142A27),
+            glowA = a,
+            glowB = Color(0xFF70C89A),
+            glassTint = if (amoled) Color(0xFF090F13) else Color(0xFF0D1C25),
             glassHighlight = Color.White,
-            glassRimLight = Color.White.copy(alpha = 0.55f),
-            glassRimDark = aLight.copy(alpha = 0.22f),
-            textPrimary = Color(0xFFEAF8FF),
-            textSecondary = Color(0xFFA9CFE0),
-            textTertiary = Color(0xFF7FA8BC),
+            glassRimLight = Color(0xFFDDF8FA),
+            glassRimDark = aLight,
+            textPrimary = Color(0xFFF0F7F7),
+            textSecondary = Color(0xFFB7CDD2),
+            textTertiary = Color(0xFF8FA9B0),
             accent = a,
             accentLight = aLight,
             accentDeep = aDeep,
-            onAccent = Color(0xFF02222E),
-            emerald = Color(0xFF2EDC96),
-            emeraldDeep = Color(0xFF0E9F66),
-            error = Color(0xFFFF8A8A),
-            warning = Color(0xFFFFC857),
-            success = Color(0xFF5CE6A8),
-            surfaceSolid = if (amoled) Color(0xFF050E14) else Color(0xFF082A4A),
-            scrim = Color(0xAA000A14),
+            onAccent = Color(0xFF051D25),
+            emerald = Color(0xFF70C89A),
+            emeraldDeep = Color(0xFF297956),
+            error = Color(0xFFFF9292),
+            warning = Color(0xFFFFCF75),
+            success = Color(0xFF82D6A9),
+            surfaceSolid = if (amoled) Color(0xFF080D11) else Color(0xFF142831),
+            scrim = Color(0xC9081218),
             opacityBoost = boost,
         )
     } else {
         AeroColors(
             isDark = false,
-            backdropTop = Color(0xFFB9E8FF),
-            backdropMid = Color(0xFFE6F7FF),
-            backdropBottom = Color(0xFFCDF3E2),
-            glowA = Color.White.copy(alpha = 0.7f),
-            glowB = Color(0xFF2EDC96).copy(alpha = 0.16f),
-            glassTint = Color.White,
+            backdropTop = Color(0xFFEAF4F8),
+            backdropMid = Color(0xFFF3F7F3),
+            backdropBottom = Color(0xFFE4F0E8),
+            glowA = Color(0xFF80CDE0),
+            glowB = Color(0xFF79BC91),
+            glassTint = Color(0xFFF8FCFC),
             glassHighlight = Color.White,
-            glassRimLight = Color.White.copy(alpha = 0.95f),
-            glassRimDark = aDeep.copy(alpha = 0.35f),
-            textPrimary = Color(0xFF08233B),
-            textSecondary = Color(0xFF2F5670),
-            textTertiary = Color(0xFF4F7388),
+            glassRimLight = Color.White,
+            glassRimDark = aDeep,
+            textPrimary = Color(0xFF152D36),
+            textSecondary = Color(0xFF405D66),
+            textTertiary = Color(0xFF607981),
             accent = aDeep,
             accentLight = a,
-            accentDeep = Color(0xFF075F80),
+            accentDeep = aDeep,
             onAccent = Color.White,
-            emerald = Color(0xFF0E9F66),
-            emeraldDeep = Color(0xFF07754B),
+            emerald = Color(0xFF348A60),
+            emeraldDeep = Color(0xFF246846),
             error = Color(0xFFB3261E),
-            warning = Color(0xFF8A5A00),
-            success = Color(0xFF0B7A4B),
-            surfaceSolid = Color(0xFFF2FBFF),
-            scrim = Color(0x66000000),
+            warning = Color(0xFF7D5600),
+            success = Color(0xFF236D4A),
+            surfaceSolid = Color(0xFFF8FCFC),
+            scrim = Color(0x66061116),
             opacityBoost = boost,
         )
     }

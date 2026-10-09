@@ -218,6 +218,11 @@ class ProviderNormalizationTest {
             PageCursor(),
         )
         assertEquals("wide", landscapeOnly["aspect_ratio"])
+        val squareBand = OpenverseQuery.build(
+            FeedRequest(filter = WallpaperFilter(orientation = Orientation.SQUARE)),
+            PageCursor(),
+        )
+        assertNull(squareBand["aspect_ratio"]) // Openverse's exact-square bucket would drop near-square matches.
         val nearSquarePortrait = OpenverseQuery.build(
             FeedRequest(
                 aspectTolerance = 0.03f,
@@ -306,6 +311,10 @@ class ProviderNormalizationTest {
             portrait.copy(filter = portrait.filter.copy(orientation = Orientation.LANDSCAPE, resolution = ResolutionFilter.Custom(1080, 1920))),
         )
         assertEquals("1920x1080", landscapeMinimum)
+        val squareMinimum = WallhavenQuery.atLeast(
+            portrait.copy(filter = portrait.filter.copy(orientation = Orientation.SQUARE, resolution = ResolutionFilter.Custom(1080, 1920))),
+        )
+        assertEquals("1080x1080", squareMinimum) // Broad server hint; the 5% square band is checked on real dimensions.
 
         val nearSquareWithTolerance = FeedRequest(
             aspectTolerance = 0.03f,

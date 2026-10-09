@@ -21,9 +21,24 @@ import kotlin.math.min
  */
 object AspectMath {
     const val DEFAULT_TOLERANCE = 0.03f
+    /** Maximum difference between the edges as a fraction of the longer edge for square classification. */
+    const val SQUARE_TOLERANCE = 0.05f
     val TOLERANCE_CHOICES = listOf(0.01f, 0.02f, 0.03f, 0.05f)
 
     fun ratio(width: Int, height: Int): Float = if (height <= 0 || width <= 0) 0f else width.toFloat() / height
+
+    /** Classifies actual dimensions; square tolerance is symmetric when width and height are swapped. */
+    fun classifyOrientation(width: Int, height: Int): Orientation? {
+        val value = ratio(width, height)
+        if (!value.isFinite() || value <= 0f) return null
+        val longerEdge = max(width, height)
+        val relativeEdgeDifference = abs(width.toLong() - height.toLong()).toFloat() / longerEdge
+        return when {
+            relativeEdgeDifference <= SQUARE_TOLERANCE -> Orientation.SQUARE
+            width < height -> Orientation.PORTRAIT
+            else -> Orientation.LANDSCAPE
+        }
+    }
 
     fun matches(width: Int, height: Int, targetRatio: Float, tolerance: Float = DEFAULT_TOLERANCE): Boolean {
         if (targetRatio <= 0f) return false

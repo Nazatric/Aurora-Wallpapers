@@ -22,24 +22,25 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
@@ -62,7 +63,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
@@ -72,10 +72,10 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
-import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -83,13 +83,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.auroro.wallpapers.core.data.download.ApplyTarget
-import com.auroro.wallpapers.core.data.download.LocalFiles
-import com.auroro.wallpapers.core.data.download.NormalizedCrop
-import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.AmbientBackdrop
 import com.auroro.wallpapers.core.design.AppLogo
-import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
 import com.auroro.wallpapers.core.design.LocalReducedMotion
 import com.auroro.wallpapers.core.design.Motion
@@ -107,7 +103,6 @@ import com.auroro.wallpapers.feature.search.FilterScreen
 import com.auroro.wallpapers.feature.search.SearchScreen
 import com.auroro.wallpapers.feature.settings.SettingsScreen
 import com.auroro.wallpapers.feature.settings.SourcesScreen
-import com.auroro.wallpapers.feature.wallpaper.ApplyTargetDialog
 import com.auroro.wallpapers.feature.wallpaper.CropScreen
 import com.auroro.wallpapers.feature.wallpaper.WallpaperDetailScreen
 import com.auroro.wallpapers.feature.wallpaper.shareWallpaper
@@ -259,7 +254,17 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
             AmbientBackdrop(Modifier.fillMaxSize())
             Scaffold(
                 containerColor = Color.Transparent,
-                snackbarHost = { SnackbarHost(snackbar) },
+                contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+                snackbarHost = {
+                    SnackbarHost(
+                        snackbar,
+                        modifier = if (isImmersive) {
+                            Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+                        } else {
+                            Modifier
+                        },
+                    )
+                },
                 bottomBar = {
                     if (!isImmersive) BottomNavigation(
                         selected = currentTab ?: route,
@@ -270,7 +275,8 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                 NavHost(
                     navController = nav,
                     startDestination = "home",
-                    modifier = Modifier.fillMaxSize().padding(padding),
+                    modifier = Modifier.fillMaxSize().padding(padding)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)),
                     enterTransition = {
                         if (reducedMotion) EnterTransition.None else fadeIn(tween(180, easing = Motion.Easing)) + slideInHorizontally(tween(220, easing = Motion.Easing)) { it / 30 }
                     },
@@ -281,20 +287,13 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     composable("home") {
                         HomeScreen(
                             feed = feed,
-                            favorites = favorites,
                             selectedTab = homeTab,
-                            enabledSources = enabledSources,
                             onTab = { tab -> homeTab = tab; vm.openHome(tab) },
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
                             onSettings = { nav.navigate("settings") },
-                            onSource = { sources ->
-                                if (WallpaperSource.OPENVERSE in sources) homeTab = HomeTab.FOR_YOU
-                                vm.selectSources(sources)
-                            },
                             onCategory = { startSearch(it) },
                             onOpen = goWallpaper,
-                            onFavorite = vm::toggleFavorite,
                             onLoadMore = vm::loadMore,
                             onRetry = vm::retryFeed,
                         )
@@ -306,16 +305,17 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                         }
                         SearchScreen(
                             feed = feed,
-                            favorites = favorites,
                             queryText = searchText,
                             enabledSources = enabledSources,
                             onQueryText = { searchText = it },
                             onMenu = { scope.launch { drawer.open() } },
                             onSource = { sources -> vm.selectSources(sources, searchText) },
+                            onOrientation = { orientation ->
+                                vm.submitSearch(searchText, feed.request.filter.copy(orientation = orientation))
+                            },
                             onOpenFilters = { nav.navigate("filters") },
                             onSubmit = { query -> vm.submitSearch(query, feed.request.filter) },
                             onOpen = goWallpaper,
-                            onFavorite = vm::toggleFavorite,
                             onLoadMore = vm::loadMore,
                             onRetry = vm::retryFeed,
                         )
@@ -328,7 +328,12 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             aspectTolerance = settings.aspectTolerance,
                             enabledSources = enabledSources,
                             onBack = { nav.popBackStack() },
-                            onApply = { filter -> vm.submitSearch(searchText, filter); nav.popBackStack() },
+                            onApply = { filter ->
+                                val effectiveQuery = if (!filter.openverseTag.isNullOrBlank() && searchText.isNotBlank()) "" else searchText
+                                searchText = effectiveQuery
+                                vm.submitSearch(effectiveQuery, filter)
+                                nav.popBackStack()
+                            },
                         )
                     }
 
@@ -350,11 +355,8 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                         CollectionDetailScreen(
                             collection = summary,
                             wallpapers = items,
-                            favoriteKeys = favorites,
                             onBack = { nav.popBackStack() },
                             onOpen = goWallpaper,
-                            onFavorite = vm::toggleFavorite,
-                            onRemove = { vm.setCollectionMembership(id, it, true) },
                             onAddMore = { startSearch() },
                         )
                     }
@@ -362,11 +364,9 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     composable("favorites") {
                         FavoritesScreen(
                             wallpapers = favoriteWallpapers,
-                            favoriteKeys = favorites,
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
                             onOpen = goWallpaper,
-                            onRemove = { vm.toggleFavorite(it) },
                         )
                     }
 
@@ -374,7 +374,6 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                         OfflineScreen(
                             rows = downloadRows,
                             history = history,
-                            favoriteKeys = favorites,
                             storageInfo = storageInfo,
                             onRequestStorageInfo = { callback -> vm.storageInfo { info -> storageInfo = info; callback(info) } },
                             onMenu = { scope.launch { drawer.open() } },
@@ -383,7 +382,6 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             onRetry = vm::retryDownload,
                             onDelete = vm::deleteDownload,
                             onClearHistory = vm::clearHistory,
-                            onFavorite = vm::toggleFavorite,
                             onApply = { wallpaper -> nav.navigate("crop/${Uri.encode(wallpaper.key)}/${ApplyTarget.HOME.name}") },
                         )
                     }
@@ -528,7 +526,9 @@ private fun DrawerContent(selectedRoute: String, onChoose: (String) -> Unit) {
 @Composable
 private fun BottomNavigation(selected: String, onSelect: (String) -> Unit) {
     GlassPanel(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp).navigationBarsPadding(),
+        Modifier.fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+            .padding(horizontal = 12.dp, vertical = 7.dp),
         shape = CircleShape,
         elevation = 14.dp,
     ) {
@@ -537,7 +537,10 @@ private fun BottomNavigation(selected: String, onSelect: (String) -> Unit) {
                 val active = selected == item.route
                 Column(
                     Modifier.weight(1f).clip(CircleShape).clickable(role = androidx.compose.ui.semantics.Role.Tab) { onSelect(item.route) }
-                        .padding(vertical = 6.dp).semantics { contentDescription = item.label },
+                        .padding(vertical = 6.dp).semantics {
+                            contentDescription = item.label
+                            this.selected = active
+                        },
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {

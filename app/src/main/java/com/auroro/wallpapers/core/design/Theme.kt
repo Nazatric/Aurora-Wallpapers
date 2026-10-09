@@ -1,15 +1,26 @@
 package com.auroro.wallpapers.core.design
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.ThemeMode
+
+private val AeroShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(30.dp),
+)
 
 @Composable
 fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -> Unit) {
@@ -41,7 +52,7 @@ fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -
         )
     }
     CompositionLocalProvider(LocalAero provides aero, LocalReducedMotion provides reduced) {
-        MaterialTheme(colorScheme = scheme, typography = AeroTypography, content = content)
+        MaterialTheme(colorScheme = scheme, typography = AeroTypography, shapes = AeroShapes, content = content)
     }
 }
 

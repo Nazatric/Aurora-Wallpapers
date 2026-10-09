@@ -16,6 +16,29 @@ class AspectAndFilterTest {
         assertEquals("16:9", AspectMath.describe(3840, 2160))
     }
 
+    @Test fun portraitLandscapeAndSquareClassificationUsesAConservativeFivePercentBand() {
+        listOf(
+            8 to 14,
+            9 to 16,
+            9 to 19,
+            9 to 20,
+            1080 to 2400,
+        ).forEach { (width, height) ->
+            assertEquals(Orientation.PORTRAIT, AspectMath.classifyOrientation(width, height))
+        }
+        listOf(16 to 9, 16 to 10, 3 to 2, 1920 to 1080).forEach { (width, height) ->
+            assertEquals(Orientation.LANDSCAPE, AspectMath.classifyOrientation(width, height))
+        }
+        // Edge-difference tolerance is symmetric when width and height are swapped.
+        listOf(1 to 1, 950 to 1000, 1000 to 950, 1000 to 1040, 1040 to 1000, 960 to 1000).forEach { (width, height) ->
+            assertEquals(Orientation.SQUARE, AspectMath.classifyOrientation(width, height))
+        }
+        assertEquals(Orientation.PORTRAIT, AspectMath.classifyOrientation(940, 1000))
+        assertEquals(Orientation.LANDSCAPE, AspectMath.classifyOrientation(1060, 1000))
+        assertEquals(null, AspectMath.classifyOrientation(0, 1000))
+        assertEquals(null, AspectMath.classifyOrientation(1000, 0))
+    }
+
     @Test fun ratioToleranceIsRelativeAndConfigurable() {
         // 1080 × 1900 is about 1.56% from 9:16: accepted at 3%, rejected at 1%.
         assertTrue(AspectMath.matches(1080, 1900, 9f / 16f, tolerance = 0.03f))
@@ -68,6 +91,29 @@ class AspectAndFilterTest {
         assertEquals(listOf(portrait), LocalFilter.apply(listOf(landscape, portrait), filter))
     }
 
+    @Test fun orientationFiltersGroupTallRatiosAndKeepNearSquaresOutOfPortraitAndLandscape() {
+        val tall = listOf(
+            wallpaper(id = "8x14", width = 8, height = 14),
+            wallpaper(id = "9x16", width = 9, height = 16),
+            wallpaper(id = "9x19", width = 9, height = 19),
+            wallpaper(id = "9x20", width = 9, height = 20),
+        )
+        val wide = wallpaper(id = "16x9", width = 16, height = 9)
+        val nearSquare = wallpaper(id = "near-square", width = 1000, height = 1040)
+
+        assertEquals(tall, LocalFilter.apply(tall + wide + nearSquare, WallpaperFilter(orientation = Orientation.PORTRAIT)))
+        assertEquals(listOf(wide), LocalFilter.apply(tall + wide + nearSquare, WallpaperFilter(orientation = Orientation.LANDSCAPE)))
+        assertEquals(listOf(nearSquare), LocalFilter.apply(tall + wide + nearSquare, WallpaperFilter(orientation = Orientation.SQUARE)))
+    }
+
+    @Test fun orientationFilterDoesNotGuessWhenDimensionsAreMissing() {
+        val unknown = wallpaper(id = "unknown-dimensions", width = 0, height = 0)
+        assertTrue(LocalFilter.matches(unknown, WallpaperFilter()))
+        listOf(Orientation.PORTRAIT, Orientation.LANDSCAPE, Orientation.SQUARE).forEach { orientation ->
+            assertFalse(LocalFilter.matches(unknown, WallpaperFilter(orientation = orientation)))
+        }
+    }
+
     @Test fun sourceSelectionAndActiveFilterCountAreExplicit() {
         val filter = WallpaperFilter(
             sources = setOf(WallpaperSource.WALLHAVEN),
@@ -80,5 +126,6 @@ class AspectAndFilterTest {
         )
         assertEquals(7, filter.activeCount)
         assertEquals(0, WallpaperFilter.Default.activeCount)
+        assertEquals(1, WallpaperFilter(orientation = Orientation.SQUARE).activeCount)
     }
 }

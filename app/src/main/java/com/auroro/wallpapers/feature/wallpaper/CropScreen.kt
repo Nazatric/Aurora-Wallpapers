@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -85,13 +86,14 @@ fun CropScreen(
     }
     LaunchedEffect(wallpaper?.key, fileExists, download?.status) {
         if (!fileExists && wallpaper != null && wallpaper.downloadAllowed && wallpaper.setWallpaperAllowed &&
-            download?.status != DownloadStatus.RUNNING.name && download?.status != DownloadStatus.QUEUED.name
+            download?.status != DownloadStatus.RUNNING.name && download?.status != DownloadStatus.QUEUED.name &&
+            download?.status != DownloadStatus.FAILED.name && download?.status != DownloadStatus.CANCELED.name
         ) {
             onEnsureDownload(wallpaper)
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             GlassIconButton(onClick = onBack, description = "Back", icon = Icons.Rounded.ArrowBack)
             Spacer(Modifier.width(11.dp))
@@ -107,10 +109,22 @@ fun CropScreen(
                 when {
                     wallpaper?.setWallpaperAllowed == false -> Text("This licence does not allow an adapted crop. Wallpaper setting is disabled.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
                     wallpaper?.downloadAllowed == false -> Text("Auroro cannot download this original under its reported licence or file type.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
-                    download?.status == DownloadStatus.FAILED.name -> {
-                        Text("Couldn't prepare the original image", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
-                        Text(download.errorMessage ?: "Download failed.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.error)
-                        TextButton(onClick = { wallpaper?.let { onRetry(it.key) } }) { Text("Retry download", color = Aero.colors.accent) }
+                    download?.status == DownloadStatus.FAILED.name || download?.status == DownloadStatus.CANCELED.name -> {
+                        val wasCanceled = download?.status == DownloadStatus.CANCELED.name
+                        Text(
+                            if (wasCanceled) "Original download canceled" else "Couldn't prepare the original image",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Aero.colors.textPrimary,
+                        )
+                        Text(
+                            if (wasCanceled) "Retry when you're ready to continue." else download?.errorMessage ?: "Download failed.",
+                            Modifier.padding(18.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (wasCanceled) Aero.colors.textSecondary else Aero.colors.error,
+                        )
+                        TextButton(onClick = { download?.let { onRetry(it.wallpaperKey) } }, enabled = download != null) {
+                            Text("Retry download", color = Aero.colors.accent)
+                        }
                     }
                     else -> {
                         CircularProgressIndicator(color = Aero.colors.accent)

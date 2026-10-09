@@ -27,11 +27,9 @@ object LocalFilter {
             if (!AspectMath.matches(w.width, w.height, target, aspectTolerance)) return false
         }
         if (!filter.resolution.matches(w.width, w.height)) return false
-        when (filter.orientation) {
-            Orientation.ANY -> Unit
-            Orientation.PORTRAIT -> if (w.height <= w.width) return false
-            Orientation.LANDSCAPE -> if (w.width <= w.height) return false
-        }
+        if (filter.orientation != Orientation.ANY &&
+            AspectMath.classifyOrientation(w.width, w.height) != filter.orientation
+        ) return false
 
         if (filter.wallhavenCategories.isNotEmpty()) {
             if (w.source != WallpaperSource.WALLHAVEN) return false

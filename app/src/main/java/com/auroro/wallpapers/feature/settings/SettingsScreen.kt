@@ -9,8 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Info
@@ -23,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AccentTheme
@@ -93,12 +95,18 @@ fun SettingsScreen(
                     Text("Save originals to", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
                     SaveLocation.entries.forEach { location ->
                         Row(
-                            Modifier.fillMaxWidth(),
+                            Modifier.fillMaxWidth()
+                                .selectable(
+                                    selected = settings.saveLocation == location,
+                                    role = Role.RadioButton,
+                                    onClick = { onSettings { it.copy(saveLocation = location) } },
+                                )
+                                .padding(horizontal = 4.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(
                                 selected = settings.saveLocation == location,
-                                onClick = { onSettings { it.copy(saveLocation = location) } },
+                                onClick = null,
                             )
                             Column(Modifier.weight(1f)) {
                                 Text(location.label, style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textPrimary)
@@ -172,17 +180,15 @@ private fun <T> ChoiceRow(values: List<Pair<T, String>>, selected: T, onSelect: 
 
 @Composable
 private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
-    GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f).padding(end = 10.dp)) {
-                Text(title, style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textPrimary)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChecked)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f).padding(end = 10.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textPrimary)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
+        androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChecked)
     }
 }
 

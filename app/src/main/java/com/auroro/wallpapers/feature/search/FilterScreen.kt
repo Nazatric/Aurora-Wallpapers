@@ -2,7 +2,6 @@ package com.auroro.wallpapers.feature.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
@@ -146,7 +147,7 @@ fun FilterScreen(
     Column(Modifier.fillMaxSize()) {
         HeaderBar(
             title = "Filters",
-            subtitle = "Actual dimensions · provider-supported fields",
+            subtitle = "Actual dimensions · source-aware filters",
             onBack = onBack,
         )
         Column(
@@ -161,20 +162,12 @@ fun FilterScreen(
                 }
             }
 
-            FilterSection("Aspect ratio", "Measured as width ÷ height from provider dimensions.") {
+            FilterSection("Aspect ratio", "Exact ratio presets or a custom width-to-height match.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     GlassPill("Any", draft.aspect == AspectFilter.Any, onClick = { draft = draft.copy(aspect = AspectFilter.Any) })
                     AspectPreset.entries.forEach { preset ->
                         GlassPill(preset.label, draft.aspect == AspectFilter.Preset(preset), onClick = {
-                            val ratio = preset.ratio
-                            draft = draft.copy(
-                                aspect = AspectFilter.Preset(preset),
-                                orientation = when {
-                                    ratio < 0.98f -> Orientation.PORTRAIT
-                                    ratio > 1.02f -> Orientation.LANDSCAPE
-                                    else -> Orientation.ANY
-                                },
-                            )
+                            draft = draft.copy(aspect = AspectFilter.Preset(preset))
                         })
                     }
                 }
@@ -188,14 +181,7 @@ fun FilterScreen(
                             invalidAspectInput = true
                         } else {
                             invalidAspectInput = false
-                            draft = draft.copy(
-                                aspect = AspectFilter.Custom(ratio),
-                                orientation = when {
-                                    ratio.ratio < 0.98f -> Orientation.PORTRAIT
-                                    ratio.ratio > 1.02f -> Orientation.LANDSCAPE
-                                    else -> Orientation.ANY
-                                },
-                            )
+                            draft = draft.copy(aspect = AspectFilter.Custom(ratio))
                         }
                     }) { Text("Use") }
                 }
@@ -236,7 +222,7 @@ fun FilterScreen(
                 Text("Openverse wallpaper results have a 720 px minimum short edge even when the optional resolution filter is Any.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
             }
 
-            FilterSection("Orientation", "Checked against the image's width and height.") {
+            FilterSection("Orientation", "Portrait and landscape use original dimensions. Edges within 5% of the longer side count as square.") {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Orientation.entries.forEach { orientation ->
                         GlassPill(orientation.label, draft.orientation == orientation, onClick = { draft = draft.copy(orientation = orientation) })
@@ -260,7 +246,12 @@ fun FilterScreen(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         GlassPill("All", draft.wallhavenCategories.isEmpty(), onClick = { toggleWallhavenCategory(null) })
                         WallhavenCategory.entries.forEach { category ->
-                            GlassPill(category.label, category in draft.wallhavenCategories, onClick = { toggleWallhavenCategory(category) })
+                            GlassPill(
+                                category.label,
+                                category in draft.wallhavenCategories,
+                                selectionRole = Role.Checkbox,
+                                onClick = { toggleWallhavenCategory(category) },
+                            )
                         }
                     }
                     Text("Dominant colour", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
@@ -292,7 +283,16 @@ fun FilterScreen(
                         ),
                     )
                     if (tagKeywordConflict) {
-                        Text("Openverse tag-only searches cannot be combined with the Search field. Clear the keyword to apply this tag.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                "Openverse tag-only searches cannot be combined with a keyword.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Aero.colors.warning,
+                            )
+                            TextButton(onClick = { onApply(draft) }) {
+                                Text("Clear keyword and apply tag", color = Aero.colors.accent)
+                            }
+                        }
                     }
                     Text("Category", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -381,15 +381,20 @@ private fun ColorDot(hex: String?, selected: Boolean, onSelect: (String?) -> Uni
         else -> runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrDefault(Aero.colors.textSecondary)
     }
     Box(
-        Modifier.size(34.dp)
-            .clip(CircleShape)
-            .background(color)
-            .border(if (selected) 2.dp else 1.dp, if (selected) Aero.colors.accent else Aero.colors.glassRimLight.copy(alpha = .58f), CircleShape)
-            .clickable { onSelect(if (selected) null else hex) }
+        Modifier.size(48.dp)
+            .selectable(selected = selected, role = Role.RadioButton) { onSelect(if (selected) null else hex) }
             .semantics { contentDescription = if (hex == null) "Any dominant colour" else "Dominant colour #$hex" },
         contentAlignment = Alignment.Center,
     ) {
-        if (selected && hex != null) Icon(Icons.Rounded.Check, null, tint = if (hex == "ffffff") Color.Black else Color.White, modifier = Modifier.size(17.dp))
-        else if (hex == null) Icon(Icons.Rounded.ColorLens, null, tint = Aero.colors.accent, modifier = Modifier.size(17.dp))
+        Box(
+            Modifier.size(34.dp)
+                .clip(CircleShape)
+                .background(color)
+                .border(if (selected) 2.dp else 1.dp, if (selected) Aero.colors.accent else Aero.colors.glassRimLight.copy(alpha = .58f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected && hex != null) Icon(Icons.Rounded.Check, null, tint = if (hex == "ffffff") Color.Black else Color.White, modifier = Modifier.size(17.dp))
+            else if (hex == null) Icon(Icons.Rounded.ColorLens, null, tint = Aero.colors.accent, modifier = Modifier.size(17.dp))
+        }
     }
 }

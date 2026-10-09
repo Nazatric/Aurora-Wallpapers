@@ -1,6 +1,5 @@
 package com.auroro.wallpapers.core.data
 
-import com.auroro.wallpapers.core.model.AspectFilter
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.ResolutionFilter
@@ -136,7 +135,8 @@ object OpenverseQuery {
         return when (request.filter.orientation) {
             Orientation.PORTRAIT -> "tall"
             Orientation.LANDSCAPE -> "wide"
-            Orientation.ANY -> null
+            // The API's square bucket is exact equality, while Auroro's square band includes near-squares.
+            Orientation.SQUARE, Orientation.ANY -> null
         }
     }
 

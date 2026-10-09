@@ -91,9 +91,10 @@ enum class SortOption(val label: String) {
 }
 
 enum class Orientation(val label: String) {
-    ANY("All"),
+    ANY("Any"),
     PORTRAIT("Portrait"),
     LANDSCAPE("Landscape"),
+    SQUARE("Square"),
 }
 
 enum class WallhavenCategory(val label: String, val bitIndex: Int) {

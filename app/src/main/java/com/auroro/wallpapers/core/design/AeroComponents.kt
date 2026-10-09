@@ -4,13 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,7 +21,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,7 +43,7 @@ fun HeaderBar(
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val leading = onBack ?: onMenu
@@ -58,57 +55,30 @@ fun HeaderBar(
             )
             Spacer(Modifier.width(10.dp))
         }
-        if (title == "Auroro Wallpapers") {
-            AppLogo(Modifier.size(34.dp), 34.dp)
-            Spacer(Modifier.width(9.dp))
-        }
-        Column(Modifier.weight(1f)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
             Text(title, style = MaterialTheme.typography.titleLarge, color = Aero.colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) {
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
         trailing()
     }
 }
 
 @Composable
-fun GlassIconButton(
-    onClick: () -> Unit,
-    description: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    modifier: Modifier = Modifier,
-    tint: Color = Aero.colors.textPrimary,
-    selected: Boolean = false,
-) {
-    val shape = CircleShape
-    val c = Aero.colors
-    Box(
-        modifier
-            .size(44.dp)
-            .clip(shape)
-            .background(if (selected) c.accentDeep.copy(alpha = 0.9f) else c.glassTint.copy(alpha = if (c.isDark) 0.72f else 0.9f))
-            .border(0.8.dp, c.glassRimLight.copy(alpha = 0.36f), shape),
-        contentAlignment = Alignment.Center,
-    ) {
-        IconButton(onClick = onClick, modifier = Modifier.size(44.dp)) {
-            Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(21.dp))
-        }
-    }
-}
-
-@Composable
 fun SourceGlyph(source: WallpaperSource, modifier: Modifier = Modifier, small: Boolean = false) {
     val (top, bottom, letter) = when (source) {
-        WallpaperSource.WALLHAVEN -> Triple(Color(0xFF75D5E0), Color(0xFF266F80), "W")
-        WallpaperSource.OPENVERSE -> Triple(Color(0xFF73D4B2), Color(0xFF286B5B), "O")
-        WallpaperSource.ARCHIVED -> Triple(Color(0xFFA9BCC7), Color(0xFF586D78), "S")
+        WallpaperSource.WALLHAVEN -> Triple(Color(0xFFBFE8ED), Color(0xFF6CAAB4), "W")
+        WallpaperSource.OPENVERSE -> Triple(Color(0xFFC7EAD5), Color(0xFF79B99B), "O")
+        WallpaperSource.ARCHIVED -> Triple(Color(0xFFD5E0E3), Color(0xFF8CA3A7), "S")
     }
     Box(
-        modifier.size(if (small) 22.dp else 28.dp).clip(CircleShape)
+        modifier.size(if (small) 22.dp else 30.dp).clip(CircleShape)
             .background(Brush.verticalGradient(listOf(top, bottom)))
-            .border(0.8.dp, Color.White.copy(alpha = 0.3f), CircleShape),
+            .border(0.8.dp, Color.White.copy(alpha = 0.54f), CircleShape),
         contentAlignment = Alignment.Center,
     ) {
-        Text(letter, style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium, color = Color(0xFF052230))
+        Text(letter, style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelMedium, color = Color(0xFF08252D))
     }
 }
 
@@ -121,19 +91,19 @@ fun EmptyState(
     action: (@Composable () -> Unit)? = null,
 ) {
     Column(
-        modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 34.dp),
+        modifier.fillMaxWidth().padding(horizontal = 26.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(
             Modifier.size(58.dp).clip(CircleShape)
-                .background(Brush.verticalGradient(listOf(Aero.colors.accent.copy(alpha = 0.2f), Aero.colors.emerald.copy(alpha = 0.09f))))
-                .border(1.dp, Aero.colors.glassRimLight.copy(alpha = 0.32f), CircleShape),
+                .background(Brush.verticalGradient(listOf(Aero.colors.accent.copy(alpha = 0.22f), Aero.colors.emerald.copy(alpha = 0.09f))))
+                .border(1.dp, Aero.colors.glassRimLight.copy(alpha = 0.3f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, tint = Aero.colors.accentLight, modifier = Modifier.size(26.dp))
+            Icon(icon, null, tint = Aero.colors.accentLight, modifier = Modifier.size(25.dp))
         }
-        Text(title, style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
+        Text(title, style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary, textAlign = TextAlign.Center)
         Text(message, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, textAlign = TextAlign.Center)
         if (action != null) action()
     }
@@ -142,16 +112,20 @@ fun EmptyState(
 @Composable
 fun InlineError(message: String, onRetry: (() -> Unit)? = null, modifier: Modifier = Modifier) {
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(Aero.colors.surfaceSolid.copy(alpha = 0.94f))
-            .border(0.7.dp, Aero.colors.glassRimDark.copy(alpha = 0.65f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 11.dp, vertical = 8.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+            .background(Aero.colors.surfaceSolid.copy(alpha = 0.96f))
+            .border(0.7.dp, Aero.colors.glassRimDark.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            .padding(start = 13.dp, end = 5.dp, top = 7.dp, bottom = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.ErrorOutline, null, tint = Aero.colors.error, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
+        Icon(Icons.Rounded.ErrorOutline, null, tint = Aero.colors.error, modifier = Modifier.size(19.dp))
+        Spacer(Modifier.width(9.dp))
         Text(message, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, modifier = Modifier.weight(1f))
-        if (onRetry != null) IconButton(onClick = onRetry, modifier = Modifier.size(36.dp)) { Icon(Icons.Rounded.Refresh, "Retry", tint = Aero.colors.accent) }
+        if (onRetry != null) {
+            androidx.compose.material3.IconButton(onClick = onRetry, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Rounded.Refresh, "Retry", tint = Aero.colors.accent)
+            }
+        }
     }
 }
 
@@ -159,9 +133,9 @@ fun InlineError(message: String, onRetry: (() -> Unit)? = null, modifier: Modifi
 fun SkeletonBlock(modifier: Modifier = Modifier) {
     val c = Aero.colors
     Box(
-        modifier.clip(RoundedCornerShape(15.dp))
-            .background(Brush.verticalGradient(listOf(c.glassTint.copy(alpha = 0.4f), c.glassTint.copy(alpha = 0.22f))))
-            .border(0.7.dp, c.glassRimLight.copy(alpha = 0.19f), RoundedCornerShape(15.dp)),
+        modifier.clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(c.glassTint.copy(alpha = 0.67f), c.glassTint.copy(alpha = 0.4f))))
+            .border(0.7.dp, c.glassRimLight.copy(alpha = 0.19f), RoundedCornerShape(16.dp)),
     )
 }
 

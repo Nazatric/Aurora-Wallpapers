@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.verticalScroll
@@ -18,18 +19,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items as columnItems
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
 import androidx.compose.foundation.lazy.staggeredgrid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.CollectionsBookmark
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -51,7 +48,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -64,11 +60,9 @@ import com.auroro.wallpapers.core.database.CollectionSummary
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.EmptyState
 import com.auroro.wallpapers.core.design.GlassIconButton
-import com.auroro.wallpapers.core.design.GlassPanel
 import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
-import com.auroro.wallpapers.core.model.Format
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.feature.home.WallpaperTile
 
@@ -118,26 +112,28 @@ private fun CollectionCard(collection: CollectionSummary, onOpen: () -> Unit, on
     var menu by remember { mutableStateOf(false) }
     var rename by remember { mutableStateOf(false) }
     var delete by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val createdDate = remember(collection.createdAt, locale) {
         java.text.SimpleDateFormat("MMM d, yyyy", locale).format(java.util.Date(collection.createdAt))
     }
     GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(23.dp), onClick = onOpen) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(86.dp).clip(RoundedCornerShape(17.dp)).background(Brush.verticalGradient(listOf(Aero.colors.accent.copy(alpha = .45f), Aero.colors.emerald.copy(alpha = .22f))))) {
+            Box(
+                Modifier.size(86.dp).clip(RoundedCornerShape(17.dp))
+                    .background(Brush.verticalGradient(listOf(Aero.colors.accent.copy(alpha = .26f), Aero.colors.emerald.copy(alpha = .15f)))),
+            ) {
                 val covers = listOfNotNull(collection.cover1, collection.cover2, collection.cover3, collection.cover4)
                 if (covers.isEmpty()) {
-                    Icon(Icons.Rounded.CollectionsBookmark, null, tint = Aero.colors.accentLight, modifier = Modifier.align(Alignment.Center).size(32.dp))
+                    Icon(Icons.Rounded.CollectionsBookmark, null, tint = Aero.colors.accentLight, modifier = Modifier.align(Alignment.Center).size(30.dp))
                 } else {
-                    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        covers.take(2).forEach { url ->
-                            AsyncImage(ImageRequest.Builder(context).data(url).crossfade(120).build(), null, modifier = Modifier.weight(1f).fillMaxSize(), contentScale = ContentScale.Crop)
+                    Column(Modifier.fillMaxSize().padding(2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            covers.take(2).forEach { url -> CoverCell(url, Modifier.weight(1f).fillMaxSize()) }
                         }
-                    }
-                    if (covers.size > 2) {
-                        Column(Modifier.align(Alignment.CenterEnd).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            covers.drop(2).take(2).forEach { url -> AsyncImage(ImageRequest.Builder(context).data(url).crossfade(120).build(), null, modifier = Modifier.weight(1f).fillMaxWidth(.5f), contentScale = ContentScale.Crop) }
+                        if (covers.size > 2) {
+                            Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                covers.drop(2).take(2).forEach { url -> CoverCell(url, Modifier.weight(1f).fillMaxSize()) }
+                            }
                         }
                     }
                 }
@@ -162,17 +158,27 @@ private fun CollectionCard(collection: CollectionSummary, onOpen: () -> Unit, on
 }
 
 @Composable
+private fun CoverCell(url: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    Box(modifier.clip(RoundedCornerShape(6.dp)).background(Aero.colors.surfaceSolid)) {
+        AsyncImage(
+            ImageRequest.Builder(context).data(url).crossfade(120).build(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
+    }
+}
+
+@Composable
 fun CollectionDetailScreen(
     collection: CollectionSummary?,
     wallpapers: List<Wallpaper>,
-    favoriteKeys: Set<String>,
     onBack: () -> Unit,
     onOpen: (Wallpaper) -> Unit,
-    onFavorite: (Wallpaper) -> Unit,
-    onRemove: (Wallpaper) -> Unit,
     onAddMore: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
         HeaderBar(
             title = collection?.name ?: "Collection",
             subtitle = collection?.let { "${it.itemCount} saved wallpaper${if (it.itemCount == 1) "" else "s"}" },
@@ -191,13 +197,8 @@ fun CollectionDetailScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalItemSpacing = 11.dp,
             ) {
-                items(wallpapers, key = { it.key }) { w ->
-                    Box {
-                        WallpaperTile(w, w.key in favoriteKeys, { onOpen(w) }, { onFavorite(w) })
-                        Box(Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 4.dp)) {
-                            GlassIconButton(onClick = { onRemove(w) }, description = "Remove from collection", icon = Icons.Rounded.Bookmark, tint = Aero.colors.accent)
-                        }
-                    }
+                items(wallpapers, key = { it.key }) { wallpaper ->
+                    WallpaperTile(wallpaper, onClick = { onOpen(wallpaper) })
                 }
             }
         }
@@ -253,12 +254,18 @@ private fun NameDialog(title: String, confirm: String, initial: String, onDismis
 }
 
 @Composable
-fun ConfirmDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+fun ConfirmDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+    confirmText: String = "Delete",
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, color = Aero.colors.textPrimary) },
         text = { Text(message, color = Aero.colors.textSecondary) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Delete", color = Aero.colors.error) } },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText, color = Aero.colors.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Aero.colors.textSecondary) } },
         containerColor = Aero.colors.surfaceSolid,
     )
