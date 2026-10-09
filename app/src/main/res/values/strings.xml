@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Auroro Wallpapers</string>
+    <string name="download_channel_name">Wallpaper downloads</string>
+    <string name="download_channel_description">Progress and results of wallpaper downloads</string>
+</resources>

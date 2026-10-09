@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- App-private saved wallpapers (used when "App storage only" is selected). -->
+    <external-files-path name="saved_wallpapers" path="Pictures/" />
+    <files-path name="saved_wallpapers_internal" path="wallpapers/" />
+</paths>
