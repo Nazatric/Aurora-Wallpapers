@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.feature.offline
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,7 +45,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.app.OfflineRow
-import com.auroro.wallpapers.core.data.download.DownloadStatus
+import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.data.download.StorageInfo
 import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.design.Aero

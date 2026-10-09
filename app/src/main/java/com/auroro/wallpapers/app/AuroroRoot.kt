@@ -22,8 +22,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsets.Companion.safeDrawing
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -126,7 +124,7 @@ private val drawerEntries = listOf(
     DrawerEntry("Offline downloads", "offline", Icons.Rounded.Download),
     DrawerEntry("Favorites", "favorites", Icons.Rounded.Favorite),
     DrawerEntry("Categories", "categories", Icons.Rounded.Category),
-    DrawerEntry("Wallpaper sources", "sources", Icons.Rounded.Source),
+    DrawerEntry("Wallpaper sources", "sources", Icons.Rounded.Info),
     DrawerEntry("Settings", "settings", Icons.Rounded.Settings),
 )
 
@@ -259,7 +257,6 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
             AmbientBackdrop(Modifier.fillMaxSize())
             Scaffold(
                 containerColor = Color.Transparent,
-                contentWindowInsets = WindowInsets.safeDrawing,
                 snackbarHost = { SnackbarHost(snackbar) },
                 bottomBar = {
                     if (!isImmersive) BottomNavigation(

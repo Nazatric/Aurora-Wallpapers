@@ -53,7 +53,7 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.data.download.CropMath
-import com.auroro.wallpapers.core.data.download.DownloadStatus
+import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.data.download.LocalFiles
 import com.auroro.wallpapers.core.data.download.NormalizedCrop
 import com.auroro.wallpapers.core.database.DownloadEntity
