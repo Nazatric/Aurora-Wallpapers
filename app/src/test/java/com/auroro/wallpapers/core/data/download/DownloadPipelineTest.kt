@@ -97,7 +97,7 @@ class DownloadPipelineTest {
 
     @Test fun invalidImageResponseIsRecordedAsFailureAndNeverPresentedOffline() = runBlocking {
         server.enqueue(MockResponse(code = 200, body = "this is HTML, not a wallpaper").newBuilder().addHeader("Content-Type", "text/html").build())
-        val w = com.auroro.wallpapers.wallpaper(id = "notimage")
+        val w = com.auroro.wallpapers.wallpaper(id = "notimage", original = server.url("/not-an-image").toString())
         val store = WallpaperStore(db.wallpapers())
         store.persist(w)
         val executor = executor(store)
@@ -111,7 +111,7 @@ class DownloadPipelineTest {
 
     @Test fun rateLimitIsNotRetriedAndFailureCanBeExplained() = runBlocking {
         server.enqueue(MockResponse(code = 429, body = "slow down"))
-        val w = com.auroro.wallpapers.wallpaper(id = "limited")
+        val w = com.auroro.wallpapers.wallpaper(id = "limited", original = server.url("/rate-limited").toString())
         val store = WallpaperStore(db.wallpapers())
         store.persist(w)
         assertFalse(executor(store).execute(w.key))
@@ -160,6 +160,6 @@ class DownloadPipelineTest {
     )
 
     private fun pngBytes(): ByteArray = java.util.Base64.getDecoder().decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR4nGNg+P+fAQSBNIgFAEHOCPiQ3ABSAAAAAElFTkSuQmCC",
+        "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFElEQVR4nGNg+P//PwMIMoBYQAYAVbwJ9wRbMhwAAAAASUVORK5CYII=",
     )
 }
