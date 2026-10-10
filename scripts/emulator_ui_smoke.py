@@ -537,13 +537,21 @@ def main() -> None:
     screenshot("06b-temporary-original-ready.png")
     before_temporary_set, _ = wallpaper_id_state()
     tap_text("Set Home screen", timeout=20)
-    wait_until(
+    temporary_detail = wait_until(
         lambda ui: bool(find_nodes(ui, text="Favorited")) and bool(find_nodes(ui, text="Set wallpaper")),
         "return to detail after setting from temporary cache", timeout=45,
     )
     wait_for_wallpaper_id_change(before_temporary_set, "Home", timeout=120)
     REPORT["checks"].append({"name": "set-only path applies a temporary original", "result": "passed"})
 
+    detail_back = find_nodes(temporary_detail, description="Back to wallpapers")
+    if not detail_back:
+        raise AssertionError("Temporary-original detail did not expose its Back to wallpapers control")
+    tap_node(detail_back[0])
+    wait_until(
+        lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)),
+        "return to Search before checking set-only Downloads", timeout=45,
+    )
     tap_text("Downloads", prefer_bottom=True, timeout=20)
     tap_text("Downloaded", timeout=20)
     no_download_record = wait_until(lambda ui: bool(find_nodes(ui, text="No downloads yet")), "no persistent record after set-only flow", timeout=45)
