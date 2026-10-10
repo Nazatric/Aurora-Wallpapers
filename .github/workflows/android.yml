@@ -143,8 +143,9 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          emulator-boot-timeout: 1200
-          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -cores 2 -memory 4096
+          # Give cold hosted runners a full 25 minutes, and use the action's
+          # known-good headless defaults rather than overriding emulator flags.
+          emulator-boot-timeout: 1500
           script: python3 scripts/emulator_ui_smoke.py
 
       - name: Publish UI smoke report in check summary
