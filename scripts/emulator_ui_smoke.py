@@ -392,7 +392,11 @@ def main() -> None:
     )
     home_feed = wait_for_feed_content("initial hourly For You collection", timeout=120)
     if not wallpaper_descriptions(home_feed):
-        raise AssertionError("The initial SFW For You query/fallback produced no visible wallpaper cards")
+        visible = [node_text(node) for node in home_feed.iter("node") if node_text(node)]
+        raise AssertionError(
+            "The initial SFW For You query/fallback produced no visible wallpaper cards; "
+            f"visible text/accessibility labels: {visible[:100]}"
+        )
     if not find_nodes(home_header, text="Auto · hourly"):
         raise AssertionError("For You did not expose its hourly Auto selection")
     REPORT["for_you_result_count"] = len(wallpaper_descriptions(home_feed))

@@ -36,11 +36,18 @@ class DiscoveryTest {
         assertTrue(pinned.pinned)
     }
 
-    @Test fun queryFallbackIsExplicitAndHappensAtMostOnce() {
+    @Test fun queryFallbackTriesEveryStylePhraseOnceWithoutRepeating() {
         val original = DiscoveryRotation.select(0L, pinnedStyleId = DiscoveryStyle.SURREAL.id)
-        val fallback = original.fallbackQuery()!!
-        assertNotEquals(original.query, fallback.query)
-        assertEquals(null, fallback.fallbackQuery())
+        val seen = linkedSetOf(original.query)
+        var current = original
+        while (true) {
+            val next = current.fallbackQuery() ?: break
+            assertNotEquals(current.query, next.query)
+            assertTrue("fallback repeated a query", seen.add(next.query))
+            current = next
+        }
+        assertEquals(original.style.queries.size, seen.size)
+        assertEquals(null, current.fallbackQuery())
     }
 
     @Test fun qualityRankingUsesRelevanceResolutionAndRepeatPenaltyNotPopularity() {

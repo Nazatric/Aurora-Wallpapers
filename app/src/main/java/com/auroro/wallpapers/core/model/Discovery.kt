@@ -17,63 +17,63 @@ enum class DiscoveryStyle(
         "frutiger-aero",
         "Frutiger Aero",
         "Aqua environments, glass architecture and optimistic retro-futures",
-        listOf("frutiger aero", "aqua glass architecture", "water sky futuristic", "retro future nature"),
+        listOf("frutiger aero", "aqua glass architecture", "water sky futuristic", "nature"),
         setOf("aero", "aqua", "glass", "water", "sky", "architecture", "retro", "future", "nature"),
     ),
     FRUTIGER_FLOWER(
         "frutiger-flower",
         "Frutiger Flower",
         "Luminous botanicals, organic forms and translucent petals",
-        listOf("frutiger flower", "translucent flower", "luminous botanical art", "organic petals abstract"),
+        listOf("frutiger flower", "translucent flower", "luminous botanical art", "flower"),
         setOf("flower", "floral", "botanical", "petal", "organic", "luminous", "translucent"),
     ),
     FRUTIGER_ZEN(
         "frutiger-zen",
         "Frutiger Zen",
         "Quiet water, gentle light and meditative environments",
-        listOf("frutiger zen", "serene water architecture", "floating island calm", "meditative nature"),
+        listOf("frutiger zen", "serene water architecture", "floating island calm", "water"),
         setOf("zen", "serene", "water", "floating", "calm", "meditative", "nature", "light"),
     ),
     DARK_AERO(
         "dark-aero",
         "Dark Aero",
         "Reflective deep blues, luminous cyan and dramatic glass",
-        listOf("dark aero", "dark blue glass cyan", "deep ocean luminous", "reflective futuristic architecture"),
+        listOf("dark aero", "dark blue glass cyan", "deep ocean luminous", "cyan"),
         setOf("dark", "blue", "glass", "cyan", "ocean", "luminous", "reflective", "futuristic"),
     ),
     SURREAL(
         "surreal",
         "Surrealism",
         "Impossible structures and unexpected visual relationships",
-        listOf("surreal architecture landscape", "impossible architecture", "dreamlike surreal environment", "surreal digital art"),
+        listOf("surreal architecture landscape", "impossible architecture", "dreamlike surreal environment", "surreal"),
         setOf("surreal", "impossible", "dreamlike", "architecture", "landscape", "digital", "art"),
     ),
     WEIRDCORE(
         "weirdcore",
         "Weirdcore / Liminal",
         "Uncanny quiet spaces, dreamcore and liminal environments",
-        listOf("weirdcore liminal", "dreamcore environment", "liminal architecture", "uncanny empty space"),
+        listOf("weirdcore liminal", "dreamcore environment", "liminal architecture", "liminal"),
         setOf("weirdcore", "dreamcore", "liminal", "uncanny", "empty", "space", "architecture"),
     ),
     VAPORWAVE_Y2K(
         "vaporwave-y2k",
         "Vaporwave / Y2K",
         "Retro-futurism, chromed forms and digital colour",
-        listOf("vaporwave retro futurism", "y2k abstract 3d", "retro future digital art", "chrome liquid metal"),
+        listOf("vaporwave retro futurism", "y2k abstract 3d", "retro future digital art", "vaporwave"),
         setOf("vaporwave", "y2k", "retro", "futurism", "abstract", "chrome", "liquid", "metal", "digital"),
     ),
     ABSTRACT_DIGITAL(
         "abstract-digital",
         "Abstract Digital Art",
         "Experimental 3D forms, underwater worlds and liquid metal",
-        listOf("abstract 3d digital art", "liquid metal abstract", "underwater abstract art", "experimental digital environment"),
+        listOf("abstract 3d digital art", "liquid metal abstract", "underwater abstract art", "abstract"),
         setOf("abstract", "3d", "digital", "liquid", "metal", "underwater", "experimental", "art"),
     ),
     SPACE_ART(
         "space-art",
         "Space Art",
         "Planetary horizons, deep space and imaginative astronomy",
-        listOf("space art planetary landscape", "surreal planet digital art", "deep space abstract art", "astronomical environment"),
+        listOf("space art planetary landscape", "surreal planet digital art", "deep space abstract art", "space"),
         setOf("space", "planet", "astronomy", "cosmic", "digital", "art", "abstract"),
     );
 
@@ -91,15 +91,20 @@ data class DiscoverySelection(
     val query: String,
     val refreshOrdinal: Int = 0,
     val pinned: Boolean = false,
-    val fallbackAttempted: Boolean = false,
+    val fallbackSteps: Int = 0,
 ) {
     val cacheKey: String get() = "$bucket:${style.id}:$queryIndex:$refreshOrdinal"
     val bucketStartMillis: Long get() = bucket * DiscoveryRotation.HOUR_MILLIS
-    val nextQuery: String?
-        get() = if (queryIndex + 1 < style.queries.size) style.queries[queryIndex + 1] else null
 
-    fun fallbackQuery(): DiscoverySelection? = if (fallbackAttempted) null else nextQuery?.let {
-        copy(queryIndex = queryIndex + 1, query = it, fallbackAttempted = true)
+    /** Walk the style's search phrases at most once each before declaring an empty feed. */
+    fun fallbackQuery(): DiscoverySelection? {
+        if (fallbackSteps >= style.queries.size - 1) return null
+        val nextIndex = (queryIndex + 1) % style.queries.size
+        return copy(
+            queryIndex = nextIndex,
+            query = style.queries[nextIndex],
+            fallbackSteps = fallbackSteps + 1,
+        )
     }
 }
 
