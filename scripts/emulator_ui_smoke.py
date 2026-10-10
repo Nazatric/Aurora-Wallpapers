@@ -51,12 +51,34 @@ def wait_until(predicate: Callable[[ET.Element], bool], label: str, timeout: int
 
 
 def dump_hierarchy() -> ET.Element:
-    adb("shell", "uiautomator", "dump", REMOTE_HIERARCHY, timeout=30, check=False)
-    xml = adb("exec-out", "cat", REMOTE_HIERARCHY, timeout=10).stdout
-    try:
-        return ET.fromstring(xml)
-    except ET.ParseError as error:
-        raise RuntimeError(f"Could not parse Android UI hierarchy: {xml[:1200]}") from error
+    """Capture the accessibility tree, retrying transient Android UIAutomator startup errors."""
+    last_error = "UIAutomator did not produce a hierarchy"
+    for attempt in range(5):
+        adb("shell", "rm", "-f", REMOTE_HIERARCHY, timeout=10, check=False)
+        try:
+            dump = adb("shell", "uiautomator", "dump", REMOTE_HIERARCHY, timeout=20, check=False)
+            hierarchy = adb("exec-out", "cat", REMOTE_HIERARCHY, timeout=10, check=False)
+        except subprocess.TimeoutExpired as error:
+            last_error = f"attempt {attempt + 1}: {error}"
+            time.sleep(1)
+            continue
+
+        if dump.returncode != 0 or hierarchy.returncode != 0 or not hierarchy.stdout.strip():
+            last_error = (
+                f"attempt {attempt + 1}: uiautomator exit={dump.returncode}, "
+                f"stdout={dump.stdout[-800:]!r}, stderr={dump.stderr[-800:]!r}; "
+                f"cat exit={hierarchy.returncode}, stderr={hierarchy.stderr[-800:]!r}"
+            )
+            time.sleep(1)
+            continue
+
+        try:
+            return ET.fromstring(hierarchy.stdout)
+        except ET.ParseError as error:
+            last_error = f"attempt {attempt + 1}: invalid XML: {hierarchy.stdout[:1200]!r} ({error})"
+            time.sleep(1)
+
+    raise RuntimeError(f"Could not capture Android UI hierarchy after 5 attempts; {last_error}")
 
 
 def node_text(node: ET.Element) -> str:
