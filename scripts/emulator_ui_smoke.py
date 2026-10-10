@@ -120,6 +120,21 @@ def bounds_center(node: ET.Element) -> tuple[int, int]:
     return (left + right) // 2, (top + bottom) // 2
 
 
+def scroll_to_navigation_header(root: ET.Element, screen_label: str, attempts: int = 8) -> ET.Element:
+    """Reveal the top-bar menu after the feed's scrollable header has moved off-screen."""
+    size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
+    width, height = map(int, size.groups()) if size else (1080, 2400)
+    for _ in range(attempts):
+        if find_nodes(root, description="Open navigation menu"):
+            return root
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.24)),
+            str(width // 2), str(int(height * 0.82)), "350")
+        time.sleep(0.5)
+        root = dump_hierarchy()
+    visible = [node_text(node) for node in root.iter("node") if node_text(node)]
+    raise AssertionError(f"{screen_label} top bar did not return after scrolling to the top; visible labels: {visible[:100]}")
+
+
 def clickable_target(root: ET.Element, node: ET.Element) -> ET.Element:
     """Resolve an image's merged Compose semantics to its nearest clickable card ancestor."""
     parents = {child: parent for parent in root.iter() for child in parent}
@@ -719,6 +734,7 @@ def main() -> None:
     # Favorites and collection membership must survive navigation and remain visible as real results.
     tap_text("Search", prefer_bottom=True, timeout=20)
     search = wait_until(lambda ui: search_feed_visible(ui), "Search restored after Downloads", timeout=45)
+    search = scroll_to_navigation_header(search, "Search")
     menu_nodes = find_nodes(search, description="Open navigation menu")
     if not menu_nodes:
         raise AssertionError("Search did not expose its navigation menu")
@@ -788,6 +804,7 @@ def main() -> None:
     screenshot("12-home-restored.png")
     REPORT["checks"].append({"name": "combined-source search and system-back Home navigation", "result": "passed"})
 
+    home = scroll_to_navigation_header(home, "Home")
     home_menu = find_nodes(home, description="Open navigation menu")
     if not home_menu:
         raise AssertionError("Home did not expose its navigation menu")
@@ -882,6 +899,7 @@ def main() -> None:
     REPORT["checks"].append({"name": "recent search history can be cleared", "result": "passed"})
     tap_text("Home", prefer_bottom=True, timeout=20)
     home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after clearing recent searches", timeout=45)
+    home = scroll_to_navigation_header(home, "Home")
     home_menu = find_nodes(home, description="Open navigation menu")
     if not home_menu:
         raise AssertionError("Home did not expose the navigation menu after clearing search history")
@@ -908,6 +926,7 @@ def main() -> None:
     adb("shell", "input", "keyevent", "4")
 
     home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after Settings", timeout=45)
+    home = scroll_to_navigation_header(home, "Home")
     menu_nodes = find_nodes(home, description="Open navigation menu")
     if not menu_nodes:
         raise AssertionError("Home did not expose its navigation drawer after process recreation")
