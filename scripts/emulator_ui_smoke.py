@@ -325,8 +325,9 @@ def parse_dimensions(description: str) -> tuple[int, int] | None:
 
 
 def wait_for_feed_content(label: str, timeout: int = 90, max_empty_pages: int = 4) -> ET.Element:
-    """Wait for visible cards, scrolling past controls and retrying one transient network error."""
-    provider_retry_count = 0
+    """Wait for visible cards, scrolling past controls and respecting one provider backoff."""
+    network_retry_count = 0
+    rate_limit_retry_count = 0
     for attempt in range(max_empty_pages + 1):
         deadline = time.monotonic() + timeout
         last_scroll = 0.0
@@ -341,13 +342,26 @@ def wait_for_feed_content(label: str, timeout: int = 90, max_empty_pages: int = 
             if has_empty_state:
                 labels = [node_text(node) for node in root.iter("node") if node_text(node)]
                 network_error = any(
-                    "Can't reach Wallhaven" in label or "Network problem while contacting Wallhaven" in label
-                    for label in labels
+                    "Can't reach Wallhaven" in message or "Network problem while contacting Wallhaven" in message
+                    for message in labels
+                )
+                rate_limit = next(
+                    (int(match.group(1)) for message in labels
+                     if (match := re.search(r"Try again in (\d+)s", message))),
+                    None,
                 )
                 retry = find_nodes(root, text="Try again")
-                if network_error and retry and provider_retry_count < 1:
-                    provider_retry_count += 1
-                    REPORT.setdefault("provider_retries", []).append({"feed": label, "attempt": provider_retry_count})
+                if network_error and retry and network_retry_count < 1:
+                    network_retry_count += 1
+                    REPORT.setdefault("provider_retries", []).append({"feed": label, "reason": "network", "attempt": network_retry_count})
+                    tap_node(retry[0])
+                    deadline = time.monotonic() + timeout
+                    last_scroll = 0.0
+                    continue
+                if rate_limit is not None and rate_limit <= 60 and retry and rate_limit_retry_count < 1:
+                    rate_limit_retry_count += 1
+                    REPORT.setdefault("provider_retries", []).append({"feed": label, "reason": "rate-limit", "wait_seconds": rate_limit})
+                    time.sleep(rate_limit + 1)
                     tap_node(retry[0])
                     deadline = time.monotonic() + timeout
                     last_scroll = 0.0
