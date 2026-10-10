@@ -561,7 +561,7 @@ fun ApplyTargetDialog(enabled: Boolean, unavailableReason: String?, onDismiss: (
         title = { Text("Set wallpaper", color = Aero.colors.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Auroro uses the saved original, downloading it if needed, then applies your chosen crop through Android's wallpaper service.", style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textSecondary)
+                Text("Choose a target and crop. Auroro reuses a saved original or prepares a temporary cache copy; setting never creates a Download record.", style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textSecondary)
                 if (!enabled) Text(unavailableReason ?: "Changing wallpaper is unavailable on this device.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.error)
             }
         },

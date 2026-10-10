@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.SaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,6 +33,7 @@ import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
+import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.feature.categories.SEARCH_TOPICS
 
@@ -37,14 +41,25 @@ import com.auroro.wallpapers.feature.categories.SEARCH_TOPICS
 fun HomeScreen(
     feed: FeedUiState,
     selectedTab: HomeTab,
+    rotateHourly: Boolean,
+    gridStateHolder: SaveableStateHolder,
+    retainedGridKeys: MutableList<String>,
     onTab: (HomeTab) -> Unit,
     onMenu: () -> Unit,
     onSearch: () -> Unit,
     onCategory: (String) -> Unit,
+    onStyle: (String?) -> Unit,
+    onRefresh: () -> Unit,
     onOpen: (Wallpaper) -> Unit,
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    val gridStateKey = "${selectedTab.name}:${feed.discoverySelection?.cacheKey.orEmpty()}"
+    LaunchedEffect(gridStateKey) {
+        retainedGridKeys.remove(gridStateKey)
+        retainedGridKeys.add(gridStateKey)
+        while (retainedGridKeys.size > 8) gridStateHolder.removeState(retainedGridKeys.removeAt(0))
+    }
     val sourceNotes = feed.statuses.mapNotNull { status ->
         (status.state as? SourceState.Skipped)?.let { "${status.source.displayName}: ${it.reason}" }
     }.distinct().joinToString(" · ").takeIf(String::isNotBlank)
@@ -53,8 +68,9 @@ fun HomeScreen(
         ?.firstOrNull { it.hasKnownDimensions && it.aspectRatio >= 1.15f && it.thumbUrl.isNotBlank() }
     val gridItems = if (featured == null) feed.items else feed.items.filterNot { it.key == featured.key }
 
-    WallpaperGrid(
-        wallpapers = gridItems,
+    gridStateHolder.SaveableStateProvider(gridStateKey) {
+        WallpaperGrid(
+            wallpapers = gridItems,
         loading = feed.loading,
         initialLoadFinished = feed.initialLoadFinished,
         endReached = feed.endReached,
@@ -76,6 +92,9 @@ fun HomeScreen(
                     title = "Auroro Wallpapers",
                     onMenu = onMenu,
                     trailing = {
+                        if (selectedTab == HomeTab.FOR_YOU) {
+                            GlassIconButton(onClick = onRefresh, description = "Refresh For You collection", icon = Icons.Rounded.Refresh)
+                        }
                         GlassIconButton(onClick = onSearch, description = "Search wallpapers", icon = Icons.Rounded.Search)
                     },
                 )
@@ -87,6 +106,25 @@ fun HomeScreen(
                 ) {
                     HomeTab.entries.forEach { tab ->
                         GlassPill(tab.label, selectedTab == tab, onClick = { onTab(tab) })
+                    }
+                }
+                if (selectedTab == HomeTab.FOR_YOU) {
+                    val pinnedStyle = feed.discoverySelection?.takeIf { it.pinned }?.style?.id
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SectionTitle("Discover styles", "Curated SFW Wallhaven queries · no popularity ranking")
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            GlassPill(if (rotateHourly) "Auto · hourly" else "Auto", pinnedStyle == null, onClick = { onStyle(null) })
+                            DiscoveryStyle.entries.forEach { style ->
+                                GlassPill(style.label, pinnedStyle == style.id, onClick = { onStyle(style.id) })
+                            }
+                        }
+                        feed.cacheNotice?.let { message ->
+                            Text(message, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 2)
+                        }
                     }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -116,17 +154,18 @@ fun HomeScreen(
                 }
                 SectionTitle(
                     title = when (selectedTab) {
-                        HomeTab.FOR_YOU -> "More wallpapers"
+                        HomeTab.FOR_YOU -> feed.discoverySelection?.style?.label ?: "For You"
                         HomeTab.POPULAR -> "Popular"
                         HomeTab.LATEST -> "Latest"
                         HomeTab.RANDOM -> "Random"
                     },
-                    subtitle = feed.forYouLabel?.removePrefix("Based on your saved tags: ")
+                    subtitle = feed.forYouLabel?.removePrefix("Changes each hour · ")
                         ?.takeIf { selectedTab == HomeTab.FOR_YOU },
                 )
             }
         },
-    )
+        )
+    }
 }
 
 @Composable

@@ -77,7 +77,8 @@ class OpenverseProvider(
         val response = httpResponse.body()
             ?: throw ProviderException(ProviderErrorKind.BAD_RESPONSE, "Openverse returned an empty image search response.")
 
-        val items = response.results.mapNotNull(OpenverseMapper::toWallpaper)
+        val allowSensitive = !request.filter.reducePotentiallyExplicitContent
+        val items = response.results.mapNotNull { OpenverseMapper.toWallpaper(it, allowSensitive = allowSensitive) }
         val lastPage = minOf(response.pageCount, OpenverseQuery.MAX_ANONYMOUS_PAGES)
         val next = if (response.results.isNotEmpty() && cursor.page < lastPage) {
             PageCursor(page = cursor.page + 1)
@@ -101,7 +102,7 @@ object OpenverseQuery {
             "page" to cursor.page.coerceIn(1, MAX_ANONYMOUS_PAGES).toString(),
             "page_size" to PAGE_SIZE.toString(),
             "filter_dead" to "true",
-            "mature" to "false",
+            "mature" to (!filter.reducePotentiallyExplicitContent).toString(),
             "extension" to "jpg,jpeg,png,webp",
             // The least restrictive Openverse band that can contain a 720 px short-edge image.
             "size" to "medium,large",
@@ -161,14 +162,14 @@ object OpenverseMapper {
     )
     private val noDerivatives = setOf("by-nd", "by-nc-nd")
 
-    fun toWallpaper(dto: OpenverseImageDto): Wallpaper? {
+    fun toWallpaper(dto: OpenverseImageDto, allowSensitive: Boolean = false): Wallpaper? {
         val width = dto.width ?: return null
         val height = dto.height ?: return null
         if (dto.id.isBlank() || width < OpenverseQuery.ANONYMOUS_MIN_SHORT_EDGE || height < OpenverseQuery.ANONYMOUS_MIN_SHORT_EDGE) return null
         if (width > 32_000 || height > 32_000) return null
         val ratio = width.toFloat() / height
         if (!ratio.isFinite() || ratio !in 0.05f..20f) return null
-        if (dto.mature != false) return null
+        if (!allowSensitive && dto.mature != false) return null
 
         val original = dto.url.trim()
         val landing = dto.foreignLandingUrl.trim()

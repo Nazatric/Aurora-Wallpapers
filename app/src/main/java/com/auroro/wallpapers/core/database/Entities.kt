@@ -6,8 +6,8 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Local metadata for every wallpaper the user has interacted with (favorite, collected, downloaded, viewed).
- * Keeps the provider id, URLs, dimensions and attribution so saved items stay useful offline.
+ * Local wallpaper metadata only: user-referenced records plus a bounded identifier-backed discovery cache.
+ * Original image bytes never live in this table; provider IDs, URLs, dimensions and attribution support offline recovery.
  */
 @Entity(tableName = "wallpaper")
 data class WallpaperEntity(

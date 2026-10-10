@@ -144,6 +144,8 @@ data class WallpaperFilter(
     val openverseTag: String? = null,
     val openverseCategory: OpenverseCategory? = null,
     val openverseLicense: OpenverseLicense? = null,
+    /** Conservative metadata flag; providers' own SFW/safe filters are still applied independently. */
+    val reducePotentiallyExplicitContent: Boolean = true,
 ) {
     /** Number of non-default settings, shown as a badge on the filter button. */
     val activeCount: Int

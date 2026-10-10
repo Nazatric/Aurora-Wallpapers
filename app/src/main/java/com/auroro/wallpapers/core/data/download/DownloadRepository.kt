@@ -90,7 +90,7 @@ class DownloadRepository(
         val deleted = withContext(Dispatchers.IO) { LocalFiles.delete(context, d?.localUri) }
         if (!deleted) return false // Keep the identity, attribution and retry context if Android denied deletion.
         db.downloads().delete(key)
-        db.wallpapers().deleteUnreferenced()
+        db.wallpapers().trimUnreferenced()
         return true
     }
 

@@ -20,14 +20,36 @@ interface WallpaperDao {
     @Query("SELECT * FROM wallpaper WHERE `key` IN (:keys)")
     suspend fun getAll(keys: List<String>): List<WallpaperEntity>
 
-    /** Removes cached wallpaper rows nothing references any more. */
+    /** Keeps a bounded metadata-only discovery cache while preserving rows referenced by user data. */
+    @Query(
+        """DELETE FROM wallpaper WHERE `key` IN (
+             SELECT w.`key` FROM wallpaper w
+             WHERE w.`key` NOT IN (SELECT wallpaperKey FROM favorite)
+               AND w.`key` NOT IN (SELECT wallpaperKey FROM collection_item)
+               AND w.`key` NOT IN (SELECT wallpaperKey FROM download)
+               AND w.`key` NOT IN (SELECT wallpaperKey FROM history)
+             ORDER BY w.updatedAt DESC LIMIT -1 OFFSET 600
+           )""",
+    )
+    suspend fun trimUnreferenced()
+
+    /** Explicit discovery reset only; user-referenced favorites, collections, downloads and history survive. */
     @Query(
         """DELETE FROM wallpaper WHERE `key` NOT IN (SELECT wallpaperKey FROM favorite)
            AND `key` NOT IN (SELECT wallpaperKey FROM collection_item)
            AND `key` NOT IN (SELECT wallpaperKey FROM download)
            AND `key` NOT IN (SELECT wallpaperKey FROM history)""",
     )
-    suspend fun deleteUnreferenced()
+    suspend fun clearUnreferenced()
+
+    @Query(
+        """SELECT COUNT(*) FROM wallpaper w
+           WHERE w.`key` NOT IN (SELECT wallpaperKey FROM favorite)
+             AND w.`key` NOT IN (SELECT wallpaperKey FROM collection_item)
+             AND w.`key` NOT IN (SELECT wallpaperKey FROM download)
+             AND w.`key` NOT IN (SELECT wallpaperKey FROM history)""",
+    )
+    suspend fun countUnreferenced(): Int
 }
 
 @Dao

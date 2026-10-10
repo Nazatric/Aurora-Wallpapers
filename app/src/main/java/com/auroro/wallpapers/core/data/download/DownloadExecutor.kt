@@ -61,7 +61,6 @@ class DownloadExecutor(
     private val settings: SettingsRepository,
     private val clientForSource: (WallpaperSource) -> OkHttpClient,
     private val saver: (SaveLocation) -> MediaSaver,
-    private val applier: WallpaperApplier? = null,
     private val notifier: DownloadNotifier? = null,
     /** Overridden only by isolated mock-HTTP tests; production validates each provider's asset URLs. */
     private val urlAllowed: (WallpaperSource, String) -> Boolean = UrlPolicy::isAllowedForNetwork,
@@ -166,18 +165,8 @@ class DownloadExecutor(
                 ),
             )
 
-            var note: String? = null
-            if (prefs.setAfterDownload && applier != null) {
-                note = if (!wallpaper.setWallpaperAllowed) {
-                    "Saved, but this image's licence doesn't permit setting it as a wallpaper."
-                } else {
-                    when (val r = applier.apply(saved.uri, ApplyTarget.BOTH)) {
-                        ApplyResult.Success -> "Saved and set as wallpaper"
-                        is ApplyResult.Failure -> "Saved, but couldn't set it: ${r.message}"
-                    }
-                }
-            }
-            notifier?.completed(key, title, note)
+            // A persistent Download only saves the original. Wallpaper setting is a separate apply flow.
+            notifier?.completed(key, title)
             return true
         } catch (e: CancellationException) {
             withContext(NonCancellable) {

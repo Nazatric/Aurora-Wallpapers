@@ -13,6 +13,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import okio.Path.Companion.toOkioPath
 import com.auroro.wallpapers.core.data.CollectionsRepository
+import com.auroro.wallpapers.core.data.DiscoverySnapshotCache
 import com.auroro.wallpapers.core.data.FavoritesRepository
 import com.auroro.wallpapers.core.data.HistoryRepository
 import com.auroro.wallpapers.core.data.LegacyDataCleanup
@@ -29,6 +30,7 @@ import com.auroro.wallpapers.core.data.download.DownloadRepository
 import com.auroro.wallpapers.core.data.download.GalleryMediaSaver
 import com.auroro.wallpapers.core.data.download.MediaSaver
 import com.auroro.wallpapers.core.data.download.WallpaperApplier
+import com.auroro.wallpapers.core.data.download.WallpaperApplyRepository
 import com.auroro.wallpapers.core.database.AppDatabase
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.HttpClients
@@ -63,6 +65,7 @@ class AppContainer(context: Context) {
 
     val database: AppDatabase = AppDatabase.build(appContext)
     val wallpaperStore = WallpaperStore(database.wallpapers())
+    val discoveryCache = DiscoverySnapshotCache(settings, wallpaperStore)
     val favorites = FavoritesRepository(database, wallpaperStore)
     val collections = CollectionsRepository(database, wallpaperStore)
     val history = HistoryRepository(database, wallpaperStore)
@@ -117,6 +120,7 @@ class AppContainer(context: Context) {
 
     val notifier = DownloadNotifier(appContext, settings)
     val wallpaperApplier = WallpaperApplier(appContext)
+    val wallpaperApplyRepository = WallpaperApplyRepository(appContext, ::downloadClient)
     private val workManager = WorkManager.getInstance(appContext)
 
     private val tempDir = File(appContext.cacheDir, "wallpaper-downloads")
@@ -140,7 +144,6 @@ class AppContainer(context: Context) {
         settings = settings,
         clientForSource = ::downloadClient,
         saver = ::mediaSaver,
-        applier = wallpaperApplier,
         notifier = notifier,
     )
 
@@ -171,9 +174,10 @@ class AppContainer(context: Context) {
             .build()
     }
 
-    fun clearImageCache() {
+    suspend fun clearImageCache() {
         imageLoader.memoryCache?.clear()
         imageLoader.diskCache?.clear()
         runCatching { httpClient.cache?.evictAll() }
+        wallpaperApplyRepository.clearCache()
     }
 }

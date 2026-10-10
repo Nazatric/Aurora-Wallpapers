@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +21,7 @@ import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,16 +30,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.auroro.wallpapers.core.data.AccentTheme
 import com.auroro.wallpapers.core.data.AppSettings
+import com.auroro.wallpapers.core.data.AppearancePreset
+import com.auroro.wallpapers.core.data.FontChoice
+import com.auroro.wallpapers.core.data.GlassQuality
 import com.auroro.wallpapers.core.data.SaveLocation
-import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassPanel
 import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
+import com.auroro.wallpapers.core.model.DiscoveryStyle
 
 @Composable
 fun SettingsScreen(
@@ -44,6 +49,7 @@ fun SettingsScreen(
     onMenu: () -> Unit,
     onSettings: ((AppSettings) -> AppSettings) -> Unit,
     onClearCache: () -> Unit,
+    onResetDiscovery: () -> Unit,
     onAbout: () -> Unit,
     onPrivacy: () -> Unit,
     onLicenses: () -> Unit,
@@ -61,13 +67,106 @@ fun SettingsScreen(
         item { SectionTitle("Appearance") }
         item {
             GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = 3.dp) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Theme", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                    ChoiceRow(ThemeMode.entries.map { it to it.label }, settings.themeMode) { value -> onSettings { it.copy(themeMode = value) } }
-                    Text("Accent", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                    ChoiceRow(AccentTheme.entries.map { it to it.label }, settings.accent) { value -> onSettings { it.copy(accent = value) } }
-                    SettingSwitch("Black background", "Use a deeper black in dark mode.", settings.amoled) { value -> onSettings { it.copy(amoled = value) } }
-                    SettingSwitch("Reduce transparency", "Use more opaque surfaces.", settings.reduceTransparency) { value -> onSettings { it.copy(reduceTransparency = value) } }
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+                    Text("Complete appearance", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AppearancePreset.entries.forEach { preset ->
+                            GlassPill(preset.label, settings.appearance == preset, onClick = { onSettings { it.copy(appearance = preset) } })
+                        }
+                    }
+                    Text(settings.appearance.description, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Text("Typeface", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    ChoiceRow(FontChoice.entries.map { it to it.label }, settings.fontChoice) { value -> onSettings { it.copy(fontChoice = value) } }
+                    Text("Text size · ${(settings.fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textSecondary)
+                    Slider(
+                        value = settings.fontScale,
+                        onValueChange = { value -> onSettings { it.copy(fontScale = value) } },
+                        valueRange = 0.85f..1.30f,
+                        steps = 8,
+                    )
+                    Text(
+                        "A clear, accessible wallpaper gallery",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = Aero.colors.textPrimary,
+                    )
+                    Text("Glass rendering", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    ChoiceRow(GlassQuality.entries.map { it to it.label }, settings.glassQuality) { value -> onSettings { it.copy(glassQuality = value) } }
+                    Text(settings.glassQuality.description, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    SettingSwitch("Reduce transparency", "Use Haze's reduced-blur accessibility mode and clearer fallback panels.", settings.reduceTransparency) { value -> onSettings { it.copy(reduceTransparency = value) } }
+                    SettingSwitch("Increase contrast", "Strengthen glass borders and separation around controls.", settings.increaseContrast) { value -> onSettings { it.copy(increaseContrast = value) } }
+                    if (settings.appearance == AppearancePreset.DARK_AERO || settings.appearance == AppearancePreset.SYSTEM) {
+                        SettingSwitch("Black background", "Use deeper blacks with Dark Aero or System dark mode.", settings.amoled) { value -> onSettings { it.copy(amoled = value) } }
+                    }
+                }
+            }
+        }
+        item { SectionTitle("Discovery", "For You uses SFW Wallhaven searches and local repeat-avoidance") }
+        item {
+            GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = 3.dp) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                    SettingSwitch(
+                        "Rotate For You hourly",
+                        "A stable style and query are selected for each hour; the timer does not poll the provider repeatedly.",
+                        settings.rotateDiscoveryHourly,
+                    ) { value -> onSettings { it.copy(rotateDiscoveryHourly = value) } }
+                    SettingSwitch(
+                        "Avoid recently shown wallpapers",
+                        "Previously loaded identifiers are ranked lower; this cannot guarantee a completely new result set.",
+                        settings.avoidRecentlySeen,
+                    ) { value -> onSettings { it.copy(avoidRecentlySeen = value) } }
+                    if (settings.avoidRecentlySeen) {
+                        Text("Allow repeats after", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textSecondary)
+                        ChoiceRow(
+                            listOf(12 to "12 h", 24 to "24 h", 72 to "3 days", 168 to "7 days"),
+                            settings.repeatAfterHours,
+                        ) { value -> onSettings { it.copy(repeatAfterHours = value) } }
+                    }
+                    Text("Preferred styles", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    Text("When any are selected, Auto rotates only through those styles.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DiscoveryStyle.entries.forEach { style ->
+                            val selected = style.id in settings.preferredDiscoveryStyleIds
+                            GlassPill(
+                                style.label,
+                                selected,
+                                selectionRole = Role.Checkbox,
+                                onClick = { onSettings { it.copy(preferredDiscoveryStyleIds = if (selected) it.preferredDiscoveryStyleIds - style.id else it.preferredDiscoveryStyleIds + style.id) } },
+                            )
+                        }
+                    }
+                    Text("Exclude from Auto", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DiscoveryStyle.entries.forEach { style ->
+                            val selected = style.id in settings.hiddenDiscoveryStyleIds
+                            GlassPill(
+                                style.label,
+                                selected,
+                                selectionRole = Role.Checkbox,
+                                onClick = { onSettings { it.copy(
+                                    hiddenDiscoveryStyleIds = if (selected) it.hiddenDiscoveryStyleIds - style.id else it.hiddenDiscoveryStyleIds + style.id,
+                                    preferredDiscoveryStyleIds = if (selected) it.preferredDiscoveryStyleIds else it.preferredDiscoveryStyleIds - style.id,
+                                ) } },
+                            )
+                        }
+                    }
+                    SettingSwitch(
+                        "Reduce potentially explicit results",
+                        "Wallhaven stays SFW and Openverse uses its safe API filter. Local checks only inspect unmistakable metadata markers; they cannot inspect pixels or certify safety.",
+                        settings.reducePotentiallyExplicitContent,
+                    ) { value -> onSettings { it.copy(reducePotentiallyExplicitContent = value) } }
+                    TextButton(onClick = onResetDiscovery) { Text("Reset discovery preferences and cache history") }
                 }
             }
         }
@@ -114,11 +213,6 @@ fun SettingsScreen(
                             }
                         }
                     }
-                    SettingSwitch(
-                        "Set after download",
-                        "Apply to Home and Lock screens after the original is saved.",
-                        settings.setAfterDownload,
-                    ) { value -> onSettings { it.copy(setAfterDownload = value) } }
                     SettingSwitch("Download progress notifications", "Show progress while an original is saving.", settings.notifyProgress) { value ->
                         onSettings { it.copy(notifyProgress = value) }
                         if (value) onRequestNotificationPermission()

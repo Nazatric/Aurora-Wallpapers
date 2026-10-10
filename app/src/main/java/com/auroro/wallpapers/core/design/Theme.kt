@@ -12,8 +12,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AppSettings
-import com.auroro.wallpapers.core.data.ThemeMode
+import com.auroro.wallpapers.core.data.AppearancePreset
+import com.auroro.wallpapers.core.data.GlassQuality
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazePerformanceMode
+import dev.chrisbanes.haze.LocalHazePerformanceMode
 import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.glass.GlassAccessibilitySettings
+import dev.chrisbanes.haze.glass.LocalGlassAccessibilitySettings
 
 private val AeroShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -23,15 +29,23 @@ private val AeroShapes = Shapes(
     extraLarge = RoundedCornerShape(30.dp),
 )
 
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -> Unit) {
-    val dark = when (settings.themeMode) {
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        ThemeMode.DARK -> true
-        ThemeMode.LIGHT -> false
+    val dark = when (settings.appearance) {
+        AppearancePreset.SYSTEM -> isSystemInDarkTheme()
+        AppearancePreset.DARK_AERO -> true
+        else -> false
     }
-    val aero = remember(dark, settings.accent, settings.amoled, settings.reduceTransparency) {
-        aeroColors(dark, settings.accent, settings.amoled && dark, settings.reduceTransparency)
+    val aero = remember(dark, settings.appearance, settings.accent, settings.amoled, settings.reduceTransparency, settings.glassQuality) {
+        aeroColors(
+            dark = dark,
+            accent = settings.accent,
+            amoled = settings.amoled && dark,
+            reduceTransparency = settings.reduceTransparency,
+            appearance = settings.appearance,
+            glassQuality = settings.glassQuality,
+        )
     }
     val context = LocalContext.current
     val reduced = remember { Motion.reducedMotion(context) }
@@ -53,12 +67,28 @@ fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -
             error = aero.error, outline = aero.glassRimDark,
         )
     }
+    val hazePerformance = when (settings.glassQuality) {
+        GlassQuality.FULL -> HazePerformanceMode.Quality
+        GlassQuality.BALANCED -> HazePerformanceMode.Balanced
+        GlassQuality.REDUCED -> HazePerformanceMode.Performance
+    }
     CompositionLocalProvider(
         LocalAero provides aero,
         LocalReducedMotion provides reduced,
         LocalAeroHazeState provides hazeState,
+        LocalHazePerformanceMode provides hazePerformance,
+        LocalGlassAccessibilitySettings provides GlassAccessibilitySettings(
+            reduceTransparency = settings.reduceTransparency,
+            increaseContrast = settings.increaseContrast,
+            showBorders = settings.increaseContrast || settings.reduceTransparency,
+        ),
     ) {
-        MaterialTheme(colorScheme = scheme, typography = AeroTypography, shapes = AeroShapes, content = content)
+        MaterialTheme(
+            colorScheme = scheme,
+            typography = appTypography(settings.fontChoice, settings.fontScale),
+            shapes = AeroShapes,
+            content = content,
+        )
     }
 }
 

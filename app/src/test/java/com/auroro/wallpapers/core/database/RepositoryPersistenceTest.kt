@@ -3,10 +3,14 @@ package com.auroro.wallpapers.core.database
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.auroro.wallpapers.core.data.CollectionsRepository
+import com.auroro.wallpapers.core.data.DiscoverySnapshotCache
 import com.auroro.wallpapers.core.data.FavoritesRepository
 import com.auroro.wallpapers.core.data.HistoryRepository
+import com.auroro.wallpapers.core.data.SettingsRepository
 import com.auroro.wallpapers.core.data.WallpaperStore
+import com.auroro.wallpapers.core.model.DiscoveryRotation
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.wallpaper
 import kotlinx.coroutines.flow.first
@@ -21,6 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.File
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -53,7 +58,38 @@ class RepositoryPersistenceTest {
 
         favorites.setFavorite(w, false)
         assertFalse(favorites.isFavorite(w.key))
-        assertNull(db.wallpapers().get(w.key)) // unreferenced metadata is cleaned up
+        assertEquals(w.key, db.wallpapers().get(w.key)?.key) // bounded discovery metadata remains separate from favorites
+    }
+
+    @Test fun explicitDiscoveryResetRemovesDisposableMetadataButPreservesFavorites() = runBlocking {
+        val prefs = PreferenceDataStoreFactory.create(produceFile = { File(context.cacheDir, "discovery-reset-${System.nanoTime()}.preferences_pb") })
+        val settings = SettingsRepository(prefs, bootPrefs = null)
+        val cache = DiscoverySnapshotCache(settings, store)
+        val transient = wallpaper(id = "feed-only01")
+        val favorite = wallpaper(id = "feed-fav001")
+        val selection = DiscoveryRotation.select(0L)
+        cache.save(selection, listOf(transient, favorite), now = 10L)
+        favorites.setFavorite(favorite, true)
+
+        cache.clear()
+
+        assertTrue(settings.discoverySnapshot(selection.cacheKey).isEmpty())
+        assertNull(db.wallpapers().get(transient.key))
+        assertEquals(favorite.key, db.wallpapers().get(favorite.key)?.key)
+        assertTrue(favorites.isFavorite(favorite.key))
+        assertNull(db.downloads().get(favorite.key))
+    }
+
+    @Test fun discoveryMetadataCacheIsBoundedWithoutPruningFavoriteRows() = runBlocking {
+        val protected = wallpaper(id = "protected01")
+        favorites.setFavorite(protected, true)
+        val cache = (1..620).map { index -> wallpaper(id = "cache${index.toString().padStart(4, '0')}") }
+
+        store.cacheForDiscovery(cache)
+
+        assertEquals(600, db.wallpapers().countUnreferenced())
+        assertEquals(protected.key, db.wallpapers().get(protected.key)?.key)
+        assertTrue(favorites.isFavorite(protected.key))
     }
 
     @Test fun collectionCreateRenameAddRemoveAndDeleteArePersistent() = runBlocking {
@@ -73,7 +109,7 @@ class RepositoryPersistenceTest {
         collections.add(id, w)
         collections.delete(id)
         assertTrue(collections.observeSummaries().first().isEmpty())
-        assertNull(db.wallpapers().get(w.key))
+        assertEquals(w.key, db.wallpapers().get(w.key)?.key) // the separate, bounded feed cache may retain metadata
     }
 
     @Test fun historyIsSeparateAndCanBeClearedWithoutTouchingFavorites() = runBlocking {
@@ -85,7 +121,7 @@ class RepositoryPersistenceTest {
         history.clear()
         assertTrue(history.observeRecent().first().isEmpty())
         assertTrue(favorites.isFavorite(favorite.key))
-        assertNull(db.wallpapers().get(viewed.key))
+        assertEquals(viewed.key, db.wallpapers().get(viewed.key)?.key) // metadata cache is not browsing history
     }
 
     @Test fun downloadRowsRecordPermanentFileMetadata() = runBlocking {

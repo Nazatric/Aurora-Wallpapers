@@ -353,11 +353,18 @@ def main() -> None:
     REPORT["cold_start_launch"] = launch_timing(launch.stdout)
 
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "initial home brand", timeout=60)
-    screenshot("01-home.png")
     adb("shell", "dumpsys", "gfxinfo", "com.auroro.wallpapers", "reset", timeout=30, check=False)
     if len(find_nodes(root, text="Auroro Wallpapers")) != 1:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
+    home_feed = wait_for_feed_content("initial hourly For You collection", timeout=120)
+    if not wallpaper_descriptions(home_feed):
+        raise AssertionError("The initial SFW For You query/fallback produced no visible wallpaper cards")
+    if not find_nodes(home_feed, text="Auto · hourly"):
+        raise AssertionError("For You did not expose its hourly Auto selection")
+    REPORT["for_you_result_count"] = len(wallpaper_descriptions(home_feed))
+    REPORT["checks"].append({"name": "hourly For You uses a live SFW Wallhaven collection", "result": "passed"})
+    screenshot("01-home.png")
 
     tap_text("Search", prefer_bottom=True)
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Try ocean, forest or a place")), "Search screen field", timeout=30)
@@ -445,6 +452,38 @@ def main() -> None:
     detail = wait_until(lambda ui: bool(find_nodes(ui, text="Favorited")), "favorite saved in detail", timeout=30)
     REPORT["checks"].append({"name": "favorite and collection actions", "result": "passed"})
     screenshot("06-wallhaven-favorited.png")
+
+    # Set an unsaved original first: the full-resolution bytes must stay in disposable cache and
+    # never appear in the persistent Downloads list. The later explicit Download action is tested separately.
+    tap_text("Set wallpaper", timeout=20)
+    wait_until(lambda ui: bool(find_nodes(ui, text="Home screen")) and bool(find_nodes(ui, text="Cancel")), "temporary-original target chooser", timeout=30)
+    tap_text("Home screen", timeout=20)
+    temporary_crop = wait_until(
+        lambda ui: bool(find_nodes(ui, text="Preview & crop")) and bool(find_nodes(ui, text="Temporary original is ready", contains=True)),
+        "unsaved wallpaper prepared in temporary cache", timeout=180,
+    )
+    screenshot("06b-temporary-original-ready.png")
+    before_temporary_set, _ = wallpaper_id_state()
+    tap_text("Set Home screen", timeout=20)
+    wait_until(
+        lambda ui: bool(find_nodes(ui, text="Favorited")) and bool(find_nodes(ui, text="Set wallpaper")),
+        "return to detail after setting from temporary cache", timeout=45,
+    )
+    wait_for_wallpaper_id_change(before_temporary_set, "Home", timeout=120)
+    REPORT["checks"].append({"name": "set-only path applies a temporary original", "result": "passed"})
+
+    tap_text("Downloads", prefer_bottom=True, timeout=20)
+    tap_text("Downloaded", timeout=20)
+    no_download_record = wait_until(lambda ui: bool(find_nodes(ui, text="No downloads yet")), "no persistent record after set-only flow", timeout=45)
+    if find_nodes(no_download_record, text="Saved original"):
+        raise AssertionError("Set Wallpaper unexpectedly created a persistent Download record")
+    screenshot("06c-set-only-no-download-record.png")
+    REPORT["checks"].append({"name": "set-only flow creates no Download record", "result": "passed"})
+    tap_text("Search", prefer_bottom=True, timeout=20)
+    root = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "restore Search before persistent download", timeout=45)
+    tile_nodes = wallpaper_nodes(root)
+    tap_node(clickable_target(root, tile_nodes[0]))
+    detail = wait_until(lambda ui: bool(find_nodes(ui, text="Favorited")) and bool(find_nodes(ui, text="Set wallpaper")), "reopen unsaved Wallhaven detail", timeout=60)
 
     # Keep WorkManager constrained in airplane mode so cancellation and retry are deterministic.
     download_nodes = find_nodes(detail, text="Download original")

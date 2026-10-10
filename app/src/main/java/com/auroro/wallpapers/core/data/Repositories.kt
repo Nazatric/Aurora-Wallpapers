@@ -25,7 +25,7 @@ class FavoritesRepository(private val db: AppDatabase, private val store: Wallpa
             }
         } else {
             db.favorites().delete(w.key)
-            db.wallpapers().deleteUnreferenced()
+            db.wallpapers().trimUnreferenced()
         }
     }
 
@@ -77,7 +77,7 @@ class CollectionsRepository(private val db: AppDatabase, private val store: Wall
             db.collections().deleteItems(id)
             db.collections().delete(id)
         }
-        db.wallpapers().deleteUnreferenced()
+        db.wallpapers().trimUnreferenced()
     }
 
     suspend fun add(id: Long, w: Wallpaper) {
@@ -91,7 +91,7 @@ class CollectionsRepository(private val db: AppDatabase, private val store: Wall
 
     suspend fun remove(id: Long, key: String) {
         db.collections().removeItem(id, key)
-        db.wallpapers().deleteUnreferenced()
+        db.wallpapers().trimUnreferenced()
     }
 
     companion object {
@@ -113,7 +113,7 @@ class HistoryRepository(private val db: AppDatabase, private val store: Wallpape
 
     suspend fun clear() {
         db.history().clear()
-        db.wallpapers().deleteUnreferenced()
+        db.wallpapers().trimUnreferenced()
     }
 
     companion object {

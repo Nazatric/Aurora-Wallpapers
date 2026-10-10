@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,7 +61,9 @@ import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
+import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.LocalAeroHazeState
+import com.auroro.wallpapers.app.ApplyPreparationUiState
 import com.auroro.wallpapers.core.model.Wallpaper
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
@@ -72,33 +75,37 @@ fun CropScreen(
     wallpaper: Wallpaper?,
     target: ApplyTarget,
     download: DownloadEntity?,
+    preparation: ApplyPreparationUiState,
     onBack: () -> Unit,
-    onEnsureDownload: (Wallpaper) -> Unit,
-    onRetry: (String) -> Unit,
+    onPrepareOriginal: (Wallpaper) -> Unit,
     onApply: (String, ApplyTarget, NormalizedCrop) -> Unit,
 ) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
+    var selectedTarget by rememberSaveable(wallpaper?.key, target) { mutableStateOf(target) }
     var fileExists by remember(download?.localUri) { mutableStateOf(false) }
     val canSetWallpaper = wallpaper?.setWallpaperAllowed == true
+    val preparationForWallpaper = preparation.takeIf { it.wallpaperKey == wallpaper?.key }
     LaunchedEffect(download?.localUri, download?.status) {
         fileExists = withContext(Dispatchers.IO) {
             download?.status == DownloadStatus.COMPLETED.name && LocalFiles.exists(context, download.localUri)
         }
     }
-    LaunchedEffect(wallpaper?.key, fileExists, download?.status) {
-        if (!fileExists && wallpaper != null && wallpaper.downloadAllowed && wallpaper.setWallpaperAllowed &&
-            download?.status != DownloadStatus.RUNNING.name && download?.status != DownloadStatus.QUEUED.name &&
-            download?.status != DownloadStatus.FAILED.name && download?.status != DownloadStatus.CANCELED.name
-        ) {
-            onEnsureDownload(wallpaper)
-        }
+    LaunchedEffect(wallpaper?.key, fileExists, preparation.wallpaperKey, preparation.loading, preparation.uri) {
+        val item = wallpaper ?: return@LaunchedEffect
+        if (!fileExists && preparation.wallpaperKey != item.key && item.setWallpaperAllowed) onPrepareOriginal(item)
     }
 
-    val localUri = download?.localUri?.takeIf { fileExists }
+    val savedUri = download?.localUri?.takeIf { fileExists }
+    val preparedUri = preparationForWallpaper?.uri
+    val localUri = savedUri ?: preparedUri
     val imageUri = localUri ?: wallpaper?.previewUrl ?: wallpaper?.thumbUrl
-    val width = download?.savedWidth?.takeIf { it > 0 } ?: wallpaper?.width?.coerceAtLeast(1) ?: 1
-    val height = download?.savedHeight?.takeIf { it > 0 } ?: wallpaper?.height?.coerceAtLeast(1) ?: 1
+    val width = preparationForWallpaper?.width?.takeIf { it > 0 }
+        ?: download?.savedWidth?.takeIf { it > 0 }
+        ?: wallpaper?.width?.coerceAtLeast(1) ?: 1
+    val height = preparationForWallpaper?.height?.takeIf { it > 0 }
+        ?: download?.savedHeight?.takeIf { it > 0 }
+        ?: wallpaper?.height?.coerceAtLeast(1) ?: 1
     var scale by remember(wallpaper?.key) { mutableFloatStateOf(1f) }
     var offsetX by remember(wallpaper?.key) { mutableFloatStateOf(0f) }
     var offsetY by remember(wallpaper?.key) { mutableFloatStateOf(0f) }
@@ -115,7 +122,7 @@ fun CropScreen(
     val lightSurfaces = !Aero.colors.isDark
     val edgeScrim = if (lightSurfaces) Color.White else Color.Black
     val isPreparingOriginal = localUri == null && canSetWallpaper && wallpaper?.downloadAllowed == true &&
-        download?.status != DownloadStatus.FAILED.name && download?.status != DownloadStatus.CANCELED.name
+        preparationForWallpaper?.loading == true
     val resetCrop = {
         scale = 1f
         offsetX = 0f
@@ -198,7 +205,7 @@ fun CropScreen(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text("Preview & crop", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
                     Text(
-                        "${target.label} · drag to pan, pinch to zoom",
+                        "${selectedTarget.label} · drag to pan, pinch to zoom",
                         style = MaterialTheme.typography.bodySmall,
                         color = Aero.colors.textSecondary,
                     )
@@ -225,11 +232,22 @@ fun CropScreen(
                 Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
+                Text("Apply to", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textSecondary)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ApplyTarget.entries.forEach { option ->
+                        GlassPill(
+                            text = option.label,
+                            selected = selectedTarget == option,
+                            modifier = Modifier.weight(1f),
+                            onClick = { selectedTarget = option },
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Zoom", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
                         Text(
-                            "${width} × $height px${if (localUri == null) " · original needed to set" else " · saved original"}",
+                            "$width × $height px · ${when { savedUri != null -> "saved original"; preparedUri != null -> "temporary original"; else -> "source dimensions" }}",
                             style = MaterialTheme.typography.labelSmall,
                             color = Aero.colors.textSecondary,
                         )
@@ -254,51 +272,47 @@ fun CropScreen(
                 )
                 when {
                     wallpaper?.setWallpaperAllowed == false -> Text(
-                        "This licence does not allow an adapted crop. Wallpaper setting is disabled.",
+                        "This licence does not permit wallpaper setting or cropping.",
                         style = MaterialTheme.typography.bodySmall,
                         color = Aero.colors.warning,
                     )
-                    wallpaper?.downloadAllowed == false -> Text(
-                        "Auroro cannot download this original under its reported licence or file type.",
+                    localUri != null -> Text(
+                        if (savedUri != null) "Saved original is ready to set." else "Temporary original is ready · no Download record was created.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Aero.colors.warning,
+                        color = Aero.colors.textSecondary,
                     )
-                    localUri != null -> Unit
-                    download?.status == DownloadStatus.FAILED.name || download?.status == DownloadStatus.CANCELED.name -> {
+                    preparationForWallpaper?.error != null -> {
                         Text(
-                            if (download.status == DownloadStatus.CANCELED.name) "Original download canceled" else "Couldn't prepare the original image",
+                            "Couldn't prepare the original image",
                             style = MaterialTheme.typography.labelMedium,
-                            color = if (download.status == DownloadStatus.CANCELED.name) Aero.colors.textPrimary else Aero.colors.error,
+                            color = Aero.colors.error,
                         )
-                        Text(
-                            if (download.status == DownloadStatus.CANCELED.name) "Retry when you're ready to continue."
-                            else download.errorMessage ?: "Download failed.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Aero.colors.textSecondary,
-                        )
-                        TextButton(onClick = { onRetry(download.wallpaperKey) }) { Text("Retry download", color = Aero.colors.accent) }
+                        Text(preparationForWallpaper.error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                        TextButton(onClick = { wallpaper?.let(onPrepareOriginal) }) { Text("Try again", color = Aero.colors.accent) }
                     }
-                    else -> {
-                        Text(
-                            when (download?.status) {
-                                DownloadStatus.RUNNING.name -> "Saving the full-resolution original…"
-                                DownloadStatus.QUEUED.name -> "Original queued · preparing the preview…"
-                                else -> "Preparing the original image…"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Aero.colors.textSecondary,
-                        )
-                        download?.takeIf { it.status == DownloadStatus.RUNNING.name && it.totalBytes > 0 }?.let { progress ->
-                            Text(
-                                "${(progress.bytesDownloaded * 100 / progress.totalBytes).coerceIn(0, 100)}%",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Aero.colors.accent,
-                            )
-                        }
-                    }
+                    wallpaper?.downloadAllowed == false -> Text(
+                        "No saved original is available, and Auroro cannot fetch this file under its reported licence or type.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.warning,
+                    )
+                    isPreparingOriginal -> Text(
+                        "Preparing the full-resolution original in temporary cache…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.textSecondary,
+                    )
+                    wallpaper != null -> Text(
+                        "Preparing the full-resolution original…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.textSecondary,
+                    )
+                    else -> Text(
+                        "Wallpaper details are unavailable. Return to the source and open it again.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.warning,
+                    )
                 }
                 Button(
-                    onClick = { localUri?.let { onApply(it, target, crop) } },
+                    onClick = { localUri?.let { onApply(it, selectedTarget, crop) } },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = canSetWallpaper && localUri != null,
                 ) {
@@ -308,7 +322,7 @@ fun CropScreen(
                         when {
                             !canSetWallpaper -> "Setting unavailable"
                             wallpaper?.downloadAllowed == false && localUri == null -> "Original unavailable"
-                            localUri != null -> "Set ${target.label}"
+                            localUri != null -> "Set ${selectedTarget.label}"
                             else -> "Preparing original…"
                         },
                     )

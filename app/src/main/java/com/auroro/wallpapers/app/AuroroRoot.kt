@@ -55,13 +55,16 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,6 +79,9 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.NavHostController
@@ -94,6 +100,7 @@ import com.auroro.wallpapers.core.design.LocalReducedMotion
 import com.auroro.wallpapers.core.design.Motion
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperFilter
+import com.auroro.wallpapers.core.model.DiscoveryRotation
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.feature.categories.CategoriesScreen
 import com.auroro.wallpapers.feature.collections.AddToCollectionDialog
@@ -109,6 +116,7 @@ import com.auroro.wallpapers.feature.settings.SourcesScreen
 import com.auroro.wallpapers.feature.wallpaper.CropScreen
 import com.auroro.wallpapers.feature.wallpaper.WallpaperDetailScreen
 import com.auroro.wallpapers.feature.wallpaper.shareWallpaper
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private data class DrawerEntry(val label: String, val route: String, val icon: ImageVector)
@@ -166,6 +174,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val history by vm.history.collectAsState()
     val recentSearches by vm.recentSearches.collectAsState()
     val detail by vm.detail.collectAsState()
+    val applyPreparation by vm.applyPreparation.collectAsState()
     val relatedLoading by vm.relatedLoading.collectAsState()
     val settings by vm.settings.collectAsState()
     val enabledSources = remember(settings.wallhavenEnabled, settings.openverseEnabled) {
@@ -177,6 +186,8 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val reducedMotion = LocalReducedMotion.current
     val goWallpaper: (Wallpaper) -> Unit = { w -> openWallpaper(nav, w) }
     var homeTab by rememberSaveable { mutableStateOf(HomeTab.FOR_YOU) }
+    val homeGridStateHolder = rememberSaveableStateHolder()
+    val retainedHomeGridKeys = remember { mutableStateListOf<String>() }
     var searchText by rememberSaveable { mutableStateOf("") }
     var addToCollection by remember { mutableStateOf<Wallpaper?>(null) }
     var storageInfo by remember { mutableStateOf<com.auroro.wallpapers.core.data.download.StorageInfo?>(null) }
@@ -196,10 +207,29 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "home"
-    LaunchedEffect(route, homeTab) {
+    LaunchedEffect(route, homeTab, settings.pinnedDiscoveryStyleId) {
         when (route) {
-            "home" -> vm.openHome(homeTab)
+            "home" -> vm.openHome(homeTab, settings.pinnedDiscoveryStyleId)
             "search" -> vm.openSearch()
+        }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, route, homeTab) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && route == "home" && homeTab == HomeTab.FOR_YOU) {
+                vm.refreshHourlyHomeOnResume()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly) {
+        if (route == "home" && homeTab == HomeTab.FOR_YOU && settings.rotateDiscoveryHourly) {
+            while (true) {
+                val remaining = DiscoveryRotation.HOUR_MILLIS - Math.floorMod(System.currentTimeMillis(), DiscoveryRotation.HOUR_MILLIS)
+                delay(remaining.coerceAtLeast(1L))
+                vm.refreshHourlyHomeOnResume()
+            }
         }
     }
     val isImmersive = route.startsWith("wallpaper/") || route.startsWith("crop/") || route == "filters" || route.startsWith("collection/")
@@ -315,10 +345,15 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                         HomeScreen(
                             feed = feed,
                             selectedTab = homeTab,
-                            onTab = { tab -> homeTab = tab; vm.openHome(tab) },
+                            rotateHourly = settings.rotateDiscoveryHourly,
+                            gridStateHolder = homeGridStateHolder,
+                            retainedGridKeys = retainedHomeGridKeys,
+                            onTab = { tab -> homeTab = tab; vm.openHome(tab, settings.pinnedDiscoveryStyleId) },
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
                             onCategory = { startSearch(it) },
+                            onStyle = { styleId -> vm.updateSettings { it.copy(pinnedDiscoveryStyleId = styleId) } },
+                            onRefresh = vm::manualRefreshHome,
                             onOpen = goWallpaper,
                             onLoadMore = vm::loadMore,
                             onRetry = vm::retryFeed,
@@ -443,6 +478,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             onMenu = { scope.launch { drawer.open() } },
                             onSettings = vm::updateSettings,
                             onClearCache = vm::clearImageCache,
+                            onResetDiscovery = vm::resetDiscoveryPreferences,
                             onAbout = { scope.launch { snackbar.showSnackbar("Auroro Wallpapers is a free, ad-free Android app. Made using Openverse; not endorsed or certified by Openverse.") } },
                             onPrivacy = { openExternal("https://github.com/Nazatric/Aurora-Wallpapers/blob/main/PRIVACY.md") },
                             onLicenses = { openExternal("https://github.com/Nazatric/Aurora-Wallpapers/blob/main/THIRD_PARTY_NOTICES.md") },
@@ -488,6 +524,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     ) { entry ->
                         val key = entry.arguments?.getString("key").orEmpty()
                         val target = runCatching { ApplyTarget.valueOf(entry.arguments?.getString("target").orEmpty()) }.getOrDefault(ApplyTarget.HOME)
+                        DisposableEffect(key) { onDispose { vm.cancelWallpaperPreparation(key) } }
                         LaunchedEffect(key) { vm.loadDetail(key) }
                         val wallpaper = detail?.wallpaper?.takeIf { it.key == key } ?: downloadRows.firstOrNull { it.download.wallpaperKey == key }?.wallpaper
                         val d = downloadEntities.firstOrNull { it.wallpaperKey == key }
@@ -495,10 +532,10 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             wallpaper = wallpaper,
                             target = target,
                             download = d,
-                            onBack = { nav.popBackStack() },
-                            onEnsureDownload = vm::download,
-                            onRetry = vm::retryDownload,
-                            onApply = { uri, applyTarget, crop -> vm.applySaved(uri, applyTarget, crop); nav.popBackStack() },
+                            preparation = applyPreparation,
+                            onBack = { vm.cancelWallpaperPreparation(key); nav.popBackStack() },
+                            onPrepareOriginal = vm::prepareWallpaperForApply,
+                            onApply = { uri, applyTarget, crop -> vm.applySaved(uri, applyTarget, crop); vm.cancelWallpaperPreparation(key); nav.popBackStack() },
                         )
                     }
                 }

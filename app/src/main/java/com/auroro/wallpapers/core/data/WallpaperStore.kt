@@ -11,8 +11,8 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
- * Resolves wallpapers by key: recent feed results from memory (bounded LRU), everything the user
- * saved/favorited/viewed from Room. Only persists on intentional actions, never for plain browsing.
+ * Resolves wallpapers by key from a bounded in-memory LRU and Room. Intentional user records remain
+ * referenced independently; For You persists bounded metadata snapshots only, never image bytes or history rows.
  */
 class WallpaperStore(private val dao: WallpaperDao, private val clock: () -> Long = System::currentTimeMillis) {
     private val memory = object : LinkedHashMap<String, Wallpaper>(256, 0.75f, true) {
@@ -34,6 +34,30 @@ class WallpaperStore(private val dao: WallpaperDao, private val clock: () -> Lon
     suspend fun persist(w: Wallpaper) {
         remember(listOf(w))
         dao.upsert(WallpaperMapper.toEntity(w, clock()))
+    }
+
+    /** Temporary-use discovery cache: metadata only, never an original image or a Download row. */
+    suspend fun cacheForDiscovery(items: List<Wallpaper>) {
+        if (items.isEmpty()) return
+        val distinct = items.distinctBy { it.key }
+        remember(distinct)
+        dao.upsertAll(distinct.map { WallpaperMapper.toEntity(it, clock()) })
+        dao.trimUnreferenced()
+    }
+
+    /** Explicit discovery reset removes disposable feed metadata but preserves every user-referenced row. */
+    suspend fun clearDiscoveryCache() {
+        dao.clearUnreferenced()
+        synchronized(memory) { memory.clear() }
+    }
+
+    /** Restores a snapshot in its original result order, omitting metadata already evicted from Room. */
+    suspend fun getAll(keys: List<String>): List<Wallpaper> {
+        if (keys.isEmpty()) return emptyList()
+        val rows = dao.getAll(keys.distinct()).associateBy { it.key }
+        return keys.mapNotNull { key ->
+            synchronized(memory) { memory[key] } ?: rows[key]?.let(WallpaperMapper::toModel)
+        }
     }
 
     companion object {

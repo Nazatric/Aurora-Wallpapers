@@ -75,6 +75,34 @@ class ConfigurationAndMappingTest {
         assertTrue(settings.recentSearches.first().isEmpty())
     }
 
+    @Test fun discoverySnapshotsRepeatHistoryAndManualRefreshCooldownPersistLocally() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "discovery.preferences_pb") })
+        val settings = SettingsRepository(store, bootPrefs = null)
+        val now = 1_800_000_000_000L
+
+        val first = settings.claimManualDiscoveryRefresh(now)
+        assertTrue(first.allowed)
+        assertEquals(1, first.ordinal)
+        val tooSoon = settings.claimManualDiscoveryRefresh(now + 1_000L)
+        assertFalse(tooSoon.allowed)
+        assertTrue(tooSoon.remainingMillis > 0)
+        val later = settings.claimManualDiscoveryRefresh(now + SettingsRepository.MANUAL_REFRESH_COOLDOWN_MILLIS)
+        assertTrue(later.allowed)
+        assertEquals(2, later.ordinal)
+
+        settings.saveDiscoverySnapshot("42:surreal:1:2", listOf("wallhaven:one", "wallhaven:two"))
+        assertEquals(listOf("wallhaven:one", "wallhaven:two"), settings.discoverySnapshot("42:surreal:1:2"))
+        settings.recordDiscoverySeen(listOf("wallhaven:one"), now)
+        assertEquals(setOf("wallhaven:one"), settings.recentlySeenDiscoveryKeys(now + 1, 24))
+        assertTrue(settings.recentlySeenDiscoveryKeys(now + 25L * 60 * 60 * 1000, 24).isEmpty())
+
+        settings.resetDiscovery()
+        assertTrue(settings.discoverySnapshot("42:surreal:1:2").isEmpty())
+        assertTrue(settings.recentlySeenDiscoveryKeys(now + 2, 24).isEmpty())
+        assertTrue(settings.current().rotateDiscoveryHourly)
+        assertEquals(null, settings.current().pinnedDiscoveryStyleId)
+    }
+
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "settings.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null)
@@ -82,6 +110,18 @@ class ConfigurationAndMappingTest {
             it.copy(
                 themeMode = ThemeMode.DARK,
                 accent = AccentTheme.EMERALD,
+                appearance = AppearancePreset.FRUTIGER_FLOWER,
+                fontChoice = FontChoice.SYSTEM,
+                fontScale = 1.2f,
+                glassQuality = GlassQuality.FULL,
+                increaseContrast = true,
+                reducePotentiallyExplicitContent = false,
+                rotateDiscoveryHourly = false,
+                avoidRecentlySeen = false,
+                repeatAfterHours = 72,
+                preferredDiscoveryStyleIds = setOf("surreal", "weirdcore"),
+                hiddenDiscoveryStyleIds = setOf("vaporwave-y2k"),
+                pinnedDiscoveryStyleId = "surreal",
                 cacheLimitMb = 500,
                 wallhavenEnabled = false,
                 openverseEnabled = true,
@@ -90,6 +130,18 @@ class ConfigurationAndMappingTest {
         val saved = settings.current()
         assertEquals(ThemeMode.DARK, saved.themeMode)
         assertEquals(AccentTheme.EMERALD, saved.accent)
+        assertEquals(AppearancePreset.FRUTIGER_FLOWER, saved.appearance)
+        assertEquals(FontChoice.SYSTEM, saved.fontChoice)
+        assertEquals(1.2f, saved.fontScale, 0.001f)
+        assertEquals(GlassQuality.FULL, saved.glassQuality)
+        assertTrue(saved.increaseContrast)
+        assertFalse(saved.reducePotentiallyExplicitContent)
+        assertFalse(saved.rotateDiscoveryHourly)
+        assertFalse(saved.avoidRecentlySeen)
+        assertEquals(72, saved.repeatAfterHours)
+        assertEquals(setOf("surreal", "weirdcore"), saved.preferredDiscoveryStyleIds)
+        assertEquals(setOf("vaporwave-y2k"), saved.hiddenDiscoveryStyleIds)
+        assertEquals("surreal", saved.pinnedDiscoveryStyleId)
         assertEquals(500, saved.cacheLimitMb)
         assertFalse(saved.wallhavenEnabled)
         assertTrue(saved.openverseEnabled)

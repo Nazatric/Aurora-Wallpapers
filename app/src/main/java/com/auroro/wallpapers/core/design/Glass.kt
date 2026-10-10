@@ -85,7 +85,7 @@ fun GlassPanel(
         )
         .clip(shape)
         .then(
-            if (hazeState != null) {
+            if (hazeState != null && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) {
                 Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
             } else {
                 Modifier.background(glassFallbackBrush(c, opacity))
@@ -133,7 +133,7 @@ fun GlassSurface(
         .shadow(5.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = if (c.isDark) 0.18f else 0.07f))
         .clip(shape)
         .then(
-            if (hazeState != null) {
+            if (hazeState != null && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) {
                 Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
             } else {
                 Modifier.background(glassFallbackBrush(c, opacity))
@@ -156,11 +156,15 @@ private fun rememberAeroGlassStyle(c: AeroColors, cornerShape: RoundedCornerShap
         else -> (if (c.isDark) 0.28f else 0.22f) * c.opacityBoost
     }.coerceIn(0.08f, 0.52f)
     val tintColor = (if (selected) c.accentDeep else c.glassTint).copy(alpha = tintAlpha)
-    return remember(c.isDark, c.glassTint, c.accentDeep, tintAlpha, cornerShape, clear, selected) {
+    return remember(c.isDark, c.glassTint, c.accentDeep, tintAlpha, cornerShape, clear, selected, c.glassQuality) {
         (if (clear) GlassStyle.clear else GlassStyle.regular).then {
             shape(cornerShape)
             tint(tintColor)
             lightPosition(Alignment.TopStart)
+            if (c.glassQuality == com.auroro.wallpapers.core.data.GlassQuality.FULL) {
+                specularIntensity(if (clear) 0.62f else 0.56f)
+                ambientResponse(if (clear) 0.28f else 0.20f)
+            }
         }
     }
 }
@@ -260,7 +264,7 @@ fun AmbientBackdrop(modifier: Modifier = Modifier, imageUrl: String? = null) {
     val hazeState = LocalAeroHazeState.current
     Box(
         modifier
-            .then(hazeState?.let { Modifier.hazeSource(it) } ?: Modifier)
+            .then(if (hazeState != null && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) Modifier.hazeSource(hazeState) else Modifier)
             .background(Brush.verticalGradient(listOf(c.backdropTop, c.backdropMid, c.backdropBottom))),
     ) {
         if (!imageUrl.isNullOrBlank()) {
@@ -384,7 +388,7 @@ fun GlassIconButton(
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clip(shape)
             .then(
-                if (hazeState != null) {
+                if (hazeState != null && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) {
                     Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
                 } else {
                     Modifier.background(fallback)

@@ -136,6 +136,21 @@ class ProviderNormalizationTest {
         assertTrue(inferred.downloadAllowed)
     }
 
+    @Test fun openverseSensitivityPreferenceControlsProviderFilterAndUnknownMetadataHandling() {
+        val base = openverseDto()
+        assertNull(OpenverseMapper.toWallpaper(base.copy(mature = null)))
+        assertTrue(OpenverseMapper.toWallpaper(base.copy(mature = null), allowSensitive = true) != null)
+        assertTrue(OpenverseMapper.toWallpaper(base.copy(mature = true), allowSensitive = true) != null)
+
+        val cautious = OpenverseQuery.build(FeedRequest(), PageCursor())
+        val optedIn = OpenverseQuery.build(
+            FeedRequest(filter = WallpaperFilter(reducePotentiallyExplicitContent = false)),
+            PageCursor(),
+        )
+        assertEquals("false", cautious["mature"])
+        assertEquals("true", optedIn["mature"])
+    }
+
     @Test fun openverseLicenceGroupsMirrorThePublishedApiGroupsWithoutGrantingDownloadRights() {
         val cc0 = OpenverseMapper.toWallpaper(openverseDto().copy(license = "cc0"))!!
         val pdm = OpenverseMapper.toWallpaper(openverseDto().copy(license = "pdm"))!!

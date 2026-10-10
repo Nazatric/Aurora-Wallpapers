@@ -17,6 +17,7 @@ object LocalFilter {
         if (filter.sources.isNotEmpty() && w.source !in filter.sources) return false
         if (filter.hasConflictingSourceFilters) return false
         if (filter.requiredSources.isNotEmpty() && w.source !in filter.requiredSources) return false
+        if (filter.reducePotentiallyExplicitContent && ContentSensitivity.isPotentiallyExplicit(w)) return false
 
         val needsGeometry = filter.aspect != AspectFilter.Any ||
             filter.resolution != ResolutionFilter.Any ||
@@ -54,7 +55,7 @@ object LocalFilter {
         items: List<Wallpaper>,
         filter: WallpaperFilter,
         aspectTolerance: Float = AspectMath.DEFAULT_TOLERANCE,
-    ): List<Wallpaper> = if (filter == WallpaperFilter.Default) items else {
+    ): List<Wallpaper> = if (filter == WallpaperFilter.Default && !filter.reducePotentiallyExplicitContent) items else {
         items.filter { matches(it, filter, aspectTolerance) }
     }
 
