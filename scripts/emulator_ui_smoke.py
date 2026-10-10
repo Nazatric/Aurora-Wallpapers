@@ -20,7 +20,13 @@ from typing import Callable
 ARTIFACTS = Path("artifacts/ui-smoke")
 REMOTE_HIERARCHY = "/sdcard/auroro-window.xml"
 REPORT: dict[str, object] = {"screenshots": [], "checks": []}
-EMPTY_STATES = ("No matches on this page", "No wallpapers matched", "Couldn't load wallpapers")
+EMPTY_STATES = (
+    "No matches on this page",
+    "No wallpapers matched",
+    "No wallpapers found",
+    "No catalogue available",
+    "Couldn't load wallpapers",
+)
 
 
 def run(command: list[str], *, timeout: int = 30, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -319,13 +325,36 @@ def parse_dimensions(description: str) -> tuple[int, int] | None:
 
 
 def wait_for_feed_content(label: str, timeout: int = 90, max_empty_pages: int = 4) -> ET.Element:
-    """Wait for result cards; explicitly page through an empty-but-not-terminal provider page."""
+    """Wait for visible cards, scrolling past the home discovery controls when necessary."""
     for attempt in range(max_empty_pages + 1):
-        root = wait_until(
-            lambda ui: bool(wallpaper_descriptions(ui)) or any(find_nodes(ui, text=state) for state in EMPTY_STATES),
-            f"{label} results or honest empty/error state (page {attempt + 1})",
-            timeout,
-        )
+        deadline = time.monotonic() + timeout
+        last_scroll = 0.0
+        root: ET.Element | None = None
+        while time.monotonic() < deadline:
+            root = dump_hierarchy()
+            has_cards = bool(wallpaper_descriptions(root))
+            has_empty_state = any(find_nodes(root, text=state) for state in EMPTY_STATES)
+            if has_cards or has_empty_state:
+                REPORT["checks"].append({"name": f"{label} results or honest empty/error state (page {attempt + 1})", "result": "passed"})
+                break
+
+            # The home screen places style/topic controls above its lazy image grid. On a compact
+            # emulator the feed may be below the initial viewport; advance the real scroll container
+            # instead of mistaking off-screen cards (or an empty state) for a stuck request.
+            now = time.monotonic()
+            if now - last_scroll >= 4.0:
+                size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
+                width, height = map(int, size.groups()) if size else (1080, 2400)
+                adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.78)),
+                    str(width // 2), str(int(height * 0.30)), "420")
+                last_scroll = now
+            time.sleep(2)
+        else:
+            visible = [node_text(node) for node in root.iter("node")] if root is not None else []
+            raise AssertionError(f"Timed out waiting for {label}; visible UI nodes: {visible[:120]}")
+
+        if root is None:
+            raise AssertionError(f"No feed state became visible for {label}")
         if wallpaper_descriptions(root) or any(find_nodes(root, text=state) for state in EMPTY_STATES[1:]):
             return root
         further = find_nodes(root, text="Look further")
@@ -357,10 +386,14 @@ def main() -> None:
     if len(find_nodes(root, text="Auroro Wallpapers")) != 1:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
+    home_header = wait_until(
+        lambda ui: bool(find_nodes(ui, text="Auto · hourly")),
+        "For You hourly Auto selection", timeout=60,
+    )
     home_feed = wait_for_feed_content("initial hourly For You collection", timeout=120)
     if not wallpaper_descriptions(home_feed):
         raise AssertionError("The initial SFW For You query/fallback produced no visible wallpaper cards")
-    if not find_nodes(home_feed, text="Auto · hourly"):
+    if not find_nodes(home_header, text="Auto · hourly"):
         raise AssertionError("For You did not expose its hourly Auto selection")
     REPORT["for_you_result_count"] = len(wallpaper_descriptions(home_feed))
     REPORT["checks"].append({"name": "hourly For You uses a live SFW Wallhaven collection", "result": "passed"})
