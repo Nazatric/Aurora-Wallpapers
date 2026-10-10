@@ -13,11 +13,11 @@ When you browse, search, open a source page or download an image, your device co
 
 Openverse indexes works hosted by third parties. It does not verify every work's licence claim; inspect the original source page and licence before reuse. Auroro retains and displays available creator, source and licence metadata, but does not guarantee its completeness or accuracy.
 
-Image responses may be held in a bounded temporary HTTP/image cache in app cache storage. That cache is disposable and is not an Offline download. You can clear it in Settings. Original files you save are separate.
+Image responses may be held in a bounded temporary HTTP/image cache in app cache storage. That cache is disposable and is not a saved download. You can clear it in Settings. Original files you save are separate.
 
 ## Data on your device
 
-Room stores wallpaper identifiers, image/source URLs, available metadata and licence information, favorites, collections, viewing history, and download status plus local file references. DataStore stores settings such as appearance, aspect tolerance, enabled providers, cache size and download preferences. These records are used by the app and are not synced to an Auroro server. Provider query pacing is also stored locally so it can continue across process restarts.
+Room stores wallpaper identifiers, image/source URLs, available metadata and licence information, favorites, collections, viewing history, and download status plus local file references. DataStore stores settings such as appearance, aspect tolerance, enabled providers, cache size and download preferences, plus up to eight recent search terms. Search history is local, can be cleared from Search, and is not synced to Auroro. Provider query pacing is also stored locally so it can continue across process restarts.
 
 By default, downloads are saved through Android MediaStore to `Pictures/Auroro Wallpapers` and remain in Gallery until you delete them. You can instead save privately in app storage; Android removes those files if Auroro is uninstalled. App backup is disabled. Clearing the temporary image cache does not delete saved downloads.
 
@@ -32,7 +32,7 @@ Auroro does not request location, camera, microphone, contacts or broad shared-s
 
 ## Deleting data
 
-Favorites, collections and history can be managed in the app. Completed downloads can be deleted from Offline; Android may prevent deletion of a file the app no longer controls. Uninstalling removes app-private files, database and preferences. MediaStore downloads in Pictures remain until deleted in Gallery or Android storage settings.
+Favorites, collections, viewing history and recent search terms can be managed in the app; recent searches can be cleared from Search. Completed downloads can be deleted from Downloads; Android may prevent deletion of a file the app no longer controls. Uninstalling removes app-private files, database and preferences. MediaStore downloads in Pictures remain until deleted in Gallery or Android storage settings.
 
 ## Contact and provider policies
 

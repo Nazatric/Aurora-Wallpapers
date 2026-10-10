@@ -79,8 +79,6 @@ fun OfflineScreen(
 
     when (selectedTab) {
         OfflineTab.SAVED -> {
-            val active = rows.filter { it.download.status == DownloadStatus.RUNNING.name || it.download.status == DownloadStatus.QUEUED.name }
-            val failed = rows.filter { it.download.status == DownloadStatus.FAILED.name || it.download.status == DownloadStatus.CANCELED.name }
             val completed = rows.filter { it.download.status == DownloadStatus.COMPLETED.name }
             LazyVerticalStaggeredGrid(
                 columns = StaggeredGridCells.Adaptive(164.dp),
@@ -90,32 +88,19 @@ fun OfflineScreen(
                 verticalItemSpacing = 12.dp,
             ) {
                 item(span = StaggeredGridItemSpan.FullLine) {
-                    HeaderBar("Offline", "Original files saved on this device", onMenu = onMenu)
+                    HeaderBar("Downloads", "Original files saved on this device", onMenu = onMenu)
                 }
                 item(span = StaggeredGridItemSpan.FullLine) { OfflineTabs(selectedTab) { selectedTab = it } }
                 if (localStorage != null) item(span = StaggeredGridItemSpan.FullLine) { StorageSummary(localStorage!!) }
-                if (rows.isEmpty()) {
+                if (completed.isEmpty()) {
                     item(span = StaggeredGridItemSpan.FullLine) {
                         EmptyState(
                             "No downloads yet",
-                            "Download a wallpaper to save its original file here. Cached previews are separate and aren't listed.",
+                            "Download a wallpaper to save its original file here. Cached previews are separate and aren't listed. Use Queue to follow active or interrupted saves.",
                             icon = Icons.Rounded.Download,
                         )
                     }
-                }
-                if (active.isNotEmpty()) {
-                    item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
-                    items(active, key = { "active-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
-                        DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
-                    }
-                }
-                if (failed.isNotEmpty()) {
-                    item(span = StaggeredGridItemSpan.FullLine) { SectionTitle("Needs attention", "Interrupted or unavailable files") }
-                    items(failed, key = { "failed-${it.download.wallpaperKey}" }, span = { StaggeredGridItemSpan.FullLine }) { row ->
-                        DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
-                    }
-                }
-                if (completed.isNotEmpty()) {
+                } else {
                     item(span = StaggeredGridItemSpan.FullLine) {
                         SectionTitle("Saved wallpapers", "${completed.count { it.fileExists }} files available offline")
                     }
@@ -124,6 +109,40 @@ fun OfflineScreen(
                     }
                 }
                 item(span = StaggeredGridItemSpan.FullLine) { Spacer(Modifier.height(18.dp)) }
+            }
+        }
+
+        OfflineTab.QUEUE -> {
+            val active = rows.filter { it.download.status == DownloadStatus.RUNNING.name || it.download.status == DownloadStatus.QUEUED.name }
+            val failed = rows.filter { it.download.status == DownloadStatus.FAILED.name || it.download.status == DownloadStatus.CANCELED.name }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item { HeaderBar("Download queue", "Active and interrupted original saves", onMenu = onMenu) }
+                item { OfflineTabs(selectedTab) { selectedTab = it } }
+                if (active.isEmpty() && failed.isEmpty()) {
+                    item {
+                        EmptyState(
+                            "Queue is clear",
+                            "Active, waiting and interrupted downloads appear here. Saved originals are in Downloads.",
+                            icon = Icons.Rounded.Download,
+                        )
+                    }
+                }
+                if (active.isNotEmpty()) {
+                    item { SectionTitle("In progress", "${active.size} active download${if (active.size == 1) "" else "s"}") }
+                    columnItems(active, key = { "active-${it.download.wallpaperKey}" }) { row ->
+                        DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
+                    }
+                }
+                if (failed.isNotEmpty()) {
+                    item { SectionTitle("Needs attention", "Interrupted or unavailable files") }
+                    columnItems(failed, key = { "failed-${it.download.wallpaperKey}" }) { row ->
+                        DownloadRow(row, onOpen, onCancel, onRetry, onDelete)
+                    }
+                }
             }
         }
 
@@ -163,7 +182,7 @@ fun OfflineScreen(
     }
 }
 
-private enum class OfflineTab(val label: String) { SAVED("Downloads"), HISTORY("History") }
+private enum class OfflineTab(val label: String) { SAVED("Downloaded"), QUEUE("Queue"), HISTORY("History") }
 
 @Composable
 private fun OfflineTabs(selected: OfflineTab, onSelect: (OfflineTab) -> Unit) {

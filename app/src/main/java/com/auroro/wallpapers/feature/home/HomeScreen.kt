@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,7 +39,6 @@ fun HomeScreen(
     onTab: (HomeTab) -> Unit,
     onMenu: () -> Unit,
     onSearch: () -> Unit,
-    onSettings: () -> Unit,
     onCategory: (String) -> Unit,
     onOpen: (Wallpaper) -> Unit,
     onLoadMore: () -> Unit,
@@ -50,9 +47,13 @@ fun HomeScreen(
     val sourceNotes = feed.statuses.mapNotNull { status ->
         (status.state as? SourceState.Skipped)?.let { "${status.source.displayName}: ${it.reason}" }
     }.distinct().joinToString(" · ").takeIf(String::isNotBlank)
+    val featured = feed.items
+        .takeIf { it.size > 1 }
+        ?.firstOrNull { it.hasKnownDimensions && it.aspectRatio >= 1.15f && it.thumbUrl.isNotBlank() }
+    val gridItems = if (featured == null) feed.items else feed.items.filterNot { it.key == featured.key }
 
     WallpaperGrid(
-        wallpapers = feed.items,
+        wallpapers = gridItems,
         loading = feed.loading,
         initialLoadFinished = feed.initialLoadFinished,
         endReached = feed.endReached,
@@ -71,12 +72,10 @@ fun HomeScreen(
         headerContent = {
             Column(verticalArrangement = Arrangement.spacedBy(11.dp)) {
                 HeaderBar(
-                    title = "Discover",
+                    title = "Auroro Wallpapers",
                     onMenu = onMenu,
                     trailing = {
                         GlassIconButton(onClick = onSearch, description = "Search wallpapers", icon = Icons.Rounded.Search)
-                        Spacer(Modifier.width(4.dp))
-                        GlassIconButton(onClick = onSettings, description = "Settings", icon = Icons.Rounded.Settings)
                     },
                 )
                 SearchPrompt(onClick = onSearch)
@@ -110,12 +109,16 @@ fun HomeScreen(
                 sourceNotes?.let {
                     Text(it, style = MaterialTheme.typography.labelSmall, color = Aero.colors.textSecondary, maxLines = 2)
                 }
+                if (featured != null) {
+                    SectionTitle("Featured")
+                    WallpaperTile(featured, onClick = { onOpen(featured) })
+                }
                 SectionTitle(
                     title = when (selectedTab) {
-                        HomeTab.FOR_YOU -> "Wallpapers for you"
-                        HomeTab.POPULAR -> "Popular on Wallhaven"
-                        HomeTab.LATEST -> "Latest on Wallhaven"
-                        HomeTab.RANDOM -> "Random from Wallhaven"
+                        HomeTab.FOR_YOU -> "More wallpapers"
+                        HomeTab.POPULAR -> "Popular"
+                        HomeTab.LATEST -> "Latest"
+                        HomeTab.RANDOM -> "Random"
                     },
                     subtitle = feed.forYouLabel?.removePrefix("Based on your saved tags: ")
                         ?.takeIf { selectedTab == HomeTab.FOR_YOU },

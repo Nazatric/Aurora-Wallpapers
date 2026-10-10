@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -19,10 +19,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -33,6 +35,7 @@ import com.auroro.wallpapers.core.data.SourceState
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPill
+import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.model.Orientation
@@ -46,7 +49,10 @@ fun SearchScreen(
     feed: FeedUiState,
     queryText: String,
     enabledSources: Set<WallpaperSource>,
+    recentSearches: List<String>,
     onQueryText: (String) -> Unit,
+    onSelectRecentSearch: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
     onSubmit: (String) -> Unit,
     onMenu: () -> Unit,
     onSource: (Set<WallpaperSource>) -> Unit,
@@ -106,36 +112,38 @@ fun SearchScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    OutlinedTextField(
-                        value = queryText,
-                        onValueChange = { onQueryText(it.take(200)) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(17.dp),
-                        leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Aero.colors.accent) },
-                        trailingIcon = {
-                            if (queryText.isNotEmpty()) {
-                                IconButton(onClick = { onQueryText(""); focusManager.clearFocus() }, modifier = Modifier.size(48.dp)) {
-                                    Icon(Icons.Rounded.Close, contentDescription = "Clear search", tint = Aero.colors.textSecondary)
+                    GlassSurface(Modifier.weight(1f), shape = CircleShape) {
+                        OutlinedTextField(
+                            value = queryText,
+                            onValueChange = { onQueryText(it.take(200)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            shape = CircleShape,
+                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Aero.colors.accent) },
+                            trailingIcon = {
+                                if (queryText.isNotEmpty()) {
+                                    IconButton(onClick = { onQueryText(""); focusManager.clearFocus() }, modifier = Modifier.size(48.dp)) {
+                                        Icon(Icons.Rounded.Close, contentDescription = "Clear search", tint = Aero.colors.textSecondary)
+                                    }
                                 }
-                            }
-                        },
-                        placeholder = { Text("Try ocean, forest or a place", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = {
-                            focusManager.clearFocus()
-                            if (queryText.trim().replace(Regex("\\s+"), " ") != request.normalizedQuery) onSubmit(queryText)
-                        }),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Aero.colors.textPrimary,
-                            unfocusedTextColor = Aero.colors.textPrimary,
-                            focusedBorderColor = Aero.colors.accent,
-                            unfocusedBorderColor = Aero.colors.glassRimDark.copy(alpha = 0.62f),
-                            focusedLabelColor = Aero.colors.accent,
-                            unfocusedLabelColor = Aero.colors.textTertiary,
-                            cursorColor = Aero.colors.accent,
-                        ),
-                    )
+                            },
+                            placeholder = { Text("Try ocean, forest or a place", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                focusManager.clearFocus()
+                                if (queryText.trim().replace(Regex("\\s+"), " ") != request.normalizedQuery) onSubmit(queryText)
+                            }),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Aero.colors.textPrimary,
+                                unfocusedTextColor = Aero.colors.textPrimary,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedLabelColor = Aero.colors.accent,
+                                unfocusedLabelColor = Aero.colors.textTertiary,
+                                cursorColor = Aero.colors.accent,
+                            ),
+                        )
+                    }
                     GlassIconButton(
                         onClick = onOpenFilters,
                         description = if (filter.activeCount == 0) "Open filters" else "Open filters, ${filter.activeCount} active",
@@ -144,7 +152,30 @@ fun SearchScreen(
                         selected = filter.activeCount > 0,
                     )
                 }
-                Text("Results update when you pause typing.", style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
+                if (queryText.isBlank() && recentSearches.isNotEmpty()) {
+                    SectionTitle(
+                        title = "Recent searches",
+                        trailing = {
+                            TextButton(onClick = onClearRecentSearches) {
+                                Text("Clear", color = Aero.colors.accent)
+                            }
+                        },
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        recentSearches.forEach { query ->
+                            GlassPill(
+                                text = query,
+                                selected = false,
+                                selectionRole = null,
+                                onClick = {
+                                    focusManager.clearFocus()
+                                    onQueryText(query)
+                                    onSelectRecentSearch(query)
+                                },
+                            )
+                        }
+                    }
+                }
                 SectionTitle("Sources")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     GlassPill("All", filter.sources.isEmpty(), enabled = enabledSources.isNotEmpty(), onClick = { onSource(emptySet()) })

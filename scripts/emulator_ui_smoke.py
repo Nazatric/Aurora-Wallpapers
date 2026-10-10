@@ -352,12 +352,12 @@ def main() -> None:
     launch = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
     REPORT["cold_start_launch"] = launch_timing(launch.stdout)
 
-    root = wait_until(lambda ui: bool(find_nodes(ui, text="Discover")), "initial Discover screen", timeout=60)
+    root = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "initial home brand", timeout=60)
     screenshot("01-home.png")
     adb("shell", "dumpsys", "gfxinfo", "com.auroro.wallpapers", "reset", timeout=30, check=False)
-    if find_nodes(root, text="Auroro Wallpapers"):
-        raise AssertionError("The native app-name title bar is still visible above the Compose screen")
-    REPORT["checks"].append({"name": "no duplicate native app title", "result": "passed"})
+    if len(find_nodes(root, text="Auroro Wallpapers")) != 1:
+        raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
+    REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
 
     tap_text("Search", prefer_bottom=True)
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Try ocean, forest or a place")), "Search screen field", timeout=30)
@@ -468,11 +468,12 @@ def main() -> None:
     REPORT["checks"].append({"name": "original download queued with network disabled", "result": "passed"})
     screenshot("07-download-queued.png")
     adb("shell", "input", "keyevent", "4")
-    wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "return to Search before Offline", timeout=45)
-    tap_text("Offline", prefer_bottom=True, timeout=20)
+    wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "return to Search before Downloads", timeout=45)
+    tap_text("Downloads", prefer_bottom=True, timeout=20)
+    tap_text("Queue", timeout=20)
     offline = wait_until(
         lambda ui: bool(find_nodes(ui, text="Queued original")) or bool(find_nodes(ui, text="Saving original")),
-        "WorkManager download visible in Offline", timeout=45,
+        "WorkManager download visible in Downloads", timeout=45,
     )
     cancel_nodes = find_nodes(offline, description="Cancel download")
     if not cancel_nodes:
@@ -490,11 +491,15 @@ def main() -> None:
 
     set_airplane_mode(False, settle_seconds=0.5)
     progress_state = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Saving original")) or bool(find_nodes(ui, text="Saved original")) or bool(find_nodes(ui, text="Download failed")),
+        lambda ui: bool(find_nodes(ui, text="Saving original")) or bool(find_nodes(ui, text="Saved original")) or bool(find_nodes(ui, text="Download failed")) or bool(find_nodes(ui, text="Queue is clear")),
         "retried original shows progress or reaches a terminal state", timeout=45,
     )
     REPORT["download_progress_visible"] = bool(find_nodes(progress_state, text="Saving original"))
     screenshot("10-download-progress.png")
+    if find_nodes(progress_state, text="Download failed"):
+        visible = [node_text(node) for node in progress_state.iter("node") if node_text(node)]
+        raise AssertionError(f"The retried Wallhaven original failed: {visible[:120]}")
+    tap_text("Downloaded", timeout=20)
     completed = wait_until(
         lambda ui: bool(find_nodes(ui, text="Saved original")) or bool(find_nodes(ui, text="Download failed")),
         "retried original completes or reports a failure", timeout=360,
@@ -509,7 +514,7 @@ def main() -> None:
     tap_text("Search", prefer_bottom=True, timeout=20)
     search = wait_until(
         lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)),
-        "restore Wallhaven search after Offline download", timeout=45,
+        "restore Wallhaven search after Downloads download", timeout=45,
     )
     tile_nodes = wallpaper_nodes(search)
     if not tile_nodes:
@@ -568,7 +573,7 @@ def main() -> None:
     screenshot("16-lock-wallpaper-applied.png")
     REPORT["checks"].append({"name": "Lock screen wallpaper setting", "result": "passed"})
 
-    # Back navigation restores Search, while Offline shows the completed original record.
+    # Back navigation restores Search, while Downloads shows the completed original record.
     back_nodes = find_nodes(lock_applied, description="Back to wallpapers")
     if not back_nodes:
         raise AssertionError("Wallpaper detail did not expose its accessible Back to wallpapers control")
@@ -576,19 +581,20 @@ def main() -> None:
     restored = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "back to Wallhaven results", timeout=45)
     screenshot("17-restored-wallhaven-search.png")
     REPORT["checks"].append({"name": "detail-to-search navigation retains results", "result": "passed"})
-    tap_text("Offline", prefer_bottom=True, timeout=20)
+    tap_text("Downloads", prefer_bottom=True, timeout=20)
+    tap_text("Downloaded", timeout=20)
     offline = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Offline")) and bool(find_nodes(ui, text="Saved original")),
-        "completed original in the persisted Offline screen", timeout=45,
+        lambda ui: bool(find_nodes(ui, text="Downloads")) and bool(find_nodes(ui, text="Saved original")),
+        "completed original in the persisted Downloads screen", timeout=45,
     )
     if find_nodes(offline, text="No downloads yet"):
-        raise AssertionError("The completed original has no persisted Offline record")
+        raise AssertionError("The completed original has no persisted Downloads record")
     screenshot("18-offline-saved-original.png")
-    REPORT["checks"].append({"name": "completed original remains in Offline", "result": "passed"})
+    REPORT["checks"].append({"name": "completed original remains in Downloads", "result": "passed"})
 
     # Favorites and collection membership must survive navigation and remain visible as real results.
     tap_text("Search", prefer_bottom=True, timeout=20)
-    search = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "Search restored after Offline", timeout=45)
+    search = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "Search restored after Downloads", timeout=45)
     menu_nodes = find_nodes(search, description="Open navigation menu")
     if not menu_nodes:
         raise AssertionError("Search did not expose its navigation menu")
@@ -651,13 +657,18 @@ def main() -> None:
         raise AssertionError("The combined search showed no results; inspect its explicit empty/error state")
     adb("shell", "input", "keyevent", "4")
     home = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Discover")) and bool(find_nodes(ui, text="Explore topics")) and not find_nodes(ui, text="Try ocean, forest or a place"),
+        lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")) and bool(find_nodes(ui, text="Explore topics")) and not find_nodes(ui, text="Try ocean, forest or a place"),
         "system-back navigation to Home",
         timeout=45,
     )
     screenshot("12-home-restored.png")
     REPORT["checks"].append({"name": "combined-source search and system-back Home navigation", "result": "passed"})
 
+    home_menu = find_nodes(home, description="Open navigation menu")
+    if not home_menu:
+        raise AssertionError("Home did not expose its navigation menu")
+    tap_node(home_menu[0])
+    wait_until(lambda ui: bool(find_nodes(ui, text="Settings")), "navigation drawer Settings entry", timeout=20)
     tap_text("Settings", timeout=20)
     settings = wait_until(
         lambda ui: bool(find_nodes(ui, text="Appearance")) and bool(find_nodes(ui, text="Reduce transparency")),
@@ -722,13 +733,36 @@ def main() -> None:
     REPORT["checks"].append({"name": "settings and provider configuration navigation", "result": "passed"})
     adb("shell", "input", "keyevent", "4")
     adb("shell", "input", "keyevent", "4")
-    wait_until(lambda ui: bool(find_nodes(ui, text="Discover")), "return from source settings to Home", timeout=45)
+    wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "return from source settings to Home", timeout=45)
 
     # A process death must keep DataStore choices, favorites, collection membership and saved files.
     adb("shell", "am", "force-stop", "com.auroro.wallpapers")
     restart = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
     REPORT["process_restart_launch"] = launch_timing(restart.stdout)
-    home = wait_until(lambda ui: bool(find_nodes(ui, text="Discover")), "Home after process recreation", timeout=60)
+    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after process recreation", timeout=60)
+    tap_text("Search", prefer_bottom=True, timeout=20)
+    search_history = wait_until(
+        lambda ui: bool(find_nodes(ui, text="Try ocean, forest or a place")),
+        "Search after process recreation", timeout=45,
+    )
+    clear_query = find_nodes(search_history, description="Clear search")
+    if clear_query:
+        tap_node(clear_query[0])
+    recent = wait_until(
+        lambda ui: bool(find_nodes(ui, text="Recent searches")) and bool(find_nodes(ui, text="ocean")),
+        "real recent search restored from local preferences", timeout=45,
+    )
+    REPORT["checks"].append({"name": "recent search history persists across process recreation", "result": "passed"})
+    tap_text("Clear", timeout=20)
+    wait_until(lambda ui: not find_nodes(ui, text="Recent searches"), "recent search history cleared", timeout=30)
+    REPORT["checks"].append({"name": "recent search history can be cleared", "result": "passed"})
+    tap_text("Home", prefer_bottom=True, timeout=20)
+    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after clearing recent searches", timeout=45)
+    home_menu = find_nodes(home, description="Open navigation menu")
+    if not home_menu:
+        raise AssertionError("Home did not expose the navigation menu after clearing search history")
+    tap_node(home_menu[0])
+    wait_until(lambda ui: bool(find_nodes(ui, text="Settings")), "Settings entry after process recreation", timeout=20)
     tap_text("Settings", timeout=20)
     settings = wait_until(
         lambda ui: bool(find_nodes(ui, text="Appearance")) and bool(find_nodes(ui, text="Reduce transparency")),
@@ -749,7 +783,7 @@ def main() -> None:
     REPORT["checks"].append({"name": "settings persist across Android process recreation", "result": "passed"})
     adb("shell", "input", "keyevent", "4")
 
-    home = wait_until(lambda ui: bool(find_nodes(ui, text="Discover")), "Home after Settings", timeout=45)
+    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after Settings", timeout=45)
     menu_nodes = find_nodes(home, description="Open navigation menu")
     if not menu_nodes:
         raise AssertionError("Home did not expose its navigation drawer after process recreation")
@@ -772,11 +806,12 @@ def main() -> None:
 
     # Finally disable radios and open the locally saved image without any provider network access.
     set_airplane_mode(True)
-    tap_text("Offline", prefer_bottom=True, timeout=20)
-    offline = wait_until(lambda ui: bool(find_nodes(ui, text="Offline")) and bool(find_nodes(ui, text="Saved original")), "saved original in airplane mode", timeout=45)
+    tap_text("Downloads", prefer_bottom=True, timeout=20)
+    tap_text("Downloaded", timeout=20)
+    offline = wait_until(lambda ui: bool(find_nodes(ui, text="Downloads")) and bool(find_nodes(ui, text="Saved original")), "saved original in airplane mode", timeout=45)
     saved_tiles = [node for node in offline.iter("node") if node.attrib.get("content-desc", "").startswith("Saved wallpaper")]
     if not saved_tiles:
-        raise AssertionError("Offline did not expose the saved wallpaper preview in airplane mode")
+        raise AssertionError("Downloads did not expose the saved wallpaper preview in airplane mode")
     tap_node(clickable_target(offline, saved_tiles[0]))
     offline_detail = wait_until(
         lambda ui: any(node.attrib.get("content-desc", "").startswith("Full wallpaper preview") for node in ui.iter("node"))
@@ -784,12 +819,12 @@ def main() -> None:
         "local wallpaper detail available offline", timeout=60,
     )
     if find_nodes(offline_detail, text="Preview unavailable"):
-        raise AssertionError("Offline wallpaper detail fell back to a broken network preview")
+        raise AssertionError("Downloads wallpaper detail fell back to a broken network preview")
     screenshot("27-airplane-mode-offline-detail.png")
     REPORT["checks"].append({"name": "saved original opens from local storage in airplane mode", "result": "passed"})
     set_airplane_mode(False)
     adb("shell", "input", "keyevent", "4")
-    wait_until(lambda ui: bool(find_nodes(ui, text="Discover")) or bool(find_nodes(ui, text="Offline")), "exit offline detail", timeout=45)
+    wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")) or bool(find_nodes(ui, text="Downloads")), "exit offline detail", timeout=45)
 
     # Report actual emulator launch/frame data, but do not present it as physical-device performance.
     REPORT["gfxinfo_smoke_profile"] = gfxinfo_profile()

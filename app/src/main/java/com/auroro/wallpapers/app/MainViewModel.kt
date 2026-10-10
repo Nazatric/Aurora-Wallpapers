@@ -108,6 +108,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     val collections = app.collections.observeSummaries().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val downloads = app.downloads.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val history = app.history.observeRecent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recentSearches = app.settings.recentSearches.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     private val _offlineRows = MutableStateFlow<List<OfflineRow>>(emptyList())
     val offlineRows: StateFlow<List<OfflineRow>> = _offlineRows.asStateFlow()
 
@@ -168,8 +169,17 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         }
     }
 
+    private fun rememberSearchQuery(query: String) {
+        if (query.isNotBlank()) viewModelScope.launch { app.settings.rememberSearchQuery(query) }
+    }
+
+    fun clearSearchHistory() {
+        viewModelScope.launch { app.settings.clearSearchHistory() }
+    }
+
     /** Re-entering Search restores the last query, provider cursors and loaded results. */
     fun openSearch(query: String? = null, filter: WallpaperFilter? = null) {
+        query?.let(::rememberSearchQuery)
         val useSavedSearch = query == null && filter == null
         if (useSavedSearch && activeFeedScope == FeedScope.SEARCH && feedInitialized) return
         if (activeFeedScope != FeedScope.SEARCH) saveActiveFeedSession()
@@ -192,6 +202,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     fun submitSearch(query: String, filter: WallpaperFilter = _feed.value.request.filter) {
+        rememberSearchQuery(query)
         startFeed(FeedRequest(query = query, filter = filter), null, FeedScope.SEARCH)
     }
 
@@ -354,7 +365,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         viewModelScope.launch {
             try {
                 app.downloads.enqueue(w)
-                _message.emit("Original download queued. Progress is in Offline.")
+                _message.emit("Original download queued. Progress is in Downloads → Queue.")
             } catch (t: Throwable) {
                 _message.emit("Couldn't queue download: ${t.message ?: "unknown error"}")
             }
@@ -394,7 +405,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                 val existing = app.database.downloads().get(w.key)
                 val local = existing?.takeIf { it.status == DownloadStatus.COMPLETED.name && app.downloads.fileExists(it) }?.localUri
                 if (local == null && !w.downloadAllowed) {
-                    _message.emit("The original isn't available to download from this retired source. Check Offline for a saved copy.")
+                    _message.emit("The original isn't available to download from this retired source. Check Downloads for a saved copy.")
                     return@launch
                 }
                 val uri = if (local != null) {
@@ -417,7 +428,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                     is ApplyResult.Failure -> _message.emit(result.message)
                 }
             } catch (e: TimeoutCancellationException) {
-                _message.emit("The original is still downloading. You can apply it later from Offline.")
+                _message.emit("The original is still downloading. You can apply it later from Downloads.")
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {

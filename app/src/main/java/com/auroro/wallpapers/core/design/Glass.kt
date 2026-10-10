@@ -45,6 +45,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
@@ -188,7 +191,10 @@ fun GlassPill(
             .background(
                 if (active) {
                     Brush.verticalGradient(
-                        listOf(c.accentDeep.copy(alpha = 0.96f), c.accentDeep),
+                        listOf(
+                            if (c.isDark) c.accentLight.copy(alpha = 0.98f) else c.accentDeep.copy(alpha = 0.96f),
+                            if (c.isDark) c.accent else c.accentDeep,
+                        ),
                     )
                 } else {
                     Brush.verticalGradient(
@@ -223,7 +229,7 @@ fun GlassPill(
         Text(
             text,
             style = MaterialTheme.typography.labelLarge,
-            color = if (active) Color.White else c.textSecondary.copy(alpha = if (enabled) 1f else 0.52f),
+            color = if (active) (if (c.isDark) c.onAccent else Color.White) else c.textSecondary.copy(alpha = if (enabled) 1f else 0.52f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -249,15 +255,35 @@ fun SectionTitle(
 }
 
 @Composable
-fun AmbientBackdrop(modifier: Modifier = Modifier) {
+fun AmbientBackdrop(modifier: Modifier = Modifier, imageUrl: String? = null) {
     val c = Aero.colors
     val hazeState = LocalAeroHazeState.current
     Box(
         modifier
             .then(hazeState?.let { Modifier.hazeSource(it) } ?: Modifier)
-            .background(Brush.verticalGradient(listOf(c.backdropTop, c.backdropMid, c.backdropBottom)))
-            .drawAeroGlows(c),
-    )
+            .background(Brush.verticalGradient(listOf(c.backdropTop, c.backdropMid, c.backdropBottom))),
+    ) {
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (c.isDark) 0.48f else 0.30f },
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        listOf(
+                            c.backdropTop.copy(alpha = if (c.isDark) 0.34f else 0.48f),
+                            c.backdropMid.copy(alpha = if (c.isDark) 0.48f else 0.58f),
+                            c.backdropBottom.copy(alpha = if (c.isDark) 0.52f else 0.62f),
+                        ),
+                    ),
+                ),
+            )
+        }
+        Box(Modifier.fillMaxSize().drawAeroGlows(c))
+    }
 }
 
 private fun Modifier.drawAeroGlows(c: AeroColors) = drawWithCache {
@@ -340,6 +366,7 @@ fun GlassIconButton(
     modifier: Modifier = Modifier,
     tint: Color = Aero.colors.textPrimary,
     selected: Boolean = false,
+    enabled: Boolean = true,
     hazeState: HazeState? = LocalAeroHazeState.current,
 ) {
     val shape = CircleShape
@@ -364,7 +391,7 @@ fun GlassIconButton(
                 },
             )
             .border(0.9.dp, c.glassRimLight.copy(alpha = if (c.isDark) 0.48f else 0.76f), shape)
-            .clickable(role = Role.Button, onClick = onClick)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = description
                 this.selected = selected

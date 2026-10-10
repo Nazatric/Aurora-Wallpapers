@@ -16,6 +16,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -88,6 +89,7 @@ import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.AmbientBackdrop
 import com.auroro.wallpapers.core.design.AppLogo
 import com.auroro.wallpapers.core.design.GlassPanel
+import com.auroro.wallpapers.core.design.LocalAeroHazeState
 import com.auroro.wallpapers.core.design.LocalReducedMotion
 import com.auroro.wallpapers.core.design.Motion
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -116,7 +118,7 @@ private val drawerEntries = listOf(
     DrawerEntry("Home", "home", Icons.Rounded.Home),
     DrawerEntry("Search", "search", Icons.Rounded.Search),
     DrawerEntry("Collections", "collections", Icons.Rounded.CollectionsBookmark),
-    DrawerEntry("Offline downloads", "offline", Icons.Rounded.Download),
+    DrawerEntry("Downloads", "offline", Icons.Rounded.Download),
     DrawerEntry("Favorites", "favorites", Icons.Rounded.Favorite),
     DrawerEntry("Search topics", "categories", Icons.Rounded.Category),
     DrawerEntry("Wallpaper sources", "sources", Icons.Rounded.Info),
@@ -127,7 +129,7 @@ private val bottomEntries = listOf(
     TabEntry("Home", "home", Icons.Rounded.Home),
     TabEntry("Search", "search", Icons.Rounded.Search),
     TabEntry("Collections", "collections", Icons.Rounded.CollectionsBookmark),
-    TabEntry("Offline", "offline", Icons.Rounded.Download),
+    TabEntry("Downloads", "offline", Icons.Rounded.Download),
 )
 
 @Composable
@@ -162,6 +164,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val downloadRows by vm.offlineRows.collectAsState()
     val downloadEntities by vm.downloads.collectAsState()
     val history by vm.history.collectAsState()
+    val recentSearches by vm.recentSearches.collectAsState()
     val detail by vm.detail.collectAsState()
     val relatedLoading by vm.relatedLoading.collectAsState()
     val settings by vm.settings.collectAsState()
@@ -242,27 +245,34 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.fillMaxHeight().width(320.dp),
-                drawerContainerColor = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .97f else .95f),
+                drawerContainerColor = Color.Transparent,
                 drawerContentColor = Aero.colors.textPrimary,
                 drawerShape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
             ) {
-                DrawerContent(
-                    selectedRoute = route,
-                    onChoose = { dest ->
-                        scope.launch { drawer.close() }
-                        when (dest) {
-                            "home" -> vm.openHome(homeTab)
-                            "search" -> vm.openSearch()
-                            else -> Unit
-                        }
-                        nav.navigate(dest) { launchSingleTop = true; popUpTo("home") { saveState = true }; restoreState = true }
-                    },
-                )
+                GlassPanel(
+                    Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
+                    elevation = 0.dp,
+                    hazeState = LocalAeroHazeState.current,
+                ) {
+                    DrawerContent(
+                        selectedRoute = route,
+                        onChoose = { dest ->
+                            scope.launch { drawer.close() }
+                            when (dest) {
+                                "home" -> vm.openHome(homeTab)
+                                "search" -> vm.openSearch()
+                                else -> Unit
+                            }
+                            nav.navigate(dest) { launchSingleTop = true; popUpTo("home") { saveState = true }; restoreState = true }
+                        },
+                    )
+                }
             }
         },
     ) {
         Box(Modifier.fillMaxSize()) {
-            AmbientBackdrop(Modifier.fillMaxSize())
+            AmbientBackdrop(Modifier.fillMaxSize(), imageUrl = feed.items.firstOrNull()?.thumbUrl)
             Scaffold(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
@@ -288,7 +298,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     startDestination = "home",
                     modifier = Modifier.fillMaxSize().padding(padding)
                         .windowInsetsPadding(
-                            if (route.startsWith("crop/")) {
+                            if (route.startsWith("crop/") || route.startsWith("wallpaper/")) {
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
                             } else {
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
@@ -308,7 +318,6 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             onTab = { tab -> homeTab = tab; vm.openHome(tab) },
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
-                            onSettings = { nav.navigate("settings") },
                             onCategory = { startSearch(it) },
                             onOpen = goWallpaper,
                             onLoadMore = vm::loadMore,
@@ -324,14 +333,17 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             feed = feed,
                             queryText = searchText,
                             enabledSources = enabledSources,
+                            recentSearches = recentSearches,
                             onQueryText = { searchText = it },
+                            onSelectRecentSearch = { query -> searchText = query; vm.submitSearch(query, feed.request.filter) },
+                            onClearRecentSearches = vm::clearSearchHistory,
                             onMenu = { scope.launch { drawer.open() } },
                             onSource = { sources -> vm.selectSources(sources, searchText) },
                             onOrientation = { orientation ->
                                 vm.submitSearch(searchText, feed.request.filter.copy(orientation = orientation))
                             },
                             onOpenFilters = { nav.navigate("filters") },
-                            onSubmit = { query -> vm.submitSearch(query, feed.request.filter) },
+                            onSubmit = { query -> searchText = query; vm.submitSearch(query, feed.request.filter) },
                             onOpen = goWallpaper,
                             onLoadMore = vm::loadMore,
                             onRetry = vm::retryFeed,
@@ -553,7 +565,9 @@ private fun BottomNavigation(selected: String, onSelect: (String) -> Unit) {
             bottomEntries.forEach { item ->
                 val active = selected == item.route
                 Column(
-                    Modifier.weight(1f).clip(CircleShape).clickable(role = androidx.compose.ui.semantics.Role.Tab) { onSelect(item.route) }
+                    Modifier.weight(1f).clip(CircleShape)
+                        .background(if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .19f else .12f) else Color.Transparent)
+                        .clickable(role = androidx.compose.ui.semantics.Role.Tab) { onSelect(item.route) }
                         .padding(vertical = 6.dp).semantics {
                             contentDescription = item.label
                             this.selected = active

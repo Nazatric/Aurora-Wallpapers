@@ -3,6 +3,7 @@ package com.auroro.wallpapers.core.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.model.WallpaperTag
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -53,6 +54,25 @@ class ConfigurationAndMappingTest {
         assertTrue(restored.downloadAllowed)
         assertTrue(restored.setWallpaperAllowed)
         assertEquals(1234L, entity.updatedAt)
+    }
+
+    @Test fun recentSearchesAreNormalizedBoundedAndClearableOnDevice() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "search-history.preferences_pb") })
+        val settings = SettingsRepository(store, bootPrefs = null)
+
+        settings.rememberSearchQuery("  blue   hour   night  ")
+        assertEquals(listOf("blue hour night"), settings.recentSearches.first())
+        settings.rememberSearchQuery("Forest")
+        settings.rememberSearchQuery("BLUE HOUR NIGHT")
+        (1..10).forEach { settings.rememberSearchQuery("topic $it") }
+
+        val recent = settings.recentSearches.first()
+        assertEquals(8, recent.size)
+        assertEquals("topic 10", recent.first())
+        assertFalse(recent.any { it.equals("BLUE HOUR NIGHT", ignoreCase = true) })
+
+        settings.clearSearchHistory()
+        assertTrue(settings.recentSearches.first().isEmpty())
     }
 
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {

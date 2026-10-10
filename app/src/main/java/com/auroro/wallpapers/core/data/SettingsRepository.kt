@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 enum class ThemeMode(val label: String) { SYSTEM("System"), DARK("Dark ocean"), LIGHT("Light sky") }
 enum class AccentTheme(val label: String) { AQUA("Aqua"), EMERALD("Emerald"), SKY("Sky blue") }
@@ -64,7 +65,35 @@ class SettingsRepository(
 
     val settings: Flow<AppSettings> = store.data.map { it.toSettings() }
 
+    /** Recent search terms stay on-device, are capped, and are never sent to an Auroro service. */
+    val recentSearches: Flow<List<String>> = store.data.map { prefs ->
+        prefs[RECENT_SEARCHES].orEmpty()
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase(Locale.ROOT) }
+            .take(MAX_RECENT_SEARCHES)
+            .toList()
+    }
+
     suspend fun current(): AppSettings = settings.first()
+
+    suspend fun rememberSearchQuery(query: String) {
+        val normalized = query.trim().replace(Regex("\\s+"), " ").take(MAX_SEARCH_LENGTH)
+        if (normalized.isBlank()) return
+        store.edit { prefs ->
+            val previous = prefs[RECENT_SEARCHES].orEmpty()
+                .lineSequence()
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .filterNot { it.equals(normalized, ignoreCase = true) }
+            prefs[RECENT_SEARCHES] = (sequenceOf(normalized) + previous).take(MAX_RECENT_SEARCHES).joinToString("\n")
+        }
+    }
+
+    suspend fun clearSearchHistory() {
+        store.edit { it.remove(RECENT_SEARCHES) }
+    }
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         val next = transform(current())
@@ -110,6 +139,9 @@ class SettingsRepository(
 
     companion object {
         const val BOOT_CACHE_MB = "cache_limit_mb"
+        private const val MAX_RECENT_SEARCHES = 8
+        private const val MAX_SEARCH_LENGTH = 200
+        private val RECENT_SEARCHES = stringPreferencesKey("recent_searches")
         private val THEME = stringPreferencesKey("theme_mode")
         private val ACCENT = stringPreferencesKey("accent")
         private val AMOLED = booleanPreferencesKey("amoled")
