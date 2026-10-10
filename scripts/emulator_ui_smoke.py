@@ -202,32 +202,51 @@ def move_zoom_slider(root: ET.Element, proportion: float) -> None:
     time.sleep(1)
 
 
-def wallpaper_id_state() -> tuple[tuple[int, ...], str]:
+def wallpaper_id_state() -> tuple[tuple[tuple[str, int, int], ...], str]:
     result = adb("shell", "dumpsys", "wallpaper", timeout=60, check=False)
     dump = result.stdout + ("\n" + result.stderr if result.stderr else "")
     if not dump.strip():
         dump = f"dumpsys wallpaper returned no output (exit={result.returncode})"
-    pattern = r"\b(?:m?wallpaper[ _-]*id)\s*[=:]\s*(\d+)"
-    ids = tuple(int(value) for value in re.findall(pattern, dump, flags=re.IGNORECASE))
-    return ids, dump
+    section = "other"
+    states: list[tuple[str, int, int]] = []
+    for line in dump.splitlines():
+        lowered = line.lower()
+        if "system wallpaper state" in lowered:
+            section = "home"
+        elif "lock wallpaper state" in lowered:
+            section = "lock"
+        elif "fallback wallpaper state" in lowered:
+            section = "fallback"
+        match = re.search(r"\bid=(\d+)\s*:\s*mWhich=(\d+)", line, flags=re.IGNORECASE)
+        if match:
+            states.append((section, int(match.group(2)), int(match.group(1))))
+    return tuple(states), dump
 
 
-def wait_for_wallpaper_id_change(before: tuple[int, ...], label: str, timeout: int = 90) -> tuple[int, ...]:
+def wait_for_wallpaper_id_change(
+    before: tuple[tuple[str, int, int], ...], label: str, timeout: int = 90,
+) -> tuple[tuple[str, int, int], ...]:
     deadline = time.monotonic() + timeout
-    last_ids: tuple[int, ...] = ()
+    last_states: tuple[tuple[str, int, int], ...] = ()
     last_dump = ""
     while time.monotonic() < deadline:
-        last_ids, last_dump = wallpaper_id_state()
-        changed = bool(last_ids) and (
-            last_ids != before if before else any(value > 0 for value in last_ids)
-        )
-        if changed:
-            REPORT.setdefault("wallpaper_service", []).append({"target": label, "ids": list(last_ids)})
+        last_states, last_dump = wallpaper_id_state()
+        expected_which = 1 if label.lower() == "home" else 2
+        def target_state(states: tuple[tuple[str, int, int], ...]) -> tuple[tuple[str, int], ...]:
+            return tuple((section, wallpaper_id) for section, which, wallpaper_id in states
+                         if which == expected_which and section != "fallback")
+        previous_target = target_state(before)
+        current_target = target_state(last_states)
+        if current_target and current_target != previous_target:
+            REPORT.setdefault("wallpaper_service", []).append({
+                "target": label,
+                "states": [{"section": section, "which": which, "id": wallpaper_id} for section, which, wallpaper_id in last_states],
+            })
             REPORT["checks"].append({"name": f"Android wallpaper service changed for {label}", "result": "passed"})
-            return last_ids
+            return last_states
         time.sleep(2)
     diagnostics = last_dump[-1800:].replace("\n", " | ")
-    raise AssertionError(f"Android wallpaper ID did not change for {label}; before={before}, after={last_ids}, dumpsys tail={diagnostics}")
+    raise AssertionError(f"Android wallpaper ID did not change for {label}; before={before}, after={last_states}, dumpsys tail={diagnostics}")
 
 
 def screenshot(name: str) -> None:
