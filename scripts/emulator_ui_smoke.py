@@ -203,8 +203,12 @@ def move_zoom_slider(root: ET.Element, proportion: float) -> None:
 
 
 def wallpaper_id_state() -> tuple[tuple[int, ...], str]:
-    dump = adb("shell", "dumpsys", "wallpaper", timeout=60, check=False).stdout
-    ids = tuple(int(value) for value in re.findall(r"\b(?:mWallpaperId|wallpaperId)\s*[=:]\s*(\d+)", dump, flags=re.IGNORECASE))
+    result = adb("shell", "dumpsys", "wallpaper", timeout=60, check=False)
+    dump = result.stdout + ("\n" + result.stderr if result.stderr else "")
+    if not dump.strip():
+        dump = f"dumpsys wallpaper returned no output (exit={result.returncode})"
+    pattern = r"\b(?:m?wallpaper[ _-]*id)\s*[=:]\s*(\d+)"
+    ids = tuple(int(value) for value in re.findall(pattern, dump, flags=re.IGNORECASE))
     return ids, dump
 
 
@@ -222,8 +226,8 @@ def wait_for_wallpaper_id_change(before: tuple[int, ...], label: str, timeout: i
             REPORT["checks"].append({"name": f"Android wallpaper service changed for {label}", "result": "passed"})
             return last_ids
         time.sleep(2)
-    relevant = [line.strip() for line in last_dump.splitlines() if "wallpaperid" in line.lower() or "wallpaper file" in line.lower()]
-    raise AssertionError(f"Android wallpaper ID did not change for {label}; before={before}, after={last_ids}, diagnostics={relevant[:40]}")
+    diagnostics = last_dump[-1800:].replace("\n", " | ")
+    raise AssertionError(f"Android wallpaper ID did not change for {label}; before={before}, after={last_ids}, dumpsys tail={diagnostics}")
 
 
 def screenshot(name: str) -> None:
