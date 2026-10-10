@@ -169,6 +169,19 @@ jobs:
               echo "No UI report was produced. The emulator may have failed to boot; inspect the action step's error and annotations."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          report_path = Path("artifacts/ui-smoke/report.json")
+          if report_path.exists():
+              report = json.loads(report_path.read_text())
+              if report.get("failure"):
+                  completed = report.get("checks", [])
+                  message = f"{report['failure']}; completed checks: {completed}"
+                  message = message[:3000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+                  print(f"::notice title=Emulator UI smoke diagnostics::{message}")
+          PY
 
       - name: Upload emulator screenshots and UI report
         if: always()
