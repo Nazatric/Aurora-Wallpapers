@@ -448,8 +448,8 @@ def main() -> None:
         raise AssertionError("Wallhaven's real-dimension Landscape filter produced no measurable results")
     REPORT["orientation_result_counts"] = {"any": any_count, "portrait": len(portraits), "landscape": len(landscapes)}
     screenshot("04-landscape-filter.png")
-    tap_text("Any", timeout=20)
-    root = wait_for_feed_content("Wallhaven results after clearing orientation", timeout=60)
+    # The earlier Portrait → Any transition already verified clearing orientation. Keep the
+    # Landscape results for the remaining journey instead of issuing another redundant API request.
 
     # Favorite and queue an actual Wallhaven original before testing Openverse licensing, which can
     # legitimately disallow direct downloads for some individual works.
