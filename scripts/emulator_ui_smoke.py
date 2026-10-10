@@ -278,6 +278,33 @@ def screenshot(name: str) -> None:
     REPORT["screenshots"].append(str(path))
 
 
+def launch_timing(output: str) -> dict[str, int | None]:
+    def milliseconds(label: str) -> int | None:
+        match = re.search(rf"^{label}:\s*(\d+)\s*$", output, flags=re.MULTILINE)
+        return int(match.group(1)) if match else None
+
+    return {
+        "total_time_ms": milliseconds("TotalTime"),
+        "wait_time_ms": milliseconds("WaitTime"),
+        "activity_time_ms": milliseconds("ThisTime"),
+    }
+
+
+def gfxinfo_profile() -> dict[str, object]:
+    result = adb("shell", "dumpsys", "gfxinfo", "com.auroro.wallpapers", timeout=60, check=False)
+    if result.returncode != 0:
+        return {"available": False, "error": (result.stderr or result.stdout)[-1200:]}
+    lines = [
+        line.strip() for line in result.stdout.splitlines()
+        if re.search(r"Total frames rendered|Janky frames|percentile|Missed Vsync", line, re.IGNORECASE)
+    ]
+    return {
+        "available": bool(lines),
+        "summary_lines": lines[:24],
+        "note": "Android gfxinfo for this hosted API 35 emulator; not a physical-device or Macrobenchmark result.",
+    }
+
+
 def wallpaper_nodes(root: ET.Element) -> list[ET.Element]:
     return [node for node in root.iter("node") if node_text(node).startswith("Wallpaper")]
 
@@ -316,11 +343,18 @@ def main() -> None:
     if apk is None:
         raise FileNotFoundError("CI did not provide an APK under dist/")
     REPORT["installed_apk_variant"] = "release" if release_apks else "debug"
+    REPORT["performance_environment"] = {
+        "api_level": adb("shell", "getprop", "ro.build.version.sdk").stdout.strip(),
+        "abi": adb("shell", "getprop", "ro.product.cpu.abi").stdout.strip(),
+        "emulator": "Hosted Android emulator with KVM; animations disabled by workflow",
+    }
     run(["adb", "install", "-r", str(apk)], timeout=120)
-    adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
+    launch = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
+    REPORT["cold_start_launch"] = launch_timing(launch.stdout)
 
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Discover")), "initial Discover screen", timeout=60)
     screenshot("01-home.png")
+    adb("shell", "dumpsys", "gfxinfo", "com.auroro.wallpapers", "reset", timeout=30, check=False)
     if find_nodes(root, text="Auroro Wallpapers"):
         raise AssertionError("The native app-name title bar is still visible above the Compose screen")
     REPORT["checks"].append({"name": "no duplicate native app title", "result": "passed"})
@@ -692,7 +726,8 @@ def main() -> None:
 
     # A process death must keep DataStore choices, favorites, collection membership and saved files.
     adb("shell", "am", "force-stop", "com.auroro.wallpapers")
-    adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
+    restart = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
+    REPORT["process_restart_launch"] = launch_timing(restart.stdout)
     home = wait_until(lambda ui: bool(find_nodes(ui, text="Discover")), "Home after process recreation", timeout=60)
     tap_text("Settings", timeout=20)
     settings = wait_until(
@@ -756,6 +791,8 @@ def main() -> None:
     adb("shell", "input", "keyevent", "4")
     wait_until(lambda ui: bool(find_nodes(ui, text="Discover")) or bool(find_nodes(ui, text="Offline")), "exit offline detail", timeout=45)
 
+    # Report actual emulator launch/frame data, but do not present it as physical-device performance.
+    REPORT["gfxinfo_smoke_profile"] = gfxinfo_profile()
     (ARTIFACTS / "report.json").write_text(json.dumps(REPORT, indent=2) + "\n")
     print(json.dumps(REPORT, indent=2))
 
