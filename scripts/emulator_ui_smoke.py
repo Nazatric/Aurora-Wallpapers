@@ -202,6 +202,30 @@ def move_zoom_slider(root: ET.Element, proportion: float) -> None:
     time.sleep(1)
 
 
+def wallpaper_id_state() -> tuple[tuple[int, ...], str]:
+    dump = adb("shell", "dumpsys", "wallpaper", timeout=60, check=False).stdout
+    ids = tuple(int(value) for value in re.findall(r"\b(?:mWallpaperId|wallpaperId)\s*[=:]\s*(\d+)", dump, flags=re.IGNORECASE))
+    return ids, dump
+
+
+def wait_for_wallpaper_id_change(before: tuple[int, ...], label: str, timeout: int = 90) -> tuple[int, ...]:
+    deadline = time.monotonic() + timeout
+    last_ids: tuple[int, ...] = ()
+    last_dump = ""
+    while time.monotonic() < deadline:
+        last_ids, last_dump = wallpaper_id_state()
+        changed = bool(last_ids) and (
+            last_ids != before if before else any(value > 0 for value in last_ids)
+        )
+        if changed:
+            REPORT.setdefault("wallpaper_service", []).append({"target": label, "ids": list(last_ids)})
+            REPORT["checks"].append({"name": f"Android wallpaper service changed for {label}", "result": "passed"})
+            return last_ids
+        time.sleep(2)
+    relevant = [line.strip() for line in last_dump.splitlines() if "wallpaperid" in line.lower() or "wallpaper file" in line.lower()]
+    raise AssertionError(f"Android wallpaper ID did not change for {label}; before={before}, after={last_ids}, diagnostics={relevant[:40]}")
+
+
 def screenshot(name: str) -> None:
     path = ARTIFACTS / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -438,8 +462,14 @@ def main() -> None:
         "saved original enables Home screen setting", timeout=60,
     )
     screenshot("13-crop-home-ready.png")
+    before_home_ids, _ = wallpaper_id_state()
     tap_text("Set Home screen", timeout=20)
-    home_applied = wait_until(lambda ui: bool(find_nodes(ui, text="Wallpaper applied to home screen.")), "Home wallpaper applied by Android", timeout=60)
+    home_applied = wait_until(
+        lambda ui: bool(find_nodes(ui, text="Favorited")) and bool(find_nodes(ui, text="Set wallpaper"))
+        and any(node.attrib.get("content-desc", "").startswith("Full wallpaper preview") for node in ui.iter("node")),
+        "return to wallpaper detail after Home setting", timeout=45,
+    )
+    after_home_ids = wait_for_wallpaper_id_change(before_home_ids, "Home", timeout=120)
     screenshot("14-home-wallpaper-applied.png")
     REPORT["checks"].append({"name": "immersive crop zoom, pan, reset and Home wallpaper setting", "result": "passed"})
 
@@ -453,8 +483,14 @@ def main() -> None:
     tap_text("Lock screen", timeout=20)
     lock_crop = wait_until(lambda ui: bool(find_nodes(ui, text="Preview & crop")) and bool(find_nodes(ui, text="Set Lock screen")), "saved image crop for Lock screen", timeout=60)
     screenshot("15-crop-lock-ready.png")
+    before_lock_ids, _ = wallpaper_id_state()
     tap_text("Set Lock screen", timeout=20)
-    lock_applied = wait_until(lambda ui: bool(find_nodes(ui, text="Wallpaper applied to lock screen.")), "Lock wallpaper applied by Android", timeout=60)
+    lock_applied = wait_until(
+        lambda ui: bool(find_nodes(ui, text="Favorited")) and bool(find_nodes(ui, text="Set wallpaper"))
+        and any(node.attrib.get("content-desc", "").startswith("Full wallpaper preview") for node in ui.iter("node")),
+        "return to wallpaper detail after Lock setting", timeout=45,
+    )
+    after_lock_ids = wait_for_wallpaper_id_change(before_lock_ids, "Lock", timeout=120)
     screenshot("16-lock-wallpaper-applied.png")
     REPORT["checks"].append({"name": "Lock screen wallpaper setting", "result": "passed"})
 

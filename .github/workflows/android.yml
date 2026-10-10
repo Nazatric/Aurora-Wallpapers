@@ -180,7 +180,11 @@ jobs:
               report = json.loads(report_path.read_text())
               if report.get("failure"):
                   completed = report.get("checks", [])
-                  message = f"{report['failure']}; completed checks: {completed}"
+                  recent = completed[-12:]
+                  message = f"{report['failure']}; completed {len(completed)} checks; last checks: {recent}"
+                  for key in ("orientation_result_counts", "download_progress_visible", "wallpaper_service"):
+                      if key in report:
+                          message += f"; {key}={report[key]}"
                   message = message[:3000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
                   print(f"::notice title=Emulator UI smoke diagnostics::{message}")
           PY
