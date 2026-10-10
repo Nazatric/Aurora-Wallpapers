@@ -64,7 +64,27 @@ class FeedPager(
         var totalLoaded = 0
         val exhausted get() = cursor == null
         val canLoad get() = skipped == null && halted == null && lastError == null && cursor != null
+
+        fun snapshot() = Snapshot(prepared, cursor, skipped, halted, lastError, totalLoaded)
+
+        fun restore(snapshot: Snapshot) {
+            prepared = snapshot.prepared
+            cursor = snapshot.cursor
+            skipped = snapshot.skipped
+            halted = snapshot.halted
+            lastError = snapshot.lastError
+            totalLoaded = snapshot.totalLoaded
+        }
     }
+
+    private data class Snapshot(
+        val prepared: Boolean,
+        val cursor: PageCursor?,
+        val skipped: SourceState.Skipped?,
+        val halted: ProviderException?,
+        val lastError: ProviderException?,
+        val totalLoaded: Int,
+    )
 
     private val states = providers.map { ProviderState(it) }
     private val semaphore = Semaphore(concurrency)
@@ -74,18 +94,27 @@ class FeedPager(
     val isEmpty get() = providers.isEmpty()
 
     suspend fun loadNext(): PageResult = mutex.withLock {
-        states.forEach { prepare(it) }
-        val active = states.filter { it.canLoad }
-        val batches: List<List<Wallpaper>> = coroutineScope {
-            active.map { st -> async { semaphore.withPermit { loadProvider(st) } } }.awaitAll()
+        val beforeLoad = states.map(ProviderState::snapshot)
+        try {
+            states.forEach { prepare(it) }
+            val active = states.filter { it.canLoad }
+            val batches: List<List<Wallpaper>> = coroutineScope {
+                active.map { st -> async { semaphore.withPermit { loadProvider(st) } } }.awaitAll()
+            }
+            val merged = dedupe.filterNew(interleave(batches))
+            PageResult(
+                items = merged,
+                statuses = states.map { status(it) },
+                endReached = states.none { it.canLoad },
+                hadFailure = states.any { it.lastError != null },
+            )
+        } catch (cancellation: CancellationException) {
+            // A cancelled Home/Search page must not advance one provider while discarding another
+            // provider's completed results. Roll back the whole multi-source page transaction so
+            // returning to the saved feed safely retries from each provider's prior cursor.
+            states.zip(beforeLoad).forEach { (state, snapshot) -> state.restore(snapshot) }
+            throw cancellation
         }
-        val merged = dedupe.filterNew(interleave(batches))
-        PageResult(
-            items = merged,
-            statuses = states.map { status(it) },
-            endReached = states.none { it.canLoad },
-            hadFailure = states.any { it.lastError != null },
-        )
     }
 
     /** Clears errors/halts so the next [loadNext] tries failed providers again. */

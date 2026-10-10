@@ -26,6 +26,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,86 +45,130 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
+import dev.chrisbanes.haze.ExperimentalHazeApi
+import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.glass.GlassStyle
+import dev.chrisbanes.haze.glass.hazeGlass
 
-/** A restrained, lightweight glass plate for controls and grouped information. */
+/** Shared, window-local source used by real Glass surfaces across the app. */
+val LocalAeroHazeState = staticCompositionLocalOf<HazeState?> { null }
+
+/**
+ * Source-backed glass panel. Haze samples the earlier Compose content, applies size-aware blur and
+ * refraction, then adds a directional highlight and shaped rim. Haze selects its supported renderer
+ * and degrades advanced optics on older or simplified renderers; this fallback preserves legibility.
+ */
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun GlassPanel(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(24.dp),
     elevation: Dp = 6.dp,
+    hazeState: HazeState? = LocalAeroHazeState.current,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val c = Aero.colors
-    val opacity = ((if (c.isDark) 0.72f else 0.86f) * c.opacityBoost).coerceIn(0.72f, 0.98f)
-    Column(
-        modifier = modifier
-            .shadow(
-                elevation,
-                shape,
-                clip = false,
-                ambientColor = Color.Black.copy(alpha = if (c.isDark) 0.23f else 0.08f),
-                spotColor = c.accentDeep.copy(alpha = 0.12f),
-            )
-            .clip(shape)
-            .background(
+    val style = rememberAeroGlassStyle(c, shape, clear = false)
+    val opacity = ((if (c.isDark) 0.72f else 0.80f) * c.opacityBoost).coerceIn(0.72f, 0.96f)
+    val surface = Modifier
+        .shadow(
+            elevation,
+            shape,
+            clip = false,
+            ambientColor = Color.Black.copy(alpha = if (c.isDark) 0.23f else 0.08f),
+            spotColor = c.accentDeep.copy(alpha = 0.12f),
+        )
+        .clip(shape)
+        .then(
+            if (hazeState != null) {
+                Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
+            } else {
+                Modifier.background(glassFallbackBrush(c, opacity))
+            },
+        )
+        .border(
+            BorderStroke(
+                0.9.dp,
                 Brush.verticalGradient(
                     listOf(
-                        c.glassTint.copy(alpha = (opacity + 0.08f).coerceAtMost(0.99f)),
-                        c.glassTint.copy(alpha = opacity),
-                        c.glassTint.copy(alpha = (opacity + 0.025f).coerceAtMost(0.99f)),
+                        c.glassRimLight.copy(alpha = 0.64f),
+                        c.glassRimDark.copy(alpha = 0.30f),
+                        c.glassRimLight.copy(alpha = 0.24f),
                     ),
                 ),
-            )
-            .border(
-                BorderStroke(
-                    0.8.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            c.glassRimLight.copy(alpha = 0.43f),
-                            c.glassRimDark.copy(alpha = 0.25f),
-                            c.glassRimLight.copy(alpha = 0.18f),
-                        ),
-                    ),
-                ),
-                shape,
             ),
-        content = {
-            Box(
-                Modifier.fillMaxWidth().height(1.dp).background(
-                    Brush.horizontalGradient(
-                        listOf(Color.Transparent, c.glassHighlight.copy(alpha = 0.43f), Color.Transparent),
-                    ),
+            shape,
+        )
+
+    Column(modifier.then(surface), content = {
+        Box(
+            Modifier.fillMaxWidth().height(1.dp).background(
+                Brush.horizontalGradient(
+                    listOf(Color.Transparent, c.glassHighlight.copy(alpha = 0.56f), Color.Transparent),
                 ),
-            )
-            content()
-        },
-    )
+            ),
+        )
+        content()
+    })
 }
 
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun GlassSurface(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(20.dp),
     onClick: (() -> Unit)? = null,
+    hazeState: HazeState? = LocalAeroHazeState.current,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = Aero.colors
-    val opacity = ((if (c.isDark) 0.66f else 0.84f) * c.opacityBoost).coerceIn(0.66f, 0.98f)
+    val style = rememberAeroGlassStyle(c, shape, clear = false)
+    val opacity = ((if (c.isDark) 0.66f else 0.78f) * c.opacityBoost).coerceIn(0.66f, 0.94f)
     val base = modifier
         .shadow(5.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = if (c.isDark) 0.18f else 0.07f))
         .clip(shape)
-        .background(
-            Brush.verticalGradient(
-                listOf(c.glassTint.copy(alpha = (opacity + 0.09f).coerceAtMost(0.99f)), c.glassTint.copy(alpha = opacity)),
-            ),
+        .then(
+            if (hazeState != null) {
+                Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
+            } else {
+                Modifier.background(glassFallbackBrush(c, opacity))
+            },
         )
         .border(
-            BorderStroke(0.8.dp, Brush.verticalGradient(listOf(c.glassRimLight.copy(alpha = 0.39f), c.glassRimDark.copy(alpha = 0.22f)))),
+            BorderStroke(0.9.dp, Brush.verticalGradient(listOf(c.glassRimLight.copy(alpha = 0.58f), c.glassRimDark.copy(alpha = 0.26f)))),
             shape,
         )
     val interactive = if (onClick != null) base.clickable(role = Role.Button, onClick = onClick) else base
     Box(interactive, content = content)
 }
+
+@OptIn(ExperimentalHazeApi::class)
+@Composable
+private fun rememberAeroGlassStyle(c: AeroColors, cornerShape: RoundedCornerShape, clear: Boolean, selected: Boolean = false): GlassStyle {
+    val tintAlpha = when {
+        selected -> 0.28f * c.opacityBoost
+        clear -> if (c.isDark) 0.15f else 0.12f
+        else -> (if (c.isDark) 0.28f else 0.22f) * c.opacityBoost
+    }.coerceIn(0.08f, 0.52f)
+    val tintColor = (if (selected) c.accentDeep else c.glassTint).copy(alpha = tintAlpha)
+    return remember(c.isDark, c.glassTint, c.accentDeep, tintAlpha, cornerShape, clear, selected) {
+        (if (clear) GlassStyle.clear else GlassStyle.regular).then {
+            shape(cornerShape)
+            tint(tintColor)
+            lightPosition(Alignment.TopStart)
+        }
+    }
+}
+
+private fun glassFallbackBrush(c: AeroColors, opacity: Float) = Brush.verticalGradient(
+    listOf(
+        c.glassTint.copy(alpha = (opacity + 0.08f).coerceAtMost(0.99f)),
+        c.glassTint.copy(alpha = opacity),
+        c.glassTint.copy(alpha = (opacity + 0.02f).coerceAtMost(0.99f)),
+    ),
+)
 
 @Composable
 fun GlassPill(
@@ -147,8 +193,8 @@ fun GlassPill(
                 } else {
                     Brush.verticalGradient(
                         listOf(
-                            c.glassTint.copy(alpha = if (c.isDark) 0.81f else 0.89f),
-                            c.glassTint.copy(alpha = if (c.isDark) 0.62f else 0.77f),
+                            c.glassTint.copy(alpha = ((if (c.isDark) 0.46f else 0.58f) * c.opacityBoost).coerceIn(0.46f, 0.82f)),
+                            c.glassTint.copy(alpha = ((if (c.isDark) 0.34f else 0.45f) * c.opacityBoost).coerceIn(0.34f, 0.72f)),
                         ),
                     )
                 },
@@ -205,8 +251,10 @@ fun SectionTitle(
 @Composable
 fun AmbientBackdrop(modifier: Modifier = Modifier) {
     val c = Aero.colors
+    val hazeState = LocalAeroHazeState.current
     Box(
         modifier
+            .then(hazeState?.let { Modifier.hazeSource(it) } ?: Modifier)
             .background(Brush.verticalGradient(listOf(c.backdropTop, c.backdropMid, c.backdropBottom)))
             .drawAeroGlows(c),
     )
@@ -283,6 +331,7 @@ fun AppLogo(modifier: Modifier = Modifier, logoSize: Dp = 42.dp) {
     }
 }
 
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun GlassIconButton(
     onClick: () -> Unit,
@@ -291,15 +340,30 @@ fun GlassIconButton(
     modifier: Modifier = Modifier,
     tint: Color = Aero.colors.textPrimary,
     selected: Boolean = false,
+    hazeState: HazeState? = LocalAeroHazeState.current,
 ) {
     val shape = CircleShape
     val c = Aero.colors
+    val style = rememberAeroGlassStyle(c, shape, clear = true, selected = selected)
+    val fill = if (selected) c.accentDeep else c.glassTint
+    val fallback = Brush.verticalGradient(
+        listOf(
+            fill.copy(alpha = if (selected) 0.48f else 0.78f),
+            fill.copy(alpha = if (selected) 0.36f else 0.68f),
+        ),
+    )
     Box(
         modifier
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clip(shape)
-            .background(if (selected) c.accentDeep.copy(alpha = if (c.isDark) 0.72f else 0.18f) else c.glassTint.copy(alpha = if (c.isDark) 0.76f else 0.82f))
-            .border(0.8.dp, c.glassRimLight.copy(alpha = if (c.isDark) 0.34f else 0.68f), shape)
+            .then(
+                if (hazeState != null) {
+                    Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
+                } else {
+                    Modifier.background(fallback)
+                },
+            )
+            .border(0.9.dp, c.glassRimLight.copy(alpha = if (c.isDark) 0.48f else 0.76f), shape)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics {
                 contentDescription = description

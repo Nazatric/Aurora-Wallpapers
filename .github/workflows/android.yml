@@ -59,6 +59,17 @@ jobs:
           set -o pipefail
           ./gradlew --stacktrace --continue testDebugUnitTest lintDebug assembleDebug assembleRelease 2>&1 | tee build.log
 
+      - name: Verify generated APK signatures
+        if: success()
+        run: |
+          APKSIGNER="$ANDROID_HOME/build-tools/37.0.0/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ] && [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            "$APKSIGNER" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+          else
+            echo "No production-signed release APK is available to verify."
+          fi
+
       - name: Surface build/test failures as check annotations
         if: failure()
         run: python3 .github/scripts/annotate_failures.py build.log
@@ -99,3 +110,33 @@ jobs:
         with:
           files: dist/*.apk
           generate_release_notes: true
+
+  emulator-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: auroro-wallpapers-apk
+          path: dist
+
+      - name: Run live-provider UI smoke on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          script: python3 scripts/emulator_ui_smoke.py
+
+      - name: Upload emulator screenshots and UI report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: emulator-ui-smoke
+          path: artifacts/ui-smoke/
+          if-no-files-found: ignore

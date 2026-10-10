@@ -8,6 +8,9 @@ import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.network.ProviderErrorKind
 import com.auroro.wallpapers.core.network.ProviderException
 import com.auroro.wallpapers.wallpaper
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,6 +51,57 @@ class FeedPagerTest {
         assertEquals(listOf("wallhaven:w2"), third.items.map { it.key })
         assertTrue(third.endReached)
         assertEquals(2, wallhaven.calls.count { it.page == 2 })
+    }
+
+    @Test fun cancellingACombinedPageRollsBackEveryProviderCursorAndKeepsCompletedRowsRetryable() = runTest {
+        val wallhavenResult = wallpaper(id = "w1")
+        val openverseResult = wallpaper(WallpaperSource.OPENVERSE, "o1")
+        val wallhavenCalls = mutableListOf<Int>()
+        var openverseCallCount = 0
+        val wallhavenCompleted = CompletableDeferred<Unit>()
+        val openverseStarted = CompletableDeferred<Unit>()
+        val releaseFirstOpenverseCall = CompletableDeferred<Unit>()
+        val wallhaven = object : WallpaperProvider {
+            override val source = WallpaperSource.WALLHAVEN
+            override val capabilities = ProviderCapabilities(setOf(SortOption.NEWEST), setOf(SortOption.NEWEST))
+            override suspend fun availability() = SourceAvailability.Available
+            override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
+                wallhavenCalls += cursor.page
+                if (wallhavenCalls.size == 1) wallhavenCompleted.complete(Unit)
+                return ProviderPage(listOf(wallhavenResult), if (wallhavenCalls.size == 1) PageCursor(2) else null)
+            }
+        }
+        val openverse = object : WallpaperProvider {
+            override val source = WallpaperSource.OPENVERSE
+            override val capabilities = ProviderCapabilities(setOf(SortOption.RELEVANCE), setOf(SortOption.RELEVANCE))
+            override suspend fun availability() = SourceAvailability.Available
+            override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
+                openverseCallCount++
+                if (openverseCallCount == 1) {
+                    openverseStarted.complete(Unit)
+                    releaseFirstOpenverseCall.await()
+                }
+                return ProviderPage(listOf(openverseResult), null)
+            }
+        }
+        val pager = FeedPager(
+            listOf(wallhaven, openverse),
+            FeedRequest(),
+            perProviderTarget = 1,
+            maxPagesPerLoad = 1,
+        )
+
+        val cancelledLoad = async { pager.loadNext() }
+        wallhavenCompleted.await()
+        openverseStarted.await()
+        cancelledLoad.cancelAndJoin()
+
+        val retry = pager.loadNext()
+
+        assertEquals(listOf(1, 1), wallhavenCalls)
+        assertEquals(2, openverseCallCount)
+        assertEquals(setOf("wallhaven:w1", "openverse:o1"), retry.items.map { it.key }.toSet())
+        assertTrue(retry.endReached)
     }
 
     @Test fun disabledSourceDoesNotDiscardResultsFromAnAvailableSource() = runTest {

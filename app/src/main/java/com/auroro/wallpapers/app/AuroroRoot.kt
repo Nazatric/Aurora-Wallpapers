@@ -144,6 +144,10 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
             window.statusBarColor = android.graphics.Color.TRANSPARENT
             window.navigationBarColor = android.graphics.Color.TRANSPARENT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isStatusBarContrastEnforced = false
+                window.isNavigationBarContrastEnforced = false
+            }
             WindowInsetsControllerCompat(window, view).apply {
                 isAppearanceLightStatusBars = !darkAppearance
                 isAppearanceLightNavigationBars = !darkAppearance
@@ -189,6 +193,12 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "home"
+    LaunchedEffect(route, homeTab) {
+        when (route) {
+            "home" -> vm.openHome(homeTab)
+            "search" -> vm.openSearch()
+        }
+    }
     val isImmersive = route.startsWith("wallpaper/") || route.startsWith("crop/") || route == "filters" || route.startsWith("collection/")
     val currentTab = bottomEntries.firstOrNull { route == it.route }?.route
 
@@ -216,7 +226,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
         }
     }
 
-    fun startSearch(query: String = "", filter: WallpaperFilter = WallpaperFilter.Default) {
+    fun startSearch(query: String? = null, filter: WallpaperFilter? = null) {
         scope.launch { drawer.close() }
         vm.openSearch(query, filter)
         nav.navigate("search") {

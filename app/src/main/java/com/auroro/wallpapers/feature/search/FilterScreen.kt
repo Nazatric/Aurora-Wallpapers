@@ -56,6 +56,7 @@ import com.auroro.wallpapers.core.model.OpenverseLicense
 import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.ResolutionFilter
 import com.auroro.wallpapers.core.model.ResolutionPreset
+import com.auroro.wallpapers.core.model.SearchSourceSelection
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.WallhavenCategory
 import com.auroro.wallpapers.core.model.WallpaperFilter
@@ -72,7 +73,17 @@ fun FilterScreen(
     aspectTolerance: Float = AspectMath.DEFAULT_TOLERANCE,
     enabledSources: Set<WallpaperSource> = WallpaperSource.integrated.toSet(),
 ) {
-    var draft by remember(initial) { mutableStateOf(initial) }
+    var draft by remember(initial, query, enabledSources) {
+        val activeSources = initial.sources.ifEmpty { enabledSources }.intersect(enabledSources)
+        val normalized = when {
+            query.isBlank() && activeSources == setOf(WallpaperSource.WALLHAVEN) && initial.sort == SortOption.RELEVANCE ->
+                initial.copy(sort = SortOption.NEWEST)
+            activeSources == setOf(WallpaperSource.OPENVERSE) && initial.sort != SortOption.RELEVANCE ->
+                initial.copy(sort = SortOption.RELEVANCE)
+            else -> initial
+        }
+        mutableStateOf(normalized)
+    }
     var customW by remember(initial) { mutableStateOf((initial.aspect as? AspectFilter.Custom)?.ratio?.w?.toString().orEmpty()) }
     var customH by remember(initial) { mutableStateOf((initial.aspect as? AspectFilter.Custom)?.ratio?.h?.toString().orEmpty()) }
     var minShort by remember(initial) { mutableStateOf((initial.resolution as? ResolutionFilter.Custom)?.shortEdge?.toString().orEmpty()) }
@@ -84,29 +95,8 @@ fun FilterScreen(
 
     fun chooseSource(source: WallpaperSource?) {
         if (source != null && source !in enabledSources) return
-        draft = when (source) {
-            null -> draft.copy(
-                sources = emptySet(),
-                wallhavenCategories = emptySet(),
-                colorHex = null,
-                openverseTag = null,
-                openverseCategory = null,
-                openverseLicense = null,
-            )
-            WallpaperSource.WALLHAVEN -> draft.copy(
-                sources = setOf(WallpaperSource.WALLHAVEN),
-                openverseTag = null,
-                openverseCategory = null,
-                openverseLicense = null,
-            )
-            WallpaperSource.OPENVERSE -> draft.copy(
-                sources = setOf(WallpaperSource.OPENVERSE),
-                sort = SortOption.RELEVANCE,
-                wallhavenCategories = emptySet(),
-                colorHex = null,
-            )
-            WallpaperSource.ARCHIVED -> draft
-        }
+        val requested = source?.let { setOf(it) }.orEmpty()
+        draft = SearchSourceSelection.select(draft, requested, query)
     }
 
     fun toggleWallhavenCategory(category: WallhavenCategory?) {
@@ -139,8 +129,11 @@ fun FilterScreen(
 
     val effectiveSources = (draft.sources.ifEmpty { enabledSources }).intersect(enabledSources)
     val isOnlyOpenverse = effectiveSources == setOf(WallpaperSource.OPENVERSE)
+    val wallhavenOnly = effectiveSources == setOf(WallpaperSource.WALLHAVEN)
     val sortChoices = when {
-        effectiveSources.isEmpty() || isOnlyOpenverse -> listOf(SortOption.RELEVANCE)
+        effectiveSources.isEmpty() -> emptyList()
+        isOnlyOpenverse -> listOf(SortOption.RELEVANCE)
+        wallhavenOnly && query.isBlank() -> listOf(SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM)
         else -> SortOption.entries
     }
 
@@ -231,7 +224,13 @@ fun FilterScreen(
             }
 
             if (effectiveSources.isNotEmpty()) {
-                FilterSection("Sort", if (isOnlyOpenverse) "Openverse supports relevance order." else "New, popular and random ordering applies to Wallhaven only.") {
+                val sortDescription = when {
+                    isOnlyOpenverse -> "Openverse supports relevance order."
+                    query.isBlank() && WallpaperSource.OPENVERSE in effectiveSources -> "With no keyword, Wallhaven uses newest as its default; Openverse keeps relevance order."
+                    query.isBlank() -> "Wallhaven offers newest, popular and random ordering for blank searches."
+                    else -> "New, popular and random ordering applies to Wallhaven; Openverse keeps relevance order."
+                }
+                FilterSection("Sort", sortDescription) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                         sortChoices.forEach { sort -> GlassPill(sort.label, draft.sort == sort, onClick = { draft = draft.copy(sort = sort) }) }
                     }

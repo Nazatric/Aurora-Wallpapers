@@ -15,6 +15,7 @@ Auroro Wallpapers is licensed under Apache License 2.0; third-party components r
 | AndroidX DataStore | 1.2.0 | <https://developer.android.com/topic/libraries/architecture/datastore> | Apache-2.0 |
 | AndroidX WorkManager | 2.11.0 | <https://developer.android.com/topic/libraries/architecture/workmanager> | Apache-2.0 |
 | Coil | 3.6.3 | <https://github.com/coil-kt/coil> | Apache-2.0 |
+| Haze core and Glass | 2.0.1 | <https://github.com/chrisbanes/haze/tree/2.0.1> | Apache-2.0; the project describes its 2.0 line as beta and Glass APIs are experimental |
 | Retrofit | 3.0.0 | <https://github.com/square/retrofit> | Apache-2.0 |
 | OkHttp | 5.3.0 | <https://github.com/square/okhttp> | Apache-2.0 |
 | Kotlinx Coroutines | 1.11.0 | <https://github.com/Kotlin/kotlinx.coroutines> | Apache-2.0 |

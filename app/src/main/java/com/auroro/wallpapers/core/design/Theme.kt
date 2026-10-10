@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.ThemeMode
+import dev.chrisbanes.haze.rememberHazeState
 
 private val AeroShapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -34,6 +35,7 @@ fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -
     }
     val context = LocalContext.current
     val reduced = remember { Motion.reducedMotion(context) }
+    val hazeState = rememberHazeState()
     val scheme = if (dark) {
         darkColorScheme(
             primary = aero.accent, onPrimary = aero.onAccent, secondary = aero.emerald, onSecondary = aero.onAccent,
@@ -51,7 +53,11 @@ fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -
             error = aero.error, outline = aero.glassRimDark,
         )
     }
-    CompositionLocalProvider(LocalAero provides aero, LocalReducedMotion provides reduced) {
+    CompositionLocalProvider(
+        LocalAero provides aero,
+        LocalReducedMotion provides reduced,
+        LocalAeroHazeState provides hazeState,
+    ) {
         MaterialTheme(colorScheme = scheme, typography = AeroTypography, shapes = AeroShapes, content = content)
     }
 }

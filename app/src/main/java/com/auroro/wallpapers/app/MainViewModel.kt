@@ -17,6 +17,7 @@ import com.auroro.wallpapers.core.database.CollectionSummary
 import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.model.FeedRequest
+import com.auroro.wallpapers.core.model.SearchSourceSelection
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperFilter
@@ -68,12 +69,38 @@ data class DetailUiState(
 
 data class OfflineRow(val download: DownloadEntity, val wallpaper: Wallpaper?, val fileExists: Boolean)
 
+private enum class FeedScope { HOME, SEARCH }
+
+internal data class FeedSession(
+    val state: FeedUiState,
+    val pager: FeedPager?,
+    val resumeOnReturn: Boolean,
+)
+
+/** Independent in-memory sessions prevent Home and Search navigation from clobbering one another. */
+internal class FeedSessionCache {
+    private val home = mutableMapOf<HomeTab, FeedSession>()
+    private var search: FeedSession? = null
+
+    fun saveHome(tab: HomeTab, session: FeedSession) { home[tab] = session }
+    fun takeHome(tab: HomeTab): FeedSession? = home.remove(tab)
+    fun clearHome(tab: HomeTab) { home.remove(tab) }
+
+    fun saveSearch(session: FeedSession) { search = session }
+    fun takeSearch(): FeedSession? = search.also { search = null }
+    fun clearSearch() { search = null }
+}
+
 /** One state owner for navigation-independent app data and provider-backed feed/search requests. */
 class MainViewModel(val app: AppContainer) : ViewModel() {
     private val _feed = MutableStateFlow(FeedUiState())
     val feed: StateFlow<FeedUiState> = _feed.asStateFlow()
     private var pager: FeedPager? = null
     private var feedJob: Job? = null
+    private var feedPreparationJob: Job? = null
+    private var activeFeedScope = FeedScope.HOME
+    private var feedInitialized = false
+    private val feedSessions = FeedSessionCache()
     private var currentTab = HomeTab.FOR_YOU
 
     val settings = app.settings.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), com.auroro.wallpapers.core.data.AppSettings())
@@ -111,54 +138,106 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     fun openHome(tab: HomeTab = HomeTab.FOR_YOU) {
+        if (activeFeedScope == FeedScope.HOME && currentTab == tab && feedInitialized) return
+        if (activeFeedScope != FeedScope.HOME || currentTab != tab) saveActiveFeedSession()
+        feedPreparationJob?.cancel()
+        feedPreparationJob = null
         currentTab = tab
-        viewModelScope.launch {
+        activeFeedScope = FeedScope.HOME
+
+        val cached = feedSessions.takeHome(tab)
+        if (cached != null) {
+            restoreFeedSession(FeedScope.HOME, cached)
+            return
+        }
+
+        feedInitialized = false
+        _feed.value = FeedUiState(loading = true)
+        feedPreparationJob = viewModelScope.launch {
             val tags = if (tab == HomeTab.FOR_YOU) app.preferenceSignals.topTags() else emptyList()
             val effectiveSort = tab.sort ?: if (tags.isEmpty()) SortOption.NEWEST else SortOption.RELEVANCE
             val query = if (tags.isEmpty()) "" else tags.joinToString(" ")
             val sources = if (tab == HomeTab.FOR_YOU) emptySet() else setOf(WallpaperSource.WALLHAVEN)
-            val req = FeedRequest(query = query, filter = WallpaperFilter(sort = effectiveSort, sources = sources))
+            val request = FeedRequest(query = query, filter = WallpaperFilter(sort = effectiveSort, sources = sources))
             val summary = tags.takeIf { tab == HomeTab.FOR_YOU && it.isNotEmpty() }
                 ?.joinToString(" · ", prefix = "Based on your saved tags: ")
-            startFeed(req, summary)
+            if (activeFeedScope == FeedScope.HOME && currentTab == tab) {
+                feedPreparationJob = null
+                startFeed(request, summary, FeedScope.HOME)
+            }
         }
     }
 
-    fun openSearch(query: String = "", filter: WallpaperFilter = WallpaperFilter.Default) {
-        currentTab = HomeTab.FOR_YOU
-        startFeed(FeedRequest(query = query, filter = filter), null)
+    /** Re-entering Search restores the last query, provider cursors and loaded results. */
+    fun openSearch(query: String? = null, filter: WallpaperFilter? = null) {
+        val useSavedSearch = query == null && filter == null
+        if (useSavedSearch && activeFeedScope == FeedScope.SEARCH && feedInitialized) return
+        if (activeFeedScope != FeedScope.SEARCH) saveActiveFeedSession()
+        feedPreparationJob?.cancel()
+        feedPreparationJob = null
+
+        val cached = if (useSavedSearch) feedSessions.takeSearch() else null
+        if (cached != null) {
+            restoreFeedSession(FeedScope.SEARCH, cached)
+            return
+        }
+
+        feedSessions.clearSearch()
+        activeFeedScope = FeedScope.SEARCH
+        val request = FeedRequest(
+            query = query.orEmpty(),
+            filter = filter ?: WallpaperFilter.Default,
+        )
+        startFeed(request, null, FeedScope.SEARCH)
     }
 
     fun submitSearch(query: String, filter: WallpaperFilter = _feed.value.request.filter) {
-        startFeed(FeedRequest(query = query, filter = filter), null)
+        startFeed(FeedRequest(query = query, filter = filter), null, FeedScope.SEARCH)
     }
 
     fun applyFilters(filter: WallpaperFilter) {
         val old = _feed.value.request
-        startFeed(old.copy(filter = filter), null)
+        startFeed(old.copy(filter = filter), null, FeedScope.SEARCH)
     }
 
     fun selectSources(sources: Set<WallpaperSource>, query: String = _feed.value.request.query) {
         val current = _feed.value.request.filter
-        val selected = when {
-            sources.isEmpty() -> current.copy(
-                sources = emptySet(), wallhavenCategories = emptySet(), colorHex = null,
-                openverseTag = null, openverseCategory = null, openverseLicense = null,
-            )
-            WallpaperSource.OPENVERSE in sources && WallpaperSource.WALLHAVEN !in sources -> current.copy(
-                sources = sources, sort = SortOption.RELEVANCE,
-                wallhavenCategories = emptySet(), colorHex = null,
-            )
-            WallpaperSource.WALLHAVEN in sources && WallpaperSource.OPENVERSE !in sources -> current.copy(
-                sources = sources, openverseTag = null, openverseCategory = null, openverseLicense = null,
-            )
-            else -> current.copy(sources = sources)
-        }
-        startFeed(_feed.value.request.copy(query = query, filter = selected), null)
+        val selected = SearchSourceSelection.select(current, sources, query)
+        startFeed(_feed.value.request.copy(query = query, filter = selected), null, FeedScope.SEARCH)
     }
 
-    private fun startFeed(request: FeedRequest, forYouLabel: String?) {
+    private fun saveActiveFeedSession() {
+        feedPreparationJob?.cancel()
+        feedPreparationJob = null
+        if (feedInitialized) {
+            val current = _feed.value
+            val session = FeedSession(
+                state = current.copy(loading = false),
+                pager = pager,
+                resumeOnReturn = current.loading,
+            )
+            if (activeFeedScope == FeedScope.HOME) feedSessions.saveHome(currentTab, session) else feedSessions.saveSearch(session)
+        }
         feedJob?.cancel()
+        feedJob = null
+    }
+
+    private fun restoreFeedSession(scope: FeedScope, session: FeedSession) {
+        activeFeedScope = scope
+        feedInitialized = true
+        pager = session.pager
+        _feed.value = session.state.copy(loading = false)
+        if (session.resumeOnReturn && session.pager != null && !session.state.endReached) {
+            feedJob = viewModelScope.launch { loadPage() }
+        }
+    }
+
+    private fun startFeed(request: FeedRequest, forYouLabel: String?, scope: FeedScope = activeFeedScope) {
+        feedJob?.cancel()
+        feedJob = null
+        activeFeedScope = scope
+        feedInitialized = true
+        if (scope == FeedScope.HOME) feedSessions.clearHome(currentTab) else feedSessions.clearSearch()
         val effectiveRequest = request.copy(aspectTolerance = settings.value.aspectTolerance)
         pager = app.aggregator.newPager(effectiveRequest)
         _feed.value = FeedUiState(request = effectiveRequest, loading = true, forYouLabel = forYouLabel)
@@ -170,7 +249,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     fun loadMore() {
         if (_feed.value.loading || _feed.value.endReached) return
         if (pager == null) {
-            startFeed(_feed.value.request, _feed.value.forYouLabel)
+            startFeed(_feed.value.request, _feed.value.forYouLabel, activeFeedScope)
             return
         }
         feedJob = viewModelScope.launch { loadPage() }

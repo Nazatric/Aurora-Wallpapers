@@ -73,6 +73,8 @@ import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.UrlPolicy
 import com.auroro.wallpapers.feature.home.WallpaperTile
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 
 @Composable
 fun WallpaperDetailScreen(
@@ -106,6 +108,7 @@ fun WallpaperDetailScreen(
 
     val wallpaper = state.wallpaper
     val context = LocalContext.current
+    val heroHazeState = rememberHazeState()
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
     var showApply by remember(wallpaper.key) { mutableStateOf(false) }
     var previewLoaded by remember(wallpaper.key, localPreviewUri, wallpaper.previewUrl) { mutableStateOf(false) }
@@ -150,7 +153,7 @@ fun WallpaperDetailScreen(
                         "Full wallpaper preview"
                     },
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().hazeSource(heroHazeState),
                     onSuccess = { previewLoaded = true },
                     onError = { previewFailed = true },
                 )
@@ -180,7 +183,12 @@ fun WallpaperDetailScreen(
                     ),
                 )
                 Box(Modifier.align(Alignment.TopStart).padding(10.dp)) {
-                    GlassIconButton(onClick = onBack, description = "Back to wallpapers", icon = Icons.Rounded.ArrowBack)
+                    GlassIconButton(
+                        onClick = onBack,
+                        description = "Back to wallpapers",
+                        icon = Icons.Rounded.ArrowBack,
+                        hazeState = heroHazeState,
+                    )
                 }
             }
         }

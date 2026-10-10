@@ -62,7 +62,10 @@ fun SearchScreen(
     val requestedSources = filter.sources.ifEmpty { enabledSources }
     val effectiveSources = requestedSources.intersect(enabledSources)
     val selectedSourcesDisabled = effectiveSources.isEmpty()
-    val openverseUsesRelevance = WallpaperSource.OPENVERSE in effectiveSources && filter.sort != com.auroro.wallpapers.core.model.SortOption.RELEVANCE
+    val openverseUsesRelevance = WallpaperSource.OPENVERSE in effectiveSources && (
+        filter.sort != com.auroro.wallpapers.core.model.SortOption.RELEVANCE ||
+            request.normalizedQuery.isEmpty() && WallpaperSource.WALLHAVEN in effectiveSources
+        )
     val sourceNotes = feed.statuses.mapNotNull { status ->
         (status.state as? SourceState.Skipped)?.let { "${status.source.displayName}: ${it.reason}" }
     }.distinct().joinToString(" · ").takeIf(String::isNotBlank)
@@ -159,7 +162,11 @@ fun SearchScreen(
                 }
                 if (openverseUsesRelevance) {
                     Text(
-                        "Openverse keeps its own relevance order; provider rankings aren't blended.",
+                        if (request.normalizedQuery.isEmpty() && filter.sort == com.auroro.wallpapers.core.model.SortOption.RELEVANCE && WallpaperSource.WALLHAVEN in effectiveSources) {
+                            "Wallhaven uses newest for a blank search; Openverse keeps relevance. Provider order isn't blended."
+                        } else {
+                            "Openverse keeps its own relevance order; provider rankings aren't blended."
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = Aero.colors.textTertiary,
                     )

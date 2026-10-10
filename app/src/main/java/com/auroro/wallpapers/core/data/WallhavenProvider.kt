@@ -34,7 +34,10 @@ class WallhavenProvider(
     override val source = WallpaperSource.WALLHAVEN
 
     override val capabilities = ProviderCapabilities(
-        sortsWithoutQuery = setOf(SortOption.RELEVANCE, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
+        // Wallhaven documents relevance for keyword searches, but a blank-query relevance request
+        // currently returns data:[] despite meta.total > 0. Leave the default endpoint sort out of
+        // the no-query sort menu; SearchSourceSelection maps a blank relevance selection to Newest.
+        sortsWithoutQuery = setOf(SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
         sortsWithQuery = setOf(SortOption.RELEVANCE, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
         supportsCategories = true,
         supportsColorFilter = true,
@@ -107,7 +110,13 @@ object WallhavenQuery {
         params["purity"] = "100" // SFW only. Never widened.
 
         when (f.sort) {
-            SortOption.RELEVANCE -> params["sorting"] = "relevance"
+            SortOption.RELEVANCE -> if (q.isNotEmpty()) {
+                params["sorting"] = "relevance"
+            } else {
+                // Wallhaven's blank-query relevance endpoint has returned zero rows with a
+                // nonzero total. Use its working, documented date-added ordering instead.
+                params["sorting"] = "date_added"
+            }
             SortOption.NEWEST -> params["sorting"] = "date_added"
             SortOption.POPULAR -> {
                 params["sorting"] = "toplist"
