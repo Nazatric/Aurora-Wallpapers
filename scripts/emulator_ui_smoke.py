@@ -181,24 +181,26 @@ def switch_node(root: ET.Element, label: str) -> ET.Element:
     if not labels:
         raise AssertionError(f"Settings label {label!r} is not visible")
     target_y = bounds_center(labels[0])[1]
-    matches = [
+    candidates = [
         node for node in root.iter("node")
         if (
             "switch" in node.attrib.get("class", "").lower()
             or node.attrib.get("checkable") == "true"
             or "checked" in node.attrib
-        )
-        and node.attrib.get("bounds")
-        and abs(bounds_center(node)[1] - target_y) < 100
+        ) and node.attrib.get("bounds")
+    ]
+    matches = [
+        node for node in candidates
+        if node.attrib.get("clickable") == "true" and abs(bounds_center(node)[1] - target_y) < 140
     ]
     if not matches:
         nearby = [
-            {key: node.attrib.get(key, "") for key in ("text", "content-desc", "class", "bounds", "checkable", "checked")}
+            {key: node.attrib.get(key, "") for key in ("text", "content-desc", "class", "bounds", "clickable", "checkable", "checked")}
             for node in root.iter("node")
             if node.attrib.get("bounds") and abs(bounds_center(node)[1] - target_y) < 140
         ]
-        raise AssertionError(f"No accessible switch appeared beside {label!r}; nearby nodes: {nearby[:20]}")
-    return matches[0]
+        raise AssertionError(f"No clickable switch appeared beside {label!r}; nearby nodes: {nearby[:20]}")
+    return min(matches, key=lambda node: abs(bounds_center(node)[1] - target_y))
 
 
 def move_zoom_slider(root: ET.Element, proportion: float) -> None:
