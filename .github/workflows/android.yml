@@ -70,6 +70,19 @@ jobs:
             echo "No production-signed release APK is available to verify."
           fi
 
+      - name: Publish APK verification status in check summary
+        if: success()
+        run: |
+          {
+            echo "## APK verification"
+            echo "- Debug APK: cryptographic signature verified with apksigner."
+            if [ "${{ steps.signing.outputs.signed }}" = "true" ] && [ -f app/build/outputs/apk/release/app-release.apk ]; then
+              echo "- Release APK: production signing configuration supplied; signature verified with apksigner."
+            else
+              echo "- Release APK: no verified production-signed artifact was generated; no release APK is attached."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Surface build/test failures as check annotations
         if: failure()
         run: python3 .github/scripts/annotate_failures.py build.log
@@ -114,7 +127,7 @@ jobs:
   emulator-smoke:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
@@ -130,8 +143,23 @@ jobs:
           target: google_apis
           arch: x86_64
           disable-animations: true
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
+          emulator-boot-timeout: 1200
+          emulator-options: -no-window -no-snapshot -noaudio -no-boot-anim -gpu swiftshader_indirect -cores 2 -memory 4096
           script: python3 scripts/emulator_ui_smoke.py
+
+      - name: Publish UI smoke report in check summary
+        if: always()
+        run: |
+          {
+            echo "## Android emulator UI smoke"
+            if [ -f artifacts/ui-smoke/report.json ]; then
+              echo '```json'
+              cat artifacts/ui-smoke/report.json
+              echo '```'
+            else
+              echo "No UI report was produced. The emulator may have failed to boot; inspect the action step's error and annotations."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload emulator screenshots and UI report
         if: always()
