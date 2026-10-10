@@ -287,7 +287,13 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     navController = nav,
                     startDestination = "home",
                     modifier = Modifier.fillMaxSize().padding(padding)
-                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)),
+                        .windowInsetsPadding(
+                            if (route.startsWith("crop/")) {
+                                WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
+                            } else {
+                                WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+                            },
+                        ),
                     enterTransition = {
                         if (reducedMotion) EnterTransition.None else fadeIn(tween(180, easing = Motion.Easing)) + slideInHorizontally(tween(220, easing = Motion.Easing)) { it / 30 }
                     },

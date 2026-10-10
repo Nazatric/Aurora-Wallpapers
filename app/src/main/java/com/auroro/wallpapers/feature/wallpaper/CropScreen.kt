@@ -8,22 +8,23 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.RemoveRedEye
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -38,7 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -53,14 +53,16 @@ import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.data.download.CropMath
-import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.data.download.LocalFiles
 import com.auroro.wallpapers.core.data.download.NormalizedCrop
 import com.auroro.wallpapers.core.database.DownloadEntity
+import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
+import com.auroro.wallpapers.core.design.LocalAeroHazeState
 import com.auroro.wallpapers.core.model.Wallpaper
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
@@ -78,7 +80,7 @@ fun CropScreen(
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     var fileExists by remember(download?.localUri) { mutableStateOf(false) }
-    val canApplyWallpaper = wallpaper?.setWallpaperAllowed != false
+    val canSetWallpaper = wallpaper?.setWallpaperAllowed == true
     LaunchedEffect(download?.localUri, download?.status) {
         fileExists = withContext(Dispatchers.IO) {
             download?.status == DownloadStatus.COMPLETED.name && LocalFiles.exists(context, download.localUri)
@@ -93,126 +95,223 @@ fun CropScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().navigationBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            GlassIconButton(onClick = onBack, description = "Back", icon = Icons.Rounded.ArrowBack)
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Preview & crop", style = MaterialTheme.typography.titleLarge, color = Aero.colors.textPrimary)
-                Text("${target.label} · drag to pan, pinch to zoom", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
-            }
+    val localUri = download?.localUri?.takeIf { fileExists }
+    val imageUri = localUri ?: wallpaper?.previewUrl ?: wallpaper?.thumbUrl
+    val width = download?.savedWidth?.takeIf { it > 0 } ?: wallpaper?.width?.coerceAtLeast(1) ?: 1
+    val height = download?.savedHeight?.takeIf { it > 0 } ?: wallpaper?.height?.coerceAtLeast(1) ?: 1
+    var scale by remember(wallpaper?.key) { mutableFloatStateOf(1f) }
+    var offsetX by remember(wallpaper?.key) { mutableFloatStateOf(0f) }
+    var offsetY by remember(wallpaper?.key) { mutableFloatStateOf(0f) }
+    var viewportW by remember { mutableFloatStateOf(0f) }
+    var viewportH by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val hazeState = LocalAeroHazeState.current
+    val crop by remember(width, height, viewportW, viewportH, scale, offsetX, offsetY) {
+        derivedStateOf {
+            if (viewportW <= 0f || viewportH <= 0f) NormalizedCrop(0f, 0f, 1f, 1f)
+            else CropMath.visibleRect(width, height, viewportW, viewportH, scale, offsetX, offsetY)
         }
+    }
+    val lightSurfaces = !Aero.colors.isDark
+    val edgeScrim = if (lightSurfaces) Color.White else Color.Black
+    val isPreparingOriginal = localUri == null && canSetWallpaper && wallpaper?.downloadAllowed == true &&
+        download?.status != DownloadStatus.FAILED.name && download?.status != DownloadStatus.CANCELED.name
+    val resetCrop = {
+        scale = 1f
+        offsetX = 0f
+        offsetY = 0f
+    }
 
-        val localUri = download?.localUri?.takeIf { fileExists }
-        if (localUri == null) {
-            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                when {
-                    wallpaper?.setWallpaperAllowed == false -> Text("This licence does not allow an adapted crop. Wallpaper setting is disabled.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
-                    wallpaper?.downloadAllowed == false -> Text("Auroro cannot download this original under its reported licence or file type.", Modifier.padding(18.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
-                    download?.status == DownloadStatus.FAILED.name || download?.status == DownloadStatus.CANCELED.name -> {
-                        val wasCanceled = download?.status == DownloadStatus.CANCELED.name
-                        Text(
-                            if (wasCanceled) "Original download canceled" else "Couldn't prepare the original image",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Aero.colors.textPrimary,
-                        )
-                        Text(
-                            if (wasCanceled) "Retry when you're ready to continue." else download?.errorMessage ?: "Download failed.",
-                            Modifier.padding(18.dp),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (wasCanceled) Aero.colors.textSecondary else Aero.colors.error,
-                        )
-                        TextButton(onClick = { download?.let { onRetry(it.wallpaperKey) } }, enabled = download != null) {
-                            Text("Retry download", color = Aero.colors.accent)
-                        }
-                    }
-                    else -> {
-                        CircularProgressIndicator(color = Aero.colors.accent)
-                        Text("Preparing the original image…", Modifier.padding(12.dp), style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textSecondary)
-                        download?.takeIf { it.totalBytes > 0 }?.let { progress ->
-                            Text("${(progress.bytesDownloaded * 100 / progress.totalBytes).coerceIn(0, 100)}%", style = MaterialTheme.typography.labelMedium, color = Aero.colors.accent)
-                        }
-                    }
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        if (imageUri != null) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val viewportWidthPx = with(density) { maxWidth.toPx() }
+                val viewportHeightPx = with(density) { maxHeight.toPx() }
+                LaunchedEffect(viewportWidthPx, viewportHeightPx) {
+                    viewportW = viewportWidthPx
+                    viewportH = viewportHeightPx
                 }
-            }
-        } else {
-            var scale by remember(localUri) { mutableFloatStateOf(1f) }
-            var offsetX by remember(localUri) { mutableFloatStateOf(0f) }
-            var offsetY by remember(localUri) { mutableFloatStateOf(0f) }
-            val width = download?.savedWidth?.takeIf { it > 0 } ?: wallpaper?.width?.coerceAtLeast(1) ?: 1
-            val height = download?.savedHeight?.takeIf { it > 0 } ?: wallpaper?.height?.coerceAtLeast(1) ?: 1
-            val density = LocalDensity.current
-            var viewportW by remember { mutableFloatStateOf(0f) }
-            var viewportH by remember { mutableFloatStateOf(0f) }
-            val crop by remember(width, height, viewportW, viewportH, scale, offsetX, offsetY) {
-                derivedStateOf {
-                    if (viewportW <= 0 || viewportH <= 0) NormalizedCrop(0f, 0f, 1f, 1f)
-                    else CropMath.visibleRect(width, height, viewportW, viewportH, scale, offsetX, offsetY)
-                }
-            }
-
-            BoxWithConstraints(
-                Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp).clip(RoundedCornerShape(24.dp)).background(Color.Black),
-            ) {
-                val pxW = with(density) { maxWidth.toPx() }
-                val pxH = with(density) { maxHeight.toPx() }
-                LaunchedEffect(pxW, pxH) { viewportW = pxW; viewportH = pxH }
-                val baseScale = max(pxW / width, pxH / height)
+                val baseScale = max(viewportWidthPx / width, viewportHeightPx / height)
                 AsyncImage(
-                    model = ImageRequest.Builder(context).data(localUri).memoryCacheKey("crop:$localUri").crossfade(170).build(),
+                    model = ImageRequest.Builder(context)
+                        .data(imageUri)
+                        .memoryCacheKey(if (localUri != null) "crop:$localUri" else "crop-preview:${wallpaper?.key}")
+                        .diskCacheKey(if (localUri != null) localUri else imageUri)
+                        .crossfade(170)
+                        .build(),
                     contentDescription = "Full-screen crop preview of ${wallpaper?.source?.displayName ?: "saved"} wallpaper",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
+                        .then(hazeState?.let { Modifier.hazeSource(it) } ?: Modifier)
                         .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offsetX; translationY = offsetY }
-                        .pointerInput(width, height, pxW, pxH) {
+                        .pointerInput(imageUri, width, height, viewportWidthPx, viewportHeightPx) {
                             detectTransformGestures { _, pan, zoom, _ ->
                                 val nextScale = (scale * zoom).coerceIn(1f, 4f)
-                                val (x, y) = CropMath.clampOffset(width, height, pxW, pxH, baseScale * nextScale, offsetX + pan.x, offsetY + pan.y)
+                                val (x, y) = CropMath.clampOffset(
+                                    width,
+                                    height,
+                                    viewportWidthPx,
+                                    viewportHeightPx,
+                                    baseScale * nextScale,
+                                    offsetX + pan.x,
+                                    offsetY + pan.y,
+                                )
                                 scale = nextScale
                                 offsetX = x
                                 offsetY = y
                             }
                         },
                 )
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = .08f), Color.Transparent, Color.Black.copy(alpha = .1f))))
-                    .clip(RoundedCornerShape(24.dp)))
-                Row(Modifier.align(Alignment.TopStart).padding(12.dp).clip(CircleShape).background(Color.Black.copy(alpha = .48f)).padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.RemoveRedEye, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("${width} × $height", style = MaterialTheme.typography.labelSmall, color = Color.White)
+            }
+        } else {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Aero.colors.accentDeep, Color.Black, Aero.colors.emerald.copy(alpha = 0.55f))),
+                ),
+            )
+        }
+
+        // Edge fades preserve status/navigation affordances while leaving the image genuinely full-bleed.
+        Box(
+            Modifier.align(Alignment.TopCenter).fillMaxWidth().height(168.dp)
+                .background(Brush.verticalGradient(listOf(edgeScrim.copy(alpha = 0.82f), edgeScrim.copy(alpha = 0f)))),
+        )
+        Box(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(292.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, edgeScrim.copy(alpha = 0.76f)))),
+        )
+
+        GlassPanel(
+            modifier = Modifier.align(Alignment.TopCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .padding(horizontal = 12.dp, vertical = 7.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            elevation = 8.dp,
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GlassIconButton(onClick = onBack, description = "Back", icon = Icons.Rounded.ArrowBack)
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("Preview & crop", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
+                    Text(
+                        "${target.label} · drag to pan, pinch to zoom",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.textSecondary,
+                    )
+                }
+                if (isPreparingOriginal) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Aero.colors.accent,
+                        strokeWidth = 2.dp,
+                    )
                 }
             }
+        }
 
-            GlassPanel(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), shape = RoundedCornerShape(22.dp), elevation = 11.dp) {
-                Column(Modifier.padding(horizontal = 15.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+        GlassPanel(
+            modifier = Modifier.align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
+                .padding(horizontal = 10.dp, vertical = 7.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(24.dp),
+            elevation = 12.dp,
+        ) {
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
                         Text("Zoom", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                        Spacer(Modifier.weight(1f))
-                        Text("${java.lang.String.format(locale, "%.1f", scale)}×", style = MaterialTheme.typography.labelMedium, color = Aero.colors.accent)
-                        TextButton(onClick = { scale = 1f; offsetX = 0f; offsetY = 0f }) { Text("Reset", color = Aero.colors.textSecondary) }
+                        Text(
+                            "${width} × $height px${if (localUri == null) " · original needed to set" else " · saved original"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Aero.colors.textSecondary,
+                        )
                     }
-                    Slider(
-                        value = scale,
-                        onValueChange = { value ->
-                            val b = max(viewportW / width, viewportH / height)
-                            val (x, y) = CropMath.clampOffset(width, height, viewportW, viewportH, b * value, offsetX, offsetY)
-                            scale = value; offsetX = x; offsetY = y
-                        },
-                        valueRange = 1f..4f,
-                        colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Aero.colors.accent, activeTrackColor = Aero.colors.accent),
+                    Text("${java.lang.String.format(locale, "%.1f", scale)}×", style = MaterialTheme.typography.labelMedium, color = Aero.colors.accent)
+                    TextButton(onClick = resetCrop) { Text("Reset", color = Aero.colors.textSecondary) }
+                }
+                Slider(
+                    value = scale,
+                    onValueChange = { value ->
+                        val base = max(viewportW / width, viewportH / height)
+                        val (x, y) = CropMath.clampOffset(width, height, viewportW, viewportH, base * value, offsetX, offsetY)
+                        scale = value
+                        offsetX = x
+                        offsetY = y
+                    },
+                    valueRange = 1f..4f,
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = Aero.colors.accent,
+                        activeTrackColor = Aero.colors.accent,
+                    ),
+                )
+                when {
+                    wallpaper?.setWallpaperAllowed == false -> Text(
+                        "This licence does not allow an adapted crop. Wallpaper setting is disabled.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.warning,
                     )
-                    if (!canApplyWallpaper) {
-                        Text("This licence does not permit an adapted wallpaper crop.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
+                    wallpaper?.downloadAllowed == false -> Text(
+                        "Auroro cannot download this original under its reported licence or file type.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Aero.colors.warning,
+                    )
+                    localUri != null -> Unit
+                    download?.status == DownloadStatus.FAILED.name || download?.status == DownloadStatus.CANCELED.name -> {
+                        Text(
+                            if (download.status == DownloadStatus.CANCELED.name) "Original download canceled" else "Couldn't prepare the original image",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (download.status == DownloadStatus.CANCELED.name) Aero.colors.textPrimary else Aero.colors.error,
+                        )
+                        Text(
+                            if (download.status == DownloadStatus.CANCELED.name) "Retry when you're ready to continue."
+                            else download.errorMessage ?: "Download failed.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Aero.colors.textSecondary,
+                        )
+                        TextButton(onClick = { onRetry(download.wallpaperKey) }) { Text("Retry download", color = Aero.colors.accent) }
                     }
-                    Button(
-                        onClick = { if (canApplyWallpaper) onApply(localUri, target, crop) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = canApplyWallpaper,
-                    ) {
-                        Icon(Icons.Rounded.Wallpaper, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Set ${target.label}")
+                    else -> {
+                        Text(
+                            when (download?.status) {
+                                DownloadStatus.RUNNING.name -> "Saving the full-resolution original…"
+                                DownloadStatus.QUEUED.name -> "Original queued · preparing the preview…"
+                                else -> "Preparing the original image…"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Aero.colors.textSecondary,
+                        )
+                        download?.takeIf { it.status == DownloadStatus.RUNNING.name && it.totalBytes > 0 }?.let { progress ->
+                            Text(
+                                "${(progress.bytesDownloaded * 100 / progress.totalBytes).coerceIn(0, 100)}%",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Aero.colors.accent,
+                            )
+                        }
                     }
+                }
+                Button(
+                    onClick = { localUri?.let { onApply(it, target, crop) } },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = canSetWallpaper && localUri != null,
+                ) {
+                    androidx.compose.material3.Icon(Icons.Rounded.Wallpaper, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        when {
+                            !canSetWallpaper -> "Setting unavailable"
+                            wallpaper?.downloadAllowed == false && localUri == null -> "Original unavailable"
+                            localUri != null -> "Set ${target.label}"
+                            else -> "Preparing original…"
+                        },
+                    )
                 }
             }
         }
