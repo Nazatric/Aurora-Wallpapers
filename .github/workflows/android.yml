@@ -45,9 +45,11 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
             echo "AURORO_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
             echo "signed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "No complete release signing configuration found: a debug APK is available for CI smoke testing only; no production APK will be published."
+            echo "::notice title=APK signing status::Production signing is not configured for this run; no release APK will be published."
           fi
 
       - name: Unit tests, lint, debug + release build
