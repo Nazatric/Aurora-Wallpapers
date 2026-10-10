@@ -98,6 +98,16 @@ fun WallpaperGrid(
         if (headerContent != null) item(span = StaggeredGridItemSpan.FullLine) { headerContent() }
 
         if (wallpapers.isEmpty() && !initialLoadFinished) {
+            item(span = StaggeredGridItemSpan.FullLine) {
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(Modifier.size(18.dp), color = Aero.colors.accent, strokeWidth = 2.dp)
+                    Text("  Loading wallpapers…", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                }
+            }
             items(4, key = { "skeleton-$it" }) { index ->
                 SkeletonBlock(Modifier.fillMaxWidth().aspectRatio(if (index % 2 == 0) 0.78f else 0.92f))
             }

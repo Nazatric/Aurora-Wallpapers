@@ -9,6 +9,7 @@ import com.auroro.wallpapers.core.network.ProviderErrorKind
 import com.auroro.wallpapers.core.network.ProviderException
 import com.auroro.wallpapers.core.network.toProviderException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -16,6 +17,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeout
 
 sealed interface SourceState {
     data class Ok(val itemsLoaded: Int) : SourceState
@@ -54,7 +56,12 @@ class FeedPager(
     private val perProviderTarget: Int = 18,
     private val maxPagesPerLoad: Int = 4,
     concurrency: Int = 3,
+    private val providerCallTimeoutMs: Long = 50_000,
 ) {
+    init {
+        require(providerCallTimeoutMs > 0) { "Provider call timeout must be positive" }
+    }
+
     private class ProviderState(val provider: WallpaperProvider) {
         var prepared = false
         var cursor: PageCursor? = PageCursor()
@@ -130,14 +137,28 @@ class FeedPager(
         if (st.prepared) return
         st.prepared = true
         st.skipped = null
-        when (val availability = st.provider.availability()) {
-            SourceAvailability.Available -> {
-                val reason = st.provider.unsupportedReason(request)
-                if (reason != null) st.skipped = SourceState.Skipped(reason)
+        try {
+            when (val availability = withTimeout(providerCallTimeoutMs) { st.provider.availability() }) {
+                SourceAvailability.Available -> {
+                    val reason = st.provider.unsupportedReason(request)
+                    if (reason != null) st.skipped = SourceState.Skipped(reason)
+                }
+                is SourceAvailability.DisabledByUser -> st.skipped = SourceState.Skipped(availability.reason)
             }
-            is SourceAvailability.DisabledByUser -> st.skipped = SourceState.Skipped(availability.reason)
+        } catch (e: TimeoutCancellationException) {
+            st.lastError = timeoutError(st, e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (t: Throwable) {
+            st.lastError = t.toProviderException(st.provider.source.displayName)
         }
     }
+
+    private fun timeoutError(st: ProviderState, cause: Throwable) = ProviderException(
+        ProviderErrorKind.TIMEOUT,
+        "${st.provider.source.displayName} took too long to respond.",
+        cause = cause,
+    )
 
     private suspend fun loadProvider(st: ProviderState): List<Wallpaper> {
         val collected = ArrayList<Wallpaper>()
@@ -147,10 +168,16 @@ class FeedPager(
         while (st.cursor != null && collected.size < perProviderTarget && pages < pageBudget) {
             val cursor = st.cursor!!
             try {
-                val page = st.provider.fetchPage(request, cursor)
+                val page = withTimeout(providerCallTimeoutMs) {
+                    st.provider.fetchPage(request, cursor)
+                }
                 pages++
                 collected += LocalFilter.apply(page.items, request.filter, request.aspectTolerance)
                 st.cursor = page.next // advanced only after success
+            } catch (e: TimeoutCancellationException) {
+                // A stalled source must not hold the whole merged page (and every other source) forever.
+                st.lastError = timeoutError(st, e)
+                break // Keep the cursor on this page so Retry can safely try it again.
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {

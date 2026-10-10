@@ -11,6 +11,7 @@ import com.auroro.wallpapers.wallpaper
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -116,6 +117,45 @@ class FeedPagerTest {
         val skipped = result.statuses.first { it.source == WallpaperSource.OPENVERSE }.state as SourceState.Skipped
         assertEquals("Openverse is turned off", skipped.reason)
         assertTrue(result.endReached)
+    }
+
+    @Test fun timedOutProviderDoesNotBlockOtherResultsAndCanBeRetriedAtTheSameCursor() = runTest {
+        var slowCalls = 0
+        val slow = object : WallpaperProvider {
+            override val source = WallpaperSource.OPENVERSE
+            override val capabilities = ProviderCapabilities(setOf(SortOption.RELEVANCE), setOf(SortOption.RELEVANCE))
+            override suspend fun availability() = SourceAvailability.Available
+            override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
+                slowCalls++
+                if (slowCalls == 1) delay(60_000)
+                return ProviderPage(listOf(wallpaper(WallpaperSource.OPENVERSE, "o1")), null)
+            }
+        }
+        val fast = ScriptedProvider(WallpaperSource.WALLHAVEN).apply {
+            pages[1] = ProviderPage(listOf(wallpaper(id = "w1")), null)
+        }
+        val pager = FeedPager(
+            listOf(fast, slow),
+            FeedRequest(),
+            perProviderTarget = 1,
+            maxPagesPerLoad = 1,
+            providerCallTimeoutMs = 50_000,
+        )
+
+        val first = pager.loadNext()
+
+        assertEquals(listOf("wallhaven:w1"), first.items.map { it.key })
+        assertTrue(first.hadFailure)
+        val timeout = first.statuses.single { it.source == WallpaperSource.OPENVERSE }.state as SourceState.Failed
+        assertEquals(ProviderErrorKind.TIMEOUT, timeout.error.kind)
+        assertEquals(1, slowCalls)
+
+        pager.retry()
+        val retried = pager.loadNext()
+
+        assertEquals(listOf("openverse:o1"), retried.items.map { it.key })
+        assertEquals(2, slowCalls)
+        assertTrue(retried.endReached)
     }
 
     @Test fun unsupportedSortCanBeReportedWithoutSendingARequest() = runTest {
