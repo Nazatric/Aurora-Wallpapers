@@ -40,14 +40,23 @@ def adb(*args: str, timeout: int = 30, check: bool = True) -> subprocess.Complet
 def wait_until(predicate: Callable[[ET.Element], bool], label: str, timeout: int = 60) -> ET.Element:
     deadline = time.monotonic() + timeout
     last_root: ET.Element | None = None
+    last_capture_error: str | None = None
     while time.monotonic() < deadline:
-        last_root = dump_hierarchy()
+        try:
+            last_root = dump_hierarchy()
+            last_capture_error = None
+        except RuntimeError as error:
+            # UIAutomator can briefly lose its output file during emulator startup or app transitions.
+            # Retry within the requested wait instead of failing an otherwise recoverable UI check.
+            last_capture_error = str(error)
+            time.sleep(2)
+            continue
         if predicate(last_root):
             REPORT["checks"].append({"name": label, "result": "passed"})
             return last_root
         time.sleep(2)
     visible = [node_text(node) for node in last_root.iter("node")] if last_root is not None else []
-    raise AssertionError(f"Timed out waiting for {label}; visible UI nodes: {visible[:120]}")
+    raise AssertionError(f"Timed out waiting for {label}; visible UI nodes: {visible[:120]}; last UIAutomator error: {last_capture_error}")
 
 
 def dump_hierarchy() -> ET.Element:
