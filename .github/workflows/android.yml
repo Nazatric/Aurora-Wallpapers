@@ -47,7 +47,7 @@ jobs:
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "No complete release signing configuration found: only the debug APK will be delivered as installable."
+            echo "No complete release signing configuration found: a debug APK is available for CI smoke testing only; no production APK will be published."
           fi
 
       - name: Unit tests, lint, debug + release build
@@ -117,11 +117,11 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
-      - name: Attach APKs to GitHub Release (tag builds only)
-        if: startsWith(github.ref, 'refs/tags/v') && success()
+      - name: Attach verified production APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v') && success() && steps.signing.outputs.signed == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*.apk
+          files: dist/*-release.apk
           generate_release_notes: true
 
   emulator-smoke:
