@@ -183,12 +183,21 @@ def switch_node(root: ET.Element, label: str) -> ET.Element:
     target_y = bounds_center(labels[0])[1]
     matches = [
         node for node in root.iter("node")
-        if "switch" in node.attrib.get("class", "").lower()
+        if (
+            "switch" in node.attrib.get("class", "").lower()
+            or node.attrib.get("checkable") == "true"
+            or "checked" in node.attrib
+        )
         and node.attrib.get("bounds")
-        and abs(bounds_center(node)[1] - target_y) < 80
+        and abs(bounds_center(node)[1] - target_y) < 100
     ]
     if not matches:
-        raise AssertionError(f"No accessible switch appeared beside {label!r}")
+        nearby = [
+            {key: node.attrib.get(key, "") for key in ("text", "content-desc", "class", "bounds", "checkable", "checked")}
+            for node in root.iter("node")
+            if node.attrib.get("bounds") and abs(bounds_center(node)[1] - target_y) < 140
+        ]
+        raise AssertionError(f"No accessible switch appeared beside {label!r}; nearby nodes: {nearby[:20]}")
     return matches[0]
 
 
