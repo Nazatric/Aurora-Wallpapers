@@ -105,6 +105,17 @@ def bounds_center(node: ET.Element) -> tuple[int, int]:
     return (left + right) // 2, (top + bottom) // 2
 
 
+def clickable_target(root: ET.Element, node: ET.Element) -> ET.Element:
+    """Resolve an image's merged Compose semantics to its nearest clickable card ancestor."""
+    parents = {child: parent for parent in root.iter() for child in parent}
+    current: ET.Element | None = node
+    while current is not None:
+        if current.attrib.get("clickable") == "true":
+            return current
+        current = parents.get(current)
+    return node
+
+
 def tap_node(node: ET.Element) -> None:
     x, y = bounds_center(node)
     adb("shell", "input", "tap", str(x), str(y))
@@ -211,12 +222,12 @@ def main() -> None:
     # Favorite and queue an actual Wallhaven original before testing Openverse licensing, which can
     # legitimately disallow direct downloads for some individual works.
     tile_nodes = [
-        node for node in find_nodes(root, contains=True, text="Wallpaper")
-        if node.attrib.get("content-desc", "").startswith("Wallpaper") and node.attrib.get("clickable") == "true"
+        node for node in root.iter("node")
+        if node.attrib.get("content-desc", "").startswith("Wallpaper")
     ]
     if not tile_nodes:
         raise AssertionError("No accessible Wallhaven wallpaper card was available to open")
-    tap_node(tile_nodes[0])
+    tap_node(clickable_target(root, tile_nodes[0]))
     detail = wait_until(lambda ui: bool(find_nodes(ui, text="Favorite")), "Wallhaven detail actions", timeout=60)
     if not find_nodes(detail, text="Wallhaven"):
         raise AssertionError("Selecting Wallhaven did not open a Wallhaven wallpaper detail")
@@ -280,11 +291,11 @@ def main() -> None:
     REPORT["openverse_result_count"] = len(wallpaper_descriptions(openverse_root))
     screenshot("09-openverse-search.png")
     openverse_tiles = [
-        node for node in find_nodes(openverse_root, contains=True, text="Wallpaper")
-        if node.attrib.get("content-desc", "").startswith("Wallpaper") and node.attrib.get("clickable") == "true"
+        node for node in openverse_root.iter("node")
+        if node.attrib.get("content-desc", "").startswith("Wallpaper")
     ]
     if openverse_tiles:
-        tap_node(openverse_tiles[0])
+        tap_node(clickable_target(openverse_root, openverse_tiles[0]))
         wait_until(lambda ui: bool(find_nodes(ui, text="Openverse")), "Openverse source attribution in detail", timeout=60)
         screenshot("10-openverse-detail.png")
         adb("shell", "input", "keyevent", "4")
