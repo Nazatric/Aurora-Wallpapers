@@ -325,7 +325,8 @@ def parse_dimensions(description: str) -> tuple[int, int] | None:
 
 
 def wait_for_feed_content(label: str, timeout: int = 90, max_empty_pages: int = 4) -> ET.Element:
-    """Wait for visible cards, scrolling past the home discovery controls when necessary."""
+    """Wait for visible cards, scrolling past controls and retrying one transient network error."""
+    provider_retry_count = 0
     for attempt in range(max_empty_pages + 1):
         deadline = time.monotonic() + timeout
         last_scroll = 0.0
@@ -334,7 +335,23 @@ def wait_for_feed_content(label: str, timeout: int = 90, max_empty_pages: int = 
             root = dump_hierarchy()
             has_cards = bool(wallpaper_descriptions(root))
             has_empty_state = any(find_nodes(root, text=state) for state in EMPTY_STATES)
-            if has_cards or has_empty_state:
+            if has_cards:
+                REPORT["checks"].append({"name": f"{label} results or honest empty/error state (page {attempt + 1})", "result": "passed"})
+                break
+            if has_empty_state:
+                labels = [node_text(node) for node in root.iter("node") if node_text(node)]
+                network_error = any(
+                    "Can't reach Wallhaven" in label or "Network problem while contacting Wallhaven" in label
+                    for label in labels
+                )
+                retry = find_nodes(root, text="Try again")
+                if network_error and retry and provider_retry_count < 1:
+                    provider_retry_count += 1
+                    REPORT.setdefault("provider_retries", []).append({"feed": label, "attempt": provider_retry_count})
+                    tap_node(retry[0])
+                    deadline = time.monotonic() + timeout
+                    last_scroll = 0.0
+                    continue
                 REPORT["checks"].append({"name": f"{label} results or honest empty/error state (page {attempt + 1})", "result": "passed"})
                 break
 
@@ -435,7 +452,11 @@ def main() -> None:
     tap_text("Any", timeout=20)
     root = wait_for_feed_content("Wallhaven results after clearing orientation", timeout=60)
     if not wallpaper_descriptions(root):
-        raise AssertionError("Wallhaven returned no visible results after clearing the orientation filter")
+        visible = [node_text(node) for node in root.iter("node") if node_text(node)]
+        raise AssertionError(
+            "Wallhaven returned no visible results after clearing the orientation filter; "
+            f"visible text/accessibility labels: {visible[:100]}"
+        )
     any_count = len(wallpaper_descriptions(root))
     tap_text("Landscape", timeout=20)
     root = wait_for_feed_content("landscape filter", timeout=60)
