@@ -169,7 +169,8 @@ def selected_state(root: ET.Element, label: str) -> bool:
     for node in find_nodes(root, text=label):
         current: ET.Element | None = node
         while current is not None:
-            if current.attrib.get("selected") == "true":
+            # Compose RadioButton/selectable semantics can map to either Android selected or checked.
+            if current.attrib.get("selected") == "true" or current.attrib.get("checked") == "true":
                 return True
             current = parents.get(current)
     return False
