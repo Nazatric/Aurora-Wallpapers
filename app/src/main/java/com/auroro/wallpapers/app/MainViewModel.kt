@@ -446,7 +446,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             app.discoveryCache.clear()
             feedSessions.clearHome(HomeTab.FOR_YOU)
             lastDiscoverySelection = null
-                _message.emit("Discovery preferences, repeat history, cached IDs and disposable feed metadata reset. Saved wallpapers are unchanged.")
+            _message.emit("Discovery preferences, repeat history, cached IDs and disposable feed metadata reset. Saved wallpapers are unchanged.")
             if (activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU) {
                 openHome(HomeTab.FOR_YOU, null, forceRefresh = true)
             }

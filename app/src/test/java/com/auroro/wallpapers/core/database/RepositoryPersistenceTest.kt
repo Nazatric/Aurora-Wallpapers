@@ -62,7 +62,9 @@ class RepositoryPersistenceTest {
     }
 
     @Test fun explicitDiscoveryResetRemovesDisposableMetadataButPreservesFavorites() = runBlocking {
-        val prefs = PreferenceDataStoreFactory.create(produceFile = { File(context.cacheDir, "discovery-reset-${System.nanoTime()}.preferences_pb") })
+        val prefs = PreferenceDataStoreFactory.create(produceFile = {
+            File(ApplicationProvider.getApplicationContext<Context>().cacheDir, "discovery-reset-${System.nanoTime()}.preferences_pb")
+        })
         val settings = SettingsRepository(prefs, bootPrefs = null)
         val cache = DiscoverySnapshotCache(settings, store)
         val transient = wallpaper(id = "feed-only01")
