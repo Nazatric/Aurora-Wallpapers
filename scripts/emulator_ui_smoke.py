@@ -505,11 +505,7 @@ def main() -> None:
     screenshot("14-home-wallpaper-applied.png")
     REPORT["checks"].append({"name": "immersive crop zoom, pan, reset and Home wallpaper setting", "result": "passed"})
 
-    back_nodes = find_nodes(home_applied, description="Back")
-    if not back_nodes:
-        raise AssertionError("Crop screen did not expose an accessible Back control")
-    tap_node(back_nodes[0])
-    detail = wait_until(lambda ui: bool(find_nodes(ui, text="Set wallpaper")), "return to saved detail after Home setting", timeout=30)
+    detail = home_applied
     tap_text("Set wallpaper", timeout=20)
     wait_until(lambda ui: bool(find_nodes(ui, text="Lock screen")) and bool(find_nodes(ui, text="Cancel")), "Lock screen target choice", timeout=30)
     tap_text("Lock screen", timeout=20)
@@ -527,11 +523,10 @@ def main() -> None:
     REPORT["checks"].append({"name": "Lock screen wallpaper setting", "result": "passed"})
 
     # Back navigation restores Search, while Offline shows the completed original record.
-    back_nodes = find_nodes(lock_applied, description="Back")
+    back_nodes = find_nodes(lock_applied, description="Back to wallpapers")
     if not back_nodes:
-        raise AssertionError("Lock crop screen did not expose an accessible Back control")
+        raise AssertionError("Wallpaper detail did not expose its accessible Back to wallpapers control")
     tap_node(back_nodes[0])
-    adb("shell", "input", "keyevent", "4")
     restored = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "back to Wallhaven results", timeout=45)
     screenshot("17-restored-wallhaven-search.png")
     REPORT["checks"].append({"name": "detail-to-search navigation retains results", "result": "passed"})
