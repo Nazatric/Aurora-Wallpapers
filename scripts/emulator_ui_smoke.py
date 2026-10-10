@@ -319,6 +319,11 @@ def wallpaper_descriptions(root: ET.Element) -> list[str]:
     return [node_text(node) for node in wallpaper_nodes(root)]
 
 
+def search_feed_visible(root: ET.Element) -> bool:
+    """Recognize Search even when its remembered scroll position has moved the query field off-screen."""
+    return bool(wallpaper_descriptions(root)) and bool(find_nodes(root, text="Orientation"))
+
+
 def parse_dimensions(description: str) -> tuple[int, int] | None:
     match = re.search(r"(\d{2,6})\s+by\s+(\d{2,6})", description)
     return (int(match.group(1)), int(match.group(2))) if match else None
@@ -549,7 +554,7 @@ def main() -> None:
         raise AssertionError("Temporary-original detail did not expose its Back to wallpapers control")
     tap_node(detail_back[0])
     wait_until(
-        lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)),
+        lambda ui: search_feed_visible(ui),
         "return to Search before checking set-only Downloads", timeout=45,
     )
     tap_text("Downloads", prefer_bottom=True, timeout=20)
@@ -560,7 +565,7 @@ def main() -> None:
     screenshot("06c-set-only-no-download-record.png")
     REPORT["checks"].append({"name": "set-only flow creates no Download record", "result": "passed"})
     tap_text("Search", prefer_bottom=True, timeout=20)
-    root = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "restore Search before persistent download", timeout=45)
+    root = wait_until(lambda ui: search_feed_visible(ui), "restore Search before persistent download", timeout=45)
     tile_nodes = wallpaper_nodes(root)
     tap_node(clickable_target(root, tile_nodes[0]))
     detail = wait_until(lambda ui: bool(find_nodes(ui, text="Favorited")) and bool(find_nodes(ui, text="Set wallpaper")), "reopen unsaved Wallhaven detail", timeout=60)
@@ -587,7 +592,7 @@ def main() -> None:
     REPORT["checks"].append({"name": "original download queued with network disabled", "result": "passed"})
     screenshot("07-download-queued.png")
     adb("shell", "input", "keyevent", "4")
-    wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "return to Search before Downloads", timeout=45)
+    wait_until(lambda ui: search_feed_visible(ui), "return to Search before Downloads", timeout=45)
     tap_text("Downloads", prefer_bottom=True, timeout=20)
     tap_text("Queue", timeout=20)
     offline = wait_until(
@@ -632,7 +637,7 @@ def main() -> None:
     # Reopen the actual saved result through Search, then exercise the immersive crop and both Android targets.
     tap_text("Search", prefer_bottom=True, timeout=20)
     search = wait_until(
-        lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)),
+        lambda ui: search_feed_visible(ui),
         "restore Wallhaven search after Downloads download", timeout=45,
     )
     tile_nodes = wallpaper_nodes(search)
@@ -697,7 +702,7 @@ def main() -> None:
     if not back_nodes:
         raise AssertionError("Wallpaper detail did not expose its accessible Back to wallpapers control")
     tap_node(back_nodes[0])
-    restored = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "back to Wallhaven results", timeout=45)
+    restored = wait_until(lambda ui: search_feed_visible(ui), "back to Wallhaven results", timeout=45)
     screenshot("17-restored-wallhaven-search.png")
     REPORT["checks"].append({"name": "detail-to-search navigation retains results", "result": "passed"})
     tap_text("Downloads", prefer_bottom=True, timeout=20)
@@ -713,7 +718,7 @@ def main() -> None:
 
     # Favorites and collection membership must survive navigation and remain visible as real results.
     tap_text("Search", prefer_bottom=True, timeout=20)
-    search = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "Search restored after Downloads", timeout=45)
+    search = wait_until(lambda ui: search_feed_visible(ui), "Search restored after Downloads", timeout=45)
     menu_nodes = find_nodes(search, description="Open navigation menu")
     if not menu_nodes:
         raise AssertionError("Search did not expose its navigation menu")
@@ -739,7 +744,7 @@ def main() -> None:
     REPORT["checks"].append({"name": "new collection retains its wallpaper membership", "result": "passed"})
     adb("shell", "input", "keyevent", "4")
     tap_text("Search", prefer_bottom=True, timeout=20)
-    search = wait_until(lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)), "Search restored after collection navigation", timeout=45)
+    search = wait_until(lambda ui: search_feed_visible(ui), "Search restored after collection navigation", timeout=45)
     search_size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
     if search_size:
         width, height = map(int, search_size.groups())
