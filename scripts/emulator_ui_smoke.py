@@ -242,13 +242,17 @@ def main() -> None:
     detail = wait_until(lambda ui: bool(find_nodes(ui, text="Favorited")), "favorite saved in detail", timeout=30)
     REPORT["checks"].append({"name": "favorite action", "result": "passed"})
 
-    download_nodes = [
-        node for node in find_nodes(detail, text="Download original")
-        if node.attrib.get("enabled") == "true" and node.attrib.get("clickable") == "true"
-    ]
+    download_nodes = find_nodes(detail, text="Download original")
     if not download_nodes:
-        raise AssertionError("No enabled original-download action was present for the selected Wallhaven image")
-    tap_node(download_nodes[0])
+        visible = [node_text(node) for node in detail.iter("node") if node_text(node)]
+        raise AssertionError(f"No original-download action was present in Wallhaven detail; visible text: {visible[:120]}")
+    download_target = clickable_target(detail, download_nodes[0])
+    if download_target.attrib.get("enabled") == "false" or download_nodes[0].attrib.get("enabled") == "false":
+        raise AssertionError(
+            "The Wallhaven original-download action was visibly disabled: "
+            f"label={download_nodes[0].attrib}, target={download_target.attrib}"
+        )
+    tap_node(download_target)
     download_state = wait_until(
         lambda ui: bool(find_nodes(ui, text="Downloading")) or bool(find_nodes(ui, text="Saved")) or bool(find_nodes(ui, text="Couldn't queue download", contains=True)),
         "download enqueued or surfaced an honest error", timeout=45,
