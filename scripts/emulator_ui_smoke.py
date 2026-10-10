@@ -278,7 +278,12 @@ def main() -> None:
     screenshot("08-offline-downloads.png")
     REPORT["checks"].append({"name": "queued original appears in Offline", "result": "passed"})
     tap_text("Search", prefer_bottom=True, timeout=20)
-    wait_until(lambda ui: bool(find_nodes(ui, text="Try ocean, forest or a place")) and bool(wallpaper_descriptions(ui)), "restore Search from Offline", timeout=45)
+    wait_until(
+        lambda ui: bool(find_nodes(ui, text="ocean")) and bool(wallpaper_descriptions(ui)),
+        "restore Search from Offline with retained ocean query and results",
+        timeout=45,
+    )
+    REPORT["checks"].append({"name": "Search query and results retained after Offline navigation", "result": "passed"})
     search_size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
     if search_size:
         width, height = map(int, search_size.groups())
