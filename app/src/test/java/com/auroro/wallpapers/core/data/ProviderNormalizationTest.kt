@@ -257,7 +257,7 @@ class ProviderNormalizationTest {
         val default = WallhavenQuery.build(FeedRequest(), PageCursor())
         assertEquals("100", default["purity"])
         assertEquals("111", default["categories"])
-        assertEquals("relevance", default["sorting"])
+        assertEquals("date_added", default["sorting"])
         assertFalse("apikey" in default)
         assertFalse("seed" in default)
 
