@@ -138,12 +138,12 @@ def screenshot(name: str) -> None:
     REPORT["screenshots"].append(str(path))
 
 
+def wallpaper_nodes(root: ET.Element) -> list[ET.Element]:
+    return [node for node in root.iter("node") if node_text(node).startswith("Wallpaper")]
+
+
 def wallpaper_descriptions(root: ET.Element) -> list[str]:
-    return [
-        node.attrib.get("content-desc", "")
-        for node in root.iter("node")
-        if node.attrib.get("content-desc", "").startswith("Wallpaper")
-    ]
+    return [node_text(node) for node in wallpaper_nodes(root)]
 
 
 def parse_dimensions(description: str) -> tuple[int, int] | None:
@@ -221,10 +221,7 @@ def main() -> None:
 
     # Favorite and queue an actual Wallhaven original before testing Openverse licensing, which can
     # legitimately disallow direct downloads for some individual works.
-    tile_nodes = [
-        node for node in root.iter("node")
-        if node.attrib.get("content-desc", "").startswith("Wallpaper")
-    ]
+    tile_nodes = wallpaper_nodes(root)
     if not tile_nodes:
         raise AssertionError("No accessible Wallhaven wallpaper card was available to open")
     tap_node(clickable_target(root, tile_nodes[0]))
@@ -294,10 +291,7 @@ def main() -> None:
     openverse_root = wait_for_feed_content("Openverse search", timeout=90)
     REPORT["openverse_result_count"] = len(wallpaper_descriptions(openverse_root))
     screenshot("09-openverse-search.png")
-    openverse_tiles = [
-        node for node in openverse_root.iter("node")
-        if node.attrib.get("content-desc", "").startswith("Wallpaper")
-    ]
+    openverse_tiles = wallpaper_nodes(openverse_root)
     if openverse_tiles:
         tap_node(clickable_target(openverse_root, openverse_tiles[0]))
         wait_until(lambda ui: bool(find_nodes(ui, text="Openverse")), "Openverse source attribution in detail", timeout=60)
