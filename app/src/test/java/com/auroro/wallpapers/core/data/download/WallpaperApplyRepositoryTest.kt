@@ -76,7 +76,7 @@ class WallpaperApplyRepositoryTest {
         assertEquals(1, server.requestCount)
         assertEquals(null, database.downloads().get(wallpaper.key))
 
-        file.delete()
+        assertTrue(file.delete())
     }
 
     private fun pngBytes(): ByteArray = java.util.Base64.getDecoder().decode(
