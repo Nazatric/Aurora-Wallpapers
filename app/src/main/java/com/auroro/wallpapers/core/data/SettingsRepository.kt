@@ -209,7 +209,7 @@ class SettingsRepository(
             prefs.remove(DISCOVERY_SNAPSHOT_INDEX)
             prefs.remove(LAST_MANUAL_DISCOVERY_REFRESH)
             prefs.remove(DISCOVERY_REFRESH_ORDINAL)
-            prefs.asMap().keys.filter { it.name.startsWith(DISCOVERY_SNAPSHOT_PREFIX) }.forEach(prefs::remove)
+            prefs.asMap().keys.filter { it.name.startsWith(DISCOVERY_SNAPSHOT_PREFIX) }.forEach { key -> prefs.remove(key) }
         }
         update { it.copy(
             rotateDiscoveryHourly = true,
