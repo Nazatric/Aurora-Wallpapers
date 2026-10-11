@@ -1,5 +1,7 @@
 package com.auroro.wallpapers.core.data
 
+import android.util.Log
+import com.auroro.wallpapers.BuildConfig
 import com.auroro.wallpapers.core.model.DiscoveryQuality
 import com.auroro.wallpapers.core.model.DiscoveryRecipe
 import com.auroro.wallpapers.core.model.DiscoverySession
@@ -393,6 +395,22 @@ class DiscoveryEngine(
                     locallyValidatedItems += recipeRelevant.count {
                         LocalFilter.matches(it, request.filter, request.aspectTolerance)
                     }
+                    if (BuildConfig.DEBUG) {
+                        val sampleTags = page.items.asSequence()
+                            .flatMap { it.tags.asSequence() }
+                            .map { it.name.trim() }
+                            .filter(String::isNotEmpty)
+                            .distinct()
+                            .take(8)
+                            .joinToString(",")
+                        Log.d(
+                            DISCOVERY_LOG_TAG,
+                            "recipe=${recipe.id} query=${phrase.take(48)} rows=${page.items.size} " +
+                                "usable=${sourceUsable.size} evidence=${recipeRelevant.size} " +
+                                "local=${recipeRelevant.count { LocalFilter.matches(it, request.filter, request.aspectTolerance) }} " +
+                                "sampleTags=$sampleTags",
+                        )
+                    }
                     pagesFetched++
                     valid = validate(fetchedItems, recipe, request.filter, request.aspectTolerance, recentlySeenKeys)
                     cursor = page.next
@@ -552,6 +570,7 @@ class DiscoveryEngine(
     )
 
     companion object {
+        private const val DISCOVERY_LOG_TAG = "AuroroDiscovery"
         const val TARGET_VALIDATED_RECIPES = 6
         // A single strictly relevant, usable image is enough to show a recipe rather than discard it.
         const val MIN_ITEMS_PER_RECIPE = 1

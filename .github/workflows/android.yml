@@ -187,7 +187,7 @@ jobs:
                   completed = report.get("checks", [])
                   recent = completed[-12:]
                   message = f"{report['failure']}; completed {len(completed)} checks; last checks: {recent}"
-                  for key in ("orientation_result_counts", "download_progress_visible", "wallpaper_service"):
+                  for key in ("orientation_result_counts", "download_progress_visible", "wallpaper_service", "discovery_query_log"):
                       if key in report:
                           message += f"; {key}={report[key]}"
                   message = message[:3000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")

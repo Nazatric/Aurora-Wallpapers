@@ -337,6 +337,11 @@ def screenshot(name: str) -> None:
     REPORT["screenshots"].append(str(path))
 
 
+def discovery_query_log() -> list[str]:
+    result = adb("logcat", "-d", "-s", "AuroroDiscovery:D", "*:S", timeout=20, check=False)
+    return [line.strip() for line in result.stdout.splitlines() if "AuroroDiscovery" in line][-16:]
+
+
 def launch_timing(output: str) -> dict[str, int | None]:
     def milliseconds(label: str) -> int | None:
         match = re.search(rf"^{label}:\s*(\d+)\s*$", output, flags=re.MULTILINE)
@@ -1047,6 +1052,12 @@ if __name__ == "__main__":
         ARTIFACTS.mkdir(parents=True, exist_ok=True)
         try:
             screenshot("failure.png")
+        except Exception:
+            pass
+        try:
+            query_log = discovery_query_log()
+            if query_log:
+                REPORT["discovery_query_log"] = query_log
         except Exception:
             pass
         REPORT["failure"] = f"{type(error).__name__}: {error}"
