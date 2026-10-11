@@ -1,7 +1,6 @@
 package com.auroro.wallpapers.core.data
 
 import android.util.Log
-import com.auroro.wallpapers.BuildConfig
 import com.auroro.wallpapers.core.model.DiscoveryQuality
 import com.auroro.wallpapers.core.model.DiscoveryRecipe
 import com.auroro.wallpapers.core.model.DiscoverySession
@@ -395,7 +394,7 @@ class DiscoveryEngine(
                     locallyValidatedItems += recipeRelevant.count {
                         LocalFilter.matches(it, request.filter, request.aspectTolerance)
                     }
-                    if (BuildConfig.DEBUG) {
+                    if (Log.isLoggable(DISCOVERY_LOG_TAG, Log.DEBUG)) {
                         val sampleTags = page.items.asSequence()
                             .flatMap { it.tags.asSequence() }
                             .map { it.name.trim() }

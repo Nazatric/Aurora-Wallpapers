@@ -471,6 +471,7 @@ def main() -> None:
         "abi": adb("shell", "getprop", "ro.product.cpu.abi").stdout.strip(),
         "emulator": "Hosted Android emulator with KVM; animations disabled by workflow",
     }
+    adb("shell", "setprop", "log.tag.AuroroDiscovery", "DEBUG")
     run(["adb", "install", "-r", str(apk)], timeout=120)
     launch = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
     REPORT["cold_start_launch"] = launch_timing(launch.stdout)
