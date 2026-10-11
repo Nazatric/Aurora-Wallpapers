@@ -123,7 +123,7 @@ class DiscoveryEngineTest {
         assertEquals(4, result.providerItemsReceived)
         assertEquals(4, result.sourceUsableItems)
         assertEquals(2, result.recipeRelevantItems)
-        assertEquals(4, result.locallyValidatedItems)
+        assertEquals(2, result.locallyValidatedItems)
     }
 
     @Test fun boundedQueryPagingContinuesUntilOneRelevantResultIsFound() = runTest {
