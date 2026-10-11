@@ -93,6 +93,7 @@ data class DiscoveryBuildResult(
         errors.isNotEmpty() && items.isEmpty() -> errors.first().message ?: errors.first().kind.title
         errors.isNotEmpty() -> "Some searches could not finish (${errors.map { it.kind.title }.distinct().joinToString()}); showing ${items.size} validated wallpapers."
         items.isEmpty() && skippedCoolingDown > 0 -> "Discovery searches are cooling down after empty or failed requests. Try again later."
+        items.isEmpty() && attemptedRecipes > 0 -> "No relevant results passed the checks from $attemptedRecipes attempted recipe candidates. Try again later."
         items.isEmpty() -> "No suitable results matched this discovery mix. Try again later."
         staleCacheUsed -> "Showing previously validated wallpapers while Wallhaven refreshes this mix."
         allFromCache -> "Showing validated wallpapers from the on-device cache."
@@ -279,22 +280,43 @@ class DiscoveryEngine(
         recentlySeenKeys: Set<String>,
     ): QueryOutcome {
         return try {
-            val page = withTimeout(perRecipeTimeoutMillis) {
-                provider.fetchPage(request, PageCursor(page = 1, seed = seed))
+            val sourceQuery = recipe.sourceQueries[provider.source]
+                ?: return QueryOutcome(identity, recipe, empty = true)
+            val initialIndex = sourceQuery.phrases.indexOf(identity.query).takeIf { it >= 0 } ?: 0
+            val queryVariants = (0 until minOf(MAX_QUERY_VARIANTS_PER_RECIPE, sourceQuery.phrases.size))
+                .map { sourceQuery.phraseAt(initialIndex + it) }
+                .distinct()
+
+            for (phrase in queryVariants) {
+                val attemptIdentity = identity.copy(query = phrase)
+                val attemptRequest = request.copy(query = phrase)
+                val fetchedItems = mutableListOf<Wallpaper>()
+                var cursor: PageCursor? = PageCursor(page = 1, seed = seed)
+                var pagesFetched = 0
+                var valid = emptyList<Wallpaper>()
+                while (pagesFetched < MAX_PAGES_PER_RECIPE && valid.size < MIN_ITEMS_PER_RECIPE) {
+                    val currentCursor = cursor ?: break
+                    val page = withTimeout(perRecipeTimeoutMillis) {
+                        provider.fetchPage(attemptRequest, currentCursor)
+                    }
+                    fetchedItems += page.items
+                    pagesFetched++
+                    valid = validate(fetchedItems, recipe, request.filter, request.aspectTolerance, recentlySeenKeys)
+                    cursor = page.next
+                }
+                if (valid.size >= MIN_ITEMS_PER_RECIPE) {
+                    val sectionItems = valid.take(MAX_ITEMS_PER_RECIPE)
+                    pools.recordSuccess(provider.source, recipe, sectionItems, clock())
+                    return QueryOutcome(
+                        identity = attemptIdentity,
+                        recipe = recipe,
+                        section = ValidatedDiscoverySection(attemptIdentity, sectionItems, fromCache = false),
+                    )
+                }
             }
-            val valid = validate(page.items, recipe, request.filter, request.aspectTolerance, recentlySeenKeys)
-            if (valid.size < MIN_ITEMS_PER_RECIPE) {
-                pools.recordEmpty(provider.source, recipe, clock())
-                QueryOutcome(identity, recipe, empty = true)
-            } else {
-                val sectionItems = valid.take(MAX_ITEMS_PER_RECIPE)
-                pools.recordSuccess(provider.source, recipe, sectionItems, clock())
-                QueryOutcome(
-                    identity = identity,
-                    recipe = recipe,
-                    section = ValidatedDiscoverySection(identity, sectionItems, fromCache = false),
-                )
-            }
+
+            pools.recordEmpty(provider.source, recipe, clock())
+            QueryOutcome(identity, recipe, empty = true)
         } catch (timeout: TimeoutCancellationException) {
             val error = ProviderException(
                 ProviderErrorKind.TIMEOUT,
@@ -426,6 +448,8 @@ class DiscoveryEngine(
         const val MIN_ITEMS_PER_RECIPE = 2
         const val MAX_ITEMS_PER_RECIPE = 24
         const val MAX_CANDIDATES = 12
+        const val MAX_QUERY_VARIANTS_PER_RECIPE = 2
+        const val MAX_PAGES_PER_RECIPE = 2
         const val ITEMS_PER_RECIPE_IN_MIX = 8
         const val DEFAULT_QUERY_TIMEOUT_MILLIS = 10_000L
     }

@@ -56,6 +56,58 @@ class DiscoveryEngineTest {
         "isometric-worlds",
     )
 
+    @Test fun emptyQueryPhraseFallsBackToAnotherMappedPhraseAndPreservesItsIdentity() = runTest {
+        val seenQueries = mutableListOf<String>()
+        val provider = ScriptedDiscoveryProvider(
+            answer = { error("The cursor-aware response must be used") },
+            answerPage = { request, _ ->
+                seenQueries += request.query
+                if (seenQueries.size == 1) {
+                    ProviderPage(items = listOf(tagged("wrong-1", "mountain"), tagged("wrong-2", "mountain")), next = null)
+                } else {
+                    ProviderPage(items = listOf(tagged("right-1", "fractal art"), tagged("right-2", "fractal art")), next = null)
+                }
+            },
+        )
+
+        val result = DiscoveryEngine(provider, MemoryDiscoveryPoolStore()).discover(
+            session(listOf("fractal-art")), generation = 19L, preferences = AppSettings(),
+        )
+
+        assertEquals(2, seenQueries.size)
+        assertTrue(seenQueries[0] != seenQueries[1])
+        assertEquals(seenQueries.last(), result.sections.single().identity.query)
+        assertEquals(2, result.items.size)
+    }
+
+    @Test fun boundedQueryPagingContinuesUntilTwoRelevantResultsAreFound() = runTest {
+        val provider = ScriptedDiscoveryProvider(
+            answer = { error("The cursor-aware response must be used") },
+            answerPage = { _, cursor ->
+                if (cursor.page == 1) {
+                    ProviderPage(
+                        items = listOf(tagged("first-match", "fractal art"), tagged("unrelated", "mountain")),
+                        next = PageCursor(page = 2, seed = cursor.seed),
+                    )
+                } else {
+                    ProviderPage(
+                        items = listOf(tagged("second-match", "fractal art"), tagged("third-match", "fractal art")),
+                        next = null,
+                    )
+                }
+            },
+        )
+
+        val result = DiscoveryEngine(provider, MemoryDiscoveryPoolStore()).discover(
+            session(listOf("fractal-art")), generation = 18L, preferences = AppSettings(),
+        )
+
+        assertEquals(listOf(1, 2), provider.cursors.map { it.page })
+        assertEquals(provider.cursors.first().seed, provider.cursors.last().seed)
+        assertEquals(3, result.items.size)
+        assertEquals(1, result.sections.size)
+    }
+
     @Test fun discoveryRequestsRespectTheConfiguredConcurrencyBound() = runTest {
         val active = AtomicInteger()
         val peak = AtomicInteger()
@@ -126,7 +178,7 @@ class DiscoveryEngineTest {
         })
         assertTrue(progress.isNotEmpty())
         assertTrue(progress.all { it.sessionId == session.sessionId && it.generation == 41L })
-        assertEquals(recipeIds.size, provider.requests.size)
+        assertEquals(recipeIds.size + result.emptyRecipes, provider.requests.size)
         provider.requests.forEach { request ->
             assertEquals(setOf(WallpaperSource.WALLHAVEN), request.filter.sources)
             assertEquals(Orientation.PORTRAIT, request.filter.orientation)
@@ -287,6 +339,7 @@ class DiscoveryEngineTest {
     )
 
     private class ScriptedDiscoveryProvider(
+        private val answerPage: (suspend (FeedRequest, PageCursor) -> ProviderPage)? = null,
         private val answer: suspend (FeedRequest) -> ProviderPage,
     ) : WallpaperProvider {
         override val source = WallpaperSource.WALLHAVEN
@@ -297,12 +350,14 @@ class DiscoveryEngineTest {
         )
         var availabilityState: SourceAvailability = SourceAvailability.Available
         val requests = mutableListOf<FeedRequest>()
+        val cursors = mutableListOf<PageCursor>()
 
         override suspend fun availability(): SourceAvailability = availabilityState
 
         override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
             requests += request
-            return answer(request)
+            cursors += cursor
+            return answerPage?.invoke(request, cursor) ?: answer(request)
         }
     }
 
