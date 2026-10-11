@@ -27,6 +27,14 @@ EMPTY_STATES = (
     "No catalogue available",
     "Couldn't load wallpapers",
 )
+APPEARANCE_PRESET_LABELS = (
+    "Frutiger Aero",
+    "Frutiger Flower",
+    "Frutiger Zen",
+    "Dark Aero",
+    "Aqua Day",
+    "Follow system",
+)
 
 
 def run(command: list[str], *, timeout: int = 30, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -133,6 +141,36 @@ def scroll_to_navigation_header(root: ET.Element, screen_label: str, attempts: i
         root = dump_hierarchy()
     visible = [node_text(node) for node in root.iter("node") if node_text(node)]
     raise AssertionError(f"{screen_label} top bar did not return after scrolling to the top; visible labels: {visible[:100]}")
+
+
+def scroll_horizontal_choice_into_view(
+    root: ET.Element,
+    label: str,
+    row_labels: tuple[str, ...],
+    *,
+    direction: str = "left",
+    attempts: int = 8,
+) -> ET.Element:
+    """Scroll a horizontally clipped Compose choice row until its requested pill is accessible."""
+    if direction not in {"left", "right"}:
+        raise ValueError(f"Unsupported horizontal scroll direction: {direction}")
+    size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
+    width = int(size.group(1)) if size else 1080
+    left_x, right_x = round(width * 0.14), round(width * 0.86)
+    for _ in range(attempts + 1):
+        if find_nodes(root, text=label):
+            REPORT["checks"].append({"name": f"horizontal choice row reveals '{label}'", "result": "passed"})
+            return root
+        row_nodes = [node for choice in row_labels for node in find_nodes(root, text=choice)]
+        if not row_nodes:
+            raise AssertionError(f"No visible choice in the horizontal row containing {label!r}")
+        y = bounds_center(row_nodes[0])[1]
+        start_x, end_x = (right_x, left_x) if direction == "left" else (left_x, right_x)
+        adb("shell", "input", "swipe", str(start_x), str(y), str(end_x), str(y), "350")
+        time.sleep(0.4)
+        root = dump_hierarchy()
+    visible = [node_text(node) for node in root.iter("node") if node_text(node)]
+    raise AssertionError(f"Could not reveal {label!r} in the horizontal choice row; visible labels: {visible[:100]}")
 
 
 def clickable_target(root: ET.Element, node: ET.Element) -> ET.Element:
@@ -817,12 +855,15 @@ def main() -> None:
     )
     if not selected_state(settings, "Frutiger Aero"):
         raise AssertionError("The default Frutiger Aero appearance is not initially selected")
+    settings = scroll_horizontal_choice_into_view(settings, "Dark Aero", APPEARANCE_PRESET_LABELS)
     tap_text("Dark Aero", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Dark Aero"), "Dark Aero appearance selection", timeout=20)
     screenshot("22-theme-dark.png")
+    settings = scroll_horizontal_choice_into_view(settings, "Aqua Day", APPEARANCE_PRESET_LABELS)
     tap_text("Aqua Day", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Aqua Day"), "Aqua Day appearance selection", timeout=20)
     screenshot("23-theme-light.png")
+    settings = scroll_horizontal_choice_into_view(settings, "Frutiger Aero", APPEARANCE_PRESET_LABELS, direction="right")
     tap_text("Frutiger Aero", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Frutiger Aero"), "restore Frutiger Aero appearance", timeout=20)
     tap_text("Emerald", timeout=20)
