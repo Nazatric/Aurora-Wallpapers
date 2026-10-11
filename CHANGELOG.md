@@ -20,8 +20,3 @@ Notable changes to Auroro Wallpapers are recorded here.
 - Recipe selection is randomized but stable within a session, avoids recent repeats where possible, and uses bounded, validated caches and request budgets.
 - Search and discovery preserve successful sources while reporting empty, partial, timeout, provider-error, and rate-limit outcomes rather than presenting failures as successful results.
 - Wallpaper cards preserve source image proportions; detail, offline, and download paths retain the real provider metadata and available attribution.
-
-### Verification and distribution
-
-- App version name: `0.1`; Android `versionCode`: `3`.
-- The hosted Android CI build, unit tests, lint, APK signature checks, and API 35 emulator smoke passed for the current branch. See [BLOCKERS.md](BLOCKERS.md) for the run link and verification limits.
