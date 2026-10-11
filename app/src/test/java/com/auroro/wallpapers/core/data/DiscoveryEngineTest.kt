@@ -103,20 +103,17 @@ class DiscoveryEngineTest {
         assertEquals(2, result.items.size)
     }
 
-    @Test fun boundedQueryPagingContinuesUntilTwoRelevantResultsAreFound() = runTest {
+    @Test fun boundedQueryPagingContinuesUntilOneRelevantResultIsFound() = runTest {
         val provider = ScriptedDiscoveryProvider(
             answer = { error("The cursor-aware response must be used") },
             answerPage = { _, cursor ->
                 if (cursor.page == 1) {
                     ProviderPage(
-                        items = listOf(tagged("first-match", "fractal art"), tagged("unrelated", "mountain")),
+                        items = listOf(tagged("unrelated-1", "mountain"), tagged("unrelated-2", "mountain")),
                         next = PageCursor(page = 2, seed = cursor.seed),
                     )
                 } else {
-                    ProviderPage(
-                        items = listOf(tagged("second-match", "fractal art"), tagged("third-match", "fractal art")),
-                        next = null,
-                    )
+                    ProviderPage(items = listOf(tagged("single-match", "fractal art")), next = null)
                 }
             },
         )
@@ -127,8 +124,8 @@ class DiscoveryEngineTest {
 
         assertEquals(listOf(1, 2), provider.cursors.map { it.page })
         assertEquals(provider.cursors.first().seed, provider.cursors.last().seed)
-        assertEquals(3, result.items.size)
-        assertEquals(1, result.sections.size)
+        assertEquals(listOf("single-match"), result.items.map { it.sourceId })
+        assertEquals(1, result.sections.single().items.size)
     }
 
     @Test fun discoveryRequestsRespectTheConfiguredConcurrencyBound() = runTest {

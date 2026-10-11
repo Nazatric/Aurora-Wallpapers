@@ -480,7 +480,7 @@ class DiscoveryEngine(
 
     companion object {
         const val TARGET_VALIDATED_RECIPES = 6
-        const val MIN_ITEMS_PER_RECIPE = 2
+        const val MIN_ITEMS_PER_RECIPE = 1
         const val MAX_ITEMS_PER_RECIPE = 24
         const val MAX_CANDIDATES = 12
         const val MAX_REQUESTS_PER_SESSION = 15
