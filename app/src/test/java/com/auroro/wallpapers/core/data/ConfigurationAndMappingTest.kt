@@ -103,6 +103,29 @@ class ConfigurationAndMappingTest {
         assertEquals(null, settings.current().pinnedDiscoveryStyleId)
     }
 
+    @Test fun validatedDiscoveryPoolsAndRecipeRepeatHistoryPersistAndResetLocally() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "discovery-pools.preferences_pb") })
+        val settings = SettingsRepository(store, bootPrefs = null)
+        val now = 1_800_000_000_000L
+        val record = DiscoveryAvailabilityRecord(
+            sourceId = "wallhaven",
+            recipeId = "fractal-art",
+            lastSuccessfulAtMillis = now,
+            updatedAtMillis = now,
+            wallpaperKeys = listOf("wallhaven:first", "wallhaven:second"),
+        )
+
+        settings.saveDiscoveryAvailability(record)
+        settings.recordDiscoveryRecipeIds(listOf("fractal-art", "vaporwave"), now)
+        assertEquals(record.wallpaperKeys, settings.discoveryAvailability("wallhaven", "fractal-art")?.wallpaperKeys)
+        assertEquals(now, settings.discoveryAvailability("wallhaven", "fractal-art")?.lastSuccessfulAtMillis)
+        assertEquals(setOf("fractal-art", "vaporwave"), settings.recentlyUsedDiscoveryRecipeIds(now + 1, 24))
+
+        settings.resetDiscovery()
+        assertEquals(null, settings.discoveryAvailability("wallhaven", "fractal-art"))
+        assertTrue(settings.recentlyUsedDiscoveryRecipeIds(now + 1, 24).isEmpty())
+    }
+
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "settings.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null)

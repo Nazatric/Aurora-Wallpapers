@@ -33,7 +33,6 @@ import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
-import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.feature.categories.SEARCH_TOPICS
 
@@ -41,20 +40,18 @@ import com.auroro.wallpapers.feature.categories.SEARCH_TOPICS
 fun HomeScreen(
     feed: FeedUiState,
     selectedTab: HomeTab,
-    rotateHourly: Boolean,
     gridStateHolder: SaveableStateHolder,
     retainedGridKeys: MutableList<String>,
     onTab: (HomeTab) -> Unit,
     onMenu: () -> Unit,
     onSearch: () -> Unit,
     onCategory: (String) -> Unit,
-    onStyle: (String?) -> Unit,
     onRefresh: () -> Unit,
     onOpen: (Wallpaper) -> Unit,
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val gridStateKey = "${selectedTab.name}:${feed.discoverySelection?.cacheKey.orEmpty()}"
+    val gridStateKey = "${selectedTab.name}:${feed.discoverySession?.sessionId.orEmpty()}"
     LaunchedEffect(gridStateKey) {
         retainedGridKeys.remove(gridStateKey)
         retainedGridKeys.add(gridStateKey)
@@ -83,7 +80,7 @@ fun HomeScreen(
             else -> "No wallpapers found"
         },
         emptyMessage = when {
-            feed.statuses.isNotEmpty() && feed.statuses.all { it.state is SourceState.Skipped } -> "Enable Wallhaven or Openverse in Sources to browse."
+            feed.statuses.isNotEmpty() && feed.statuses.all { it.state is SourceState.Skipped } -> "Enable Wallhaven in Sources to browse Home discovery."
             else -> "Try another topic or open Search to adjust your sources and filters."
         },
         headerContent = {
@@ -109,19 +106,13 @@ fun HomeScreen(
                     }
                 }
                 if (selectedTab == HomeTab.FOR_YOU) {
-                    val pinnedStyle = feed.discoverySelection?.takeIf { it.pinned }?.style?.id
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        SectionTitle("Discover styles", "Curated SFW Wallhaven queries · no popularity ranking")
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            GlassPill(if (rotateHourly) "Auto · hourly" else "Auto", pinnedStyle == null, onClick = { onStyle(null) })
-                            DiscoveryStyle.entries.forEach { style ->
-                                GlassPill(style.label, pinnedStyle == style.id, onClick = { onStyle(style.id) })
-                            }
-                        }
+                        Text(
+                            "An internal mix of validated SFW searches · popularity is not used",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Aero.colors.textSecondary,
+                            maxLines = 2,
+                        )
                         feed.cacheNotice?.let { message ->
                             Text(message, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 2)
                         }
@@ -154,13 +145,18 @@ fun HomeScreen(
                 }
                 SectionTitle(
                     title = when (selectedTab) {
-                        HomeTab.FOR_YOU -> feed.discoverySelection?.style?.label ?: "For You"
+                        HomeTab.FOR_YOU -> "For You"
                         HomeTab.POPULAR -> "Popular"
                         HomeTab.LATEST -> "Latest"
                         HomeTab.RANDOM -> "Random"
                     },
-                    subtitle = feed.forYouLabel?.removePrefix("Changes each hour · ")
-                        ?.takeIf { selectedTab == HomeTab.FOR_YOU },
+                    subtitle = if (selectedTab == HomeTab.FOR_YOU) {
+                        if (feed.discoveryValidatedRecipeCount > 0) {
+                            "${feed.items.size} validated wallpapers · Wallhaven SFW"
+                        } else {
+                            "Validated SFW Wallhaven mix"
+                        }
+                    } else null,
                 )
             }
         },

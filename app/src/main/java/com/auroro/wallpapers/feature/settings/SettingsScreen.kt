@@ -28,7 +28,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.AccentTheme
@@ -115,12 +114,12 @@ fun SettingsScreen(
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                     SettingSwitch(
                         "Rotate For You hourly",
-                        "A stable style and query are selected for each hour; the timer does not poll the provider repeatedly.",
+                        "A stable randomized recipe mix is reused for each hour; the timer does not poll the provider repeatedly.",
                         settings.rotateDiscoveryHourly,
                     ) { value -> onSettings { it.copy(rotateDiscoveryHourly = value) } }
                     SettingSwitch(
                         "Avoid recently shown wallpapers",
-                        "Previously loaded identifiers are ranked lower; this cannot guarantee a completely new result set.",
+                        "Recent recipe searches and wallpaper IDs are avoided where possible; this cannot guarantee a completely new result set.",
                         settings.avoidRecentlySeen,
                     ) { value -> onSettings { it.copy(avoidRecentlySeen = value) } }
                     if (settings.avoidRecentlySeen) {
@@ -131,7 +130,7 @@ fun SettingsScreen(
                         ) { value -> onSettings { it.copy(repeatAfterHours = value) } }
                     }
                     Text("Preferred styles", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                    Text("When any are selected, Auto rotates only through those styles.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Text("Selected styles bias the internal mix while other recipes remain for variety.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                     Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -285,7 +284,7 @@ private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, onC
     ) {
         Column(Modifier.weight(1f).padding(end = 10.dp)) {
             Text(title, style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textPrimary)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
         }
         androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChecked)
     }
@@ -298,7 +297,7 @@ private fun SettingAction(title: String, subtitle: String, icon: androidx.compos
             androidx.compose.material3.Icon(icon, contentDescription = null, tint = Aero.colors.accent)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(title, style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textPrimary)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
             }
         }
     }

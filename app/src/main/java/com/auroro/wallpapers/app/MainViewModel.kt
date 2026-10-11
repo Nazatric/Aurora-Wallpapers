@@ -3,7 +3,9 @@ package com.auroro.wallpapers.app
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.CollectionNameResult
+import com.auroro.wallpapers.core.data.DiscoveryGenerationGate
 import com.auroro.wallpapers.core.data.FeedPager
 import com.auroro.wallpapers.core.data.SourceState
 import com.auroro.wallpapers.core.data.SourceStatus
@@ -12,10 +14,11 @@ import com.auroro.wallpapers.core.data.download.ApplyResult
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
-import com.auroro.wallpapers.core.model.DiscoveryQuality
 import com.auroro.wallpapers.core.model.DiscoveryRotation
-import com.auroro.wallpapers.core.model.DiscoverySelection
-import com.auroro.wallpapers.core.model.DiscoveryStyle
+import com.auroro.wallpapers.core.model.DiscoverySession
+import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
+import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
+import com.auroro.wallpapers.core.model.LocalFilter
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.ResolutionFilter
@@ -56,7 +59,11 @@ data class FeedUiState(
     val pageError: String? = null,
     val appendCount: Int = 0,
     val forYouLabel: String? = null,
-    val discoverySelection: DiscoverySelection? = null,
+    val discoverySession: DiscoverySession? = null,
+    val discoveryValidatedRecipeCount: Int = 0,
+    val discoveryRotationEnabled: Boolean? = null,
+    val discoveryWallhavenEnabled: Boolean? = null,
+    val enabledSourcesAtRequest: Set<WallpaperSource>? = null,
     val cacheNotice: String? = null,
 )
 
@@ -92,7 +99,7 @@ internal class FeedSessionCache {
     private var search: FeedSession? = null
 
     fun saveHome(tab: HomeTab, session: FeedSession) {
-        home[homeKey(tab, session.state.discoverySelection?.cacheKey)] = session
+        home[homeKey(tab, session.state.discoverySession?.sessionId)] = session
     }
 
     fun takeHome(tab: HomeTab, discoveryKey: String? = null): FeedSession? = home.remove(homeKey(tab, discoveryKey))
@@ -119,8 +126,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     private var feedInitialized = false
     private val feedSessions = FeedSessionCache()
     private var currentTab = HomeTab.FOR_YOU
-    private var lastDiscoverySelection: DiscoverySelection? = null
-    private var discoveryFallbackCache = false
+    private var lastDiscoverySession: DiscoverySession? = null
+    private val discoveryGeneration = DiscoveryGenerationGate()
     private val _applyPreparation = MutableStateFlow(ApplyPreparationUiState())
     val applyPreparation: StateFlow<ApplyPreparationUiState> = _applyPreparation.asStateFlow()
     private var applyPreparationJob: Job? = null
@@ -160,26 +167,36 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         }
     }
 
+    private fun AppSettings.enabledSources(): Set<WallpaperSource> = buildSet {
+        if (wallhavenEnabled) add(WallpaperSource.WALLHAVEN)
+        if (openverseEnabled) add(WallpaperSource.OPENVERSE)
+    }
+
     fun openHome(
         tab: HomeTab = HomeTab.FOR_YOU,
-        pinnedStyleId: String? = settings.value.pinnedDiscoveryStyleId,
         forceRefresh: Boolean = false,
     ) {
         val now = System.currentTimeMillis()
-        val currentSelection = _feed.value.discoverySelection ?: lastDiscoverySelection
         val visibleSettings = settings.value
-        val desiredBucket = when {
-            !visibleSettings.rotateDiscoveryHourly -> currentSelection?.bucket ?: 0L
-            else -> DiscoveryRotation.bucketAt(now)
-        }
-        val validPin = DiscoveryStyle.fromId(pinnedStyleId)?.id
-        val selectionIsCurrent = tab != HomeTab.FOR_YOU || currentSelection?.let { selection ->
-            selection.bucket == desiredBucket &&
-                (validPin == null && !selection.pinned || validPin == selection.style.id && selection.pinned)
+        val previousDiscoverySession = _feed.value.discoverySession ?: lastDiscoverySession
+        val currentFeedIsDiscovery = _feed.value.discoverySession?.sessionId != null &&
+            _feed.value.discoverySession?.sessionId == previousDiscoverySession?.sessionId
+        val settingsStillMatch = !currentFeedIsDiscovery || (
+            _feed.value.request.filter.reducePotentiallyExplicitContent == visibleSettings.reducePotentiallyExplicitContent &&
+                _feed.value.discoveryRotationEnabled == visibleSettings.rotateDiscoveryHourly &&
+                _feed.value.discoveryWallhavenEnabled == visibleSettings.wallhavenEnabled
+            )
+        val selectionIsCurrent = tab != HomeTab.FOR_YOU || previousDiscoverySession?.let { session ->
+            !visibleSettings.rotateDiscoveryHourly ||
+                session.hourBucket == DiscoveryRotation.bucketAt(now) || session.hourBucket == 0L
         } == true
-        if (!forceRefresh && activeFeedScope == FeedScope.HOME && currentTab == tab && feedInitialized && selectionIsCurrent) return
+        if (!forceRefresh && activeFeedScope == FeedScope.HOME && currentTab == tab &&
+            feedInitialized && selectionIsCurrent && settingsStillMatch
+        ) return
 
-        if (activeFeedScope != FeedScope.HOME || currentTab != tab || forceRefresh || !selectionIsCurrent) saveActiveFeedSession()
+        if (activeFeedScope != FeedScope.HOME || currentTab != tab || forceRefresh || !selectionIsCurrent || !settingsStillMatch) {
+            saveActiveFeedSession()
+        }
         feedPreparationJob?.cancel()
         feedPreparationJob = null
         currentTab = tab
@@ -188,60 +205,46 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         _feed.value = FeedUiState(loading = true)
         feedPreparationJob = viewModelScope.launch {
             val prefs = app.settings.current()
-            val pin = DiscoveryStyle.fromId(pinnedStyleId ?: prefs.pinnedDiscoveryStyleId)?.id
-            val previous = _feed.value.discoverySelection ?: lastDiscoverySelection
-            val selection = if (tab == HomeTab.FOR_YOU) {
-                val samePinnedStyle = previous != null &&
-                    (pin == null && !previous.pinned || pin == previous.style.id && previous.pinned)
-                when {
-                    !forceRefresh && !prefs.rotateDiscoveryHourly && samePinnedStyle -> previous
-                    !forceRefresh && previous?.bucket == DiscoveryRotation.bucketAt(now) && samePinnedStyle -> previous
-                    else -> DiscoveryRotation.select(
-                        epochMillis = if (prefs.rotateDiscoveryHourly) now else 0L,
-                        preferredStyleIds = prefs.preferredDiscoveryStyleIds,
-                        hiddenStyleIds = prefs.hiddenDiscoveryStyleIds,
-                        pinnedStyleId = pin,
-                        refreshOrdinal = prefs.discoveryRefreshOrdinal,
-                    )
-                }
-            } else null
-
             if (activeFeedScope != FeedScope.HOME || currentTab != tab) return@launch
-            if (selection != null) {
-                lastDiscoverySelection = selection
-                if (!forceRefresh) {
-                    val cachedSession = feedSessions.takeHome(tab, selection.cacheKey)
-                    if (cachedSession != null) {
-                        feedPreparationJob = null
-                        restoreFeedSession(FeedScope.HOME, cachedSession)
-                        return@launch
-                    }
+            if (tab == HomeTab.FOR_YOU) {
+                val currentTime = System.currentTimeMillis()
+                var session = when {
+                    forceRefresh -> null
+                    previousDiscoverySession == null -> null
+                    !prefs.rotateDiscoveryHourly -> previousDiscoverySession
+                    previousDiscoverySession.hourBucket == DiscoveryRotation.bucketAt(currentTime) -> previousDiscoverySession
+                    previousDiscoverySession.hourBucket == 0L -> previousDiscoverySession.copy(
+                        hourBucket = DiscoveryRotation.bucketAt(currentTime),
+                    )
+                    else -> null
+                }
+                if (session == null) {
+                    val recentRecipes = if (prefs.avoidRecentlySeen) {
+                        app.discoveryPools.recentlyUsedRecipeIds(currentTime, prefs.repeatAfterHours)
+                    } else emptySet()
+                    session = DiscoverySessionPlanner.newRandomSession(
+                        nowMillis = currentTime,
+                        rotateHourly = prefs.rotateDiscoveryHourly,
+                        refreshOrdinal = prefs.discoveryRefreshOrdinal,
+                        recentRecipeIds = recentRecipes,
+                        preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.preferredDiscoveryStyleIds),
+                        excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
+                    )
+                    app.discoveryPools.recordSessionRecipeIds(session.candidateRecipeIds, currentTime)
+                }
+                lastDiscoverySession = session
+                val cachedSession = if (!forceRefresh) feedSessions.takeHome(tab, session.sessionId) else null
+                if (cachedSession != null) {
+                    feedPreparationJob = null
+                    restoreFeedSession(FeedScope.HOME, cachedSession)
+                    return@launch
                 }
                 feedSessions.clearHome(tab)
-                val exactSnapshot = app.discoveryCache.restore(selection.cacheKey)
-                var initialItems = exactSnapshot
-                var usedFallback = false
-                var cacheNotice: String? = if (exactSnapshot.isNotEmpty()) "Refreshing this saved hourly collection…" else null
-                if (initialItems.isEmpty()) {
-                    val offlineFallback = app.discoveryCache.restoreLatest()
-                    if (offlineFallback != null) {
-                        usedFallback = true
-                        initialItems = offlineFallback.second
-                        val cachedStyle = offlineFallback.first.split(':').getOrNull(1)
-                            ?.let(DiscoveryStyle::fromId)?.label
-                        cacheNotice = if (cachedStyle == null) {
-                            "Showing a recent on-device collection while this mix loads."
-                        } else {
-                            "Showing cached $cachedStyle wallpapers while this mix loads."
-                        }
-                    }
-                }
-                val note = if (prefs.rotateDiscoveryHourly) "Changes each hour · ${selection.style.description}" else selection.style.description
                 val recentlySeen = if (prefs.avoidRecentlySeen) {
-                    app.discoveryCache.recentlySeen(now, prefs.repeatAfterHours)
+                    app.discoveryCache.recentlySeen(currentTime, prefs.repeatAfterHours)
                 } else emptySet()
                 feedPreparationJob = null
-                startDiscoveryFeed(selection, prefs, initialItems, cacheNotice, note, usedFallback, recentlySeen)
+                startDiscoveryFeed(session, prefs, emptyList(), recentlySeen)
             } else {
                 val cachedSession = feedSessions.takeHome(tab)
                 if (cachedSession != null) {
@@ -264,46 +267,114 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     private fun startDiscoveryFeed(
-        selection: DiscoverySelection,
+        session: DiscoverySession,
         prefs: com.auroro.wallpapers.core.data.AppSettings,
-        cachedItems: List<Wallpaper>,
-        cacheNotice: String?,
-        description: String,
-        usedFallback: Boolean,
+        initialItems: List<Wallpaper>,
         recentlySeenKeys: Set<String>,
     ) {
         feedJob?.cancel()
-        feedJob = null
+        pager = null
         activeFeedScope = FeedScope.HOME
         currentTab = HomeTab.FOR_YOU
         feedInitialized = true
-        lastDiscoverySelection = selection
-        discoveryFallbackCache = usedFallback
+        lastDiscoverySession = session
+        val generation = discoveryGeneration.begin()
         val request = FeedRequest(
-            query = selection.query,
             filter = WallpaperFilter(
                 sources = setOf(WallpaperSource.WALLHAVEN),
                 orientation = Orientation.PORTRAIT,
                 resolution = ResolutionFilter.Preset(ResolutionPreset.P1080),
-                sort = SortOption.RELEVANCE,
+                sort = SortOption.RANDOM,
                 wallhavenCategories = setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE),
                 reducePotentiallyExplicitContent = prefs.reducePotentiallyExplicitContent,
             ),
             aspectTolerance = prefs.aspectTolerance,
         )
-        pager = app.aggregator.newPager(request)
-        val rankedCached = DiscoveryQuality.rank(cachedItems, selection, recentlySeenKeys)
+        val safeInitial = LocalFilter.apply(initialItems, request.filter, request.aspectTolerance)
         _feed.value = FeedUiState(
             request = request,
-            items = rankedCached,
+            items = safeInitial,
             loading = true,
-            initialLoadFinished = rankedCached.isNotEmpty(),
-            forYouLabel = description,
-            discoverySelection = selection,
-            cacheNotice = cacheNotice,
+            initialLoadFinished = safeInitial.isNotEmpty(),
+            endReached = true,
+            forYouLabel = "Source-matched SFW discovery",
+            discoverySession = session,
+            discoveryRotationEnabled = prefs.rotateDiscoveryHourly,
+            discoveryWallhavenEnabled = prefs.wallhavenEnabled,
+            cacheNotice = safeInitial.takeIf { it.isNotEmpty() }?.let { "Refreshing this saved mix…" },
         )
-        feedJob = viewModelScope.launch { loadPage() }
+        feedJob = viewModelScope.launch {
+            try {
+                val result = app.discoveryEngine.discover(
+                    session = session,
+                    generation = generation,
+                    preferences = prefs,
+                    recentlySeenKeys = recentlySeenKeys,
+                ) { progress ->
+                    if (isCurrentDiscovery(session.sessionId, generation)) {
+                        val current = _feed.value
+                        val visibleItems = progress.items.ifEmpty { current.items }
+                        _feed.value = current.copy(
+                            items = visibleItems,
+                            loading = progress.loading,
+                            initialLoadFinished = visibleItems.isNotEmpty() || current.initialLoadFinished,
+                            endReached = true,
+                            pageError = null,
+                            discoveryValidatedRecipeCount = progress.sections.size,
+                            cacheNotice = if (progress.sections.any { it.fromCache }) "Restoring validated on-device results…" else null,
+                        )
+                    }
+                }
+                if (!isCurrentDiscovery(session.sessionId, generation)) return@launch
+                val finalItems = when {
+                    result.items.isNotEmpty() -> result.items
+                    result.disabledReason != null -> emptyList()
+                    else -> safeInitial
+                }
+                if (result.items.isNotEmpty()) {
+                    app.settings.recordDiscoverySeen(result.items.map { it.key }, System.currentTimeMillis())
+                }
+                val message = result.message()
+                val hasError = result.errors.isNotEmpty()
+                val cacheNotice = when {
+                    result.disabledReason != null -> result.disabledReason
+                    result.items.isEmpty() && safeInitial.isNotEmpty() -> "Showing the last validated mix; this refresh did not return a replacement."
+                    finalItems.isNotEmpty() && result.errors.isNotEmpty() && result.staleCacheUsed -> "Using validated on-device results while Wallhaven refreshes."
+                    finalItems.isNotEmpty() && result.errors.isEmpty() && result.allFromCache -> message
+                    finalItems.isEmpty() && result.errors.isEmpty() -> message
+                    else -> null
+                }
+                _feed.value = _feed.value.copy(
+                    items = finalItems,
+                    statuses = listOf(result.sourceStatus),
+                    loading = false,
+                    initialLoadFinished = true,
+                    endReached = true,
+                    pageError = message.takeIf { hasError },
+                    appendCount = if (finalItems.isNotEmpty()) 1 else 0,
+                    forYouLabel = "Source-matched SFW discovery",
+                    discoverySession = session,
+                    discoveryValidatedRecipeCount = result.sections.size,
+                    cacheNotice = cacheNotice,
+                )
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                if (isCurrentDiscovery(session.sessionId, generation)) {
+                    _feed.value = _feed.value.copy(
+                        loading = false,
+                        initialLoadFinished = true,
+                        endReached = true,
+                        pageError = failure.message ?: "Discovery could not be completed.",
+                    )
+                }
+            }
+        }
     }
+
+    private fun isCurrentDiscovery(sessionId: String, generation: Long): Boolean =
+        discoveryGeneration.isCurrent(generation, sessionId, _feed.value.discoverySession?.sessionId) &&
+            activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU
 
     private fun rememberSearchQuery(query: String) {
         if (query.isNotBlank()) viewModelScope.launch { app.settings.rememberSearchQuery(query) }
@@ -317,17 +388,29 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     fun openSearch(query: String? = null, filter: WallpaperFilter? = null) {
         query?.let(::rememberSearchQuery)
         val useSavedSearch = query == null && filter == null
-        if (useSavedSearch && activeFeedScope == FeedScope.SEARCH && feedInitialized) return
+        val currentSettings = settings.value
+        val currentEnabledSources = currentSettings.enabledSources()
+        if (useSavedSearch && activeFeedScope == FeedScope.SEARCH && feedInitialized) {
+            val current = _feed.value
+            val settingsMatch = current.request.filter.reducePotentiallyExplicitContent == currentSettings.reducePotentiallyExplicitContent &&
+                current.enabledSourcesAtRequest == currentEnabledSources
+            if (settingsMatch) return
+            startFeed(current.request, current.forYouLabel, FeedScope.SEARCH)
+            return
+        }
         if (activeFeedScope != FeedScope.SEARCH) saveActiveFeedSession()
         feedPreparationJob?.cancel()
         feedPreparationJob = null
 
         val cached = if (useSavedSearch) feedSessions.takeSearch() else null
         if (cached != null) {
-            if (cached.state.request.filter.reducePotentiallyExplicitContent == settings.value.reducePotentiallyExplicitContent) {
+            val saved = cached.state
+            val settingsMatch = saved.request.filter.reducePotentiallyExplicitContent == currentSettings.reducePotentiallyExplicitContent &&
+                saved.enabledSourcesAtRequest == currentEnabledSources
+            if (settingsMatch) {
                 restoreFeedSession(FeedScope.SEARCH, cached)
             } else {
-                startFeed(cached.state.request, null, FeedScope.SEARCH)
+                startFeed(saved.request, saved.forYouLabel, FeedScope.SEARCH)
             }
             return
         }
@@ -360,6 +443,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     private fun saveActiveFeedSession() {
         feedPreparationJob?.cancel()
         feedPreparationJob = null
+        discoveryGeneration.begin() // invalidate any result that races cancellation/navigation
         if (feedInitialized) {
             val current = _feed.value
             val session = FeedSession(
@@ -374,37 +458,82 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     private fun restoreFeedSession(scope: FeedScope, session: FeedSession) {
+        discoveryGeneration.begin()
         activeFeedScope = scope
         feedInitialized = true
         pager = session.pager
-        session.state.discoverySelection?.let { lastDiscoverySelection = it }
-        discoveryFallbackCache = false
-        _feed.value = session.state.copy(loading = false)
-        if (session.resumeOnReturn && session.pager != null && !session.state.endReached) {
+        val state = session.state
+        if (scope == FeedScope.HOME && state.discoverySession != null) {
+            val discoverySession = state.discoverySession
+            lastDiscoverySession = discoverySession
+            pager = null
+            val preferences = settings.value
+            val needsSettingsSync = state.request.filter.reducePotentiallyExplicitContent != preferences.reducePotentiallyExplicitContent ||
+                state.discoveryRotationEnabled != preferences.rotateDiscoveryHourly ||
+                state.discoveryWallhavenEnabled != preferences.wallhavenEnabled
+            val request = state.request.copy(
+                filter = state.request.filter.copy(reducePotentiallyExplicitContent = preferences.reducePotentiallyExplicitContent),
+            )
+            val safeItems = if (preferences.wallhavenEnabled) {
+                LocalFilter.apply(state.items, request.filter, request.aspectTolerance)
+            } else emptyList()
+            val restoredState = state.copy(
+                request = request,
+                items = safeItems,
+                loading = false,
+                discoveryWallhavenEnabled = preferences.wallhavenEnabled,
+            )
+            _feed.value = restoredState
+            if (session.resumeOnReturn || needsSettingsSync) {
+                viewModelScope.launch {
+                    val currentPreferences = app.settings.current()
+                    val now = System.currentTimeMillis()
+                    val seen = if (currentPreferences.avoidRecentlySeen) {
+                        app.discoveryCache.recentlySeen(now, currentPreferences.repeatAfterHours)
+                    } else emptySet()
+                    val stillActive = activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU &&
+                        lastDiscoverySession?.sessionId == discoverySession.sessionId &&
+                        _feed.value.discoverySession?.sessionId == discoverySession.sessionId
+                    if (stillActive) startDiscoveryFeed(discoverySession, currentPreferences, restoredState.items, seen)
+                }
+            }
+            return
+        }
+
+        _feed.value = state.copy(loading = false)
+        if (session.resumeOnReturn && session.pager != null && !state.endReached) {
             feedJob = viewModelScope.launch { loadPage() }
         }
     }
 
     private fun startFeed(request: FeedRequest, forYouLabel: String?, scope: FeedScope = activeFeedScope) {
+        feedPreparationJob?.cancel()
+        feedPreparationJob = null
         feedJob?.cancel()
         feedJob = null
+        discoveryGeneration.begin()
         activeFeedScope = scope
         feedInitialized = true
         if (scope == FeedScope.HOME) feedSessions.clearHome(currentTab) else feedSessions.clearSearch()
-        discoveryFallbackCache = false
+        val currentSettings = settings.value
         val effectiveRequest = request.copy(
-            filter = request.filter.copy(reducePotentiallyExplicitContent = settings.value.reducePotentiallyExplicitContent),
-            aspectTolerance = settings.value.aspectTolerance,
+            filter = request.filter.copy(reducePotentiallyExplicitContent = currentSettings.reducePotentiallyExplicitContent),
+            aspectTolerance = currentSettings.aspectTolerance,
         )
         pager = app.aggregator.newPager(effectiveRequest)
-        _feed.value = FeedUiState(request = effectiveRequest, loading = true, forYouLabel = forYouLabel)
+        _feed.value = FeedUiState(
+            request = effectiveRequest,
+            loading = true,
+            forYouLabel = forYouLabel,
+            enabledSourcesAtRequest = currentSettings.enabledSources(),
+        )
         feedJob = viewModelScope.launch {
             loadPage()
         }
     }
 
     fun loadMore() {
-        if (_feed.value.loading || _feed.value.endReached) return
+        if (_feed.value.loading || _feed.value.endReached || _feed.value.discoverySession != null) return
         if (pager == null) {
             startFeed(_feed.value.request, _feed.value.forYouLabel, activeFeedScope)
             return
@@ -413,8 +542,26 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     fun retryFeed() {
-        pager?.retry()
         val current = _feed.value
+        val discoverySession = current.discoverySession
+        if (discoverySession != null) {
+            val expectedGeneration = discoveryGeneration.current()
+            viewModelScope.launch {
+                val preferences = app.settings.current()
+                val now = System.currentTimeMillis()
+                val seen = if (preferences.avoidRecentlySeen) {
+                    app.discoveryCache.recentlySeen(now, preferences.repeatAfterHours)
+                } else emptySet()
+                if (discoveryGeneration.isCurrent(
+                        expectedGeneration,
+                        discoverySession.sessionId,
+                        _feed.value.discoverySession?.sessionId,
+                    ) && activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU
+                ) startDiscoveryFeed(discoverySession, preferences, current.items, seen)
+            }
+            return
+        }
+        pager?.retry()
         _feed.value = current.copy(pageError = null, endReached = false)
         loadMore()
     }
@@ -428,16 +575,16 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                 return@launch
             }
             feedSessions.clearHome(HomeTab.FOR_YOU)
-            openHome(HomeTab.FOR_YOU, settings.value.pinnedDiscoveryStyleId, forceRefresh = true)
+            openHome(HomeTab.FOR_YOU, forceRefresh = true)
         }
     }
 
     fun refreshHourlyHomeOnResume() {
         val prefs = settings.value
         if (!prefs.rotateDiscoveryHourly) return
-        val current = _feed.value.discoverySelection ?: lastDiscoverySelection ?: return
-        if (current.bucket != DiscoveryRotation.bucketAt(System.currentTimeMillis())) {
-            openHome(HomeTab.FOR_YOU, prefs.pinnedDiscoveryStyleId)
+        val current = _feed.value.discoverySession ?: lastDiscoverySession ?: return
+        if (current.hourBucket != DiscoveryRotation.bucketAt(System.currentTimeMillis())) {
+            openHome(HomeTab.FOR_YOU)
         }
     }
 
@@ -445,10 +592,10 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         viewModelScope.launch {
             app.discoveryCache.clear()
             feedSessions.clearHome(HomeTab.FOR_YOU)
-            lastDiscoverySelection = null
+            lastDiscoverySession = null
             _message.emit("Discovery preferences, repeat history, cached IDs and disposable feed metadata reset. Saved wallpapers are unchanged.")
             if (activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU) {
-                openHome(HomeTab.FOR_YOU, null, forceRefresh = true)
+                openHome(HomeTab.FOR_YOU, forceRefresh = true)
             }
         }
     }
@@ -459,35 +606,9 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         try {
             val result = p.loadNext()
             val before = _feed.value
-            val selection = before.discoverySelection
-            val prefs = if (selection != null) app.settings.current() else null
-            val recentlySeen = if (selection != null && prefs?.avoidRecentlySeen == true) {
-                app.discoveryCache.recentlySeen(System.currentTimeMillis(), prefs.repeatAfterHours)
-            } else emptySet()
-            val freshItems = if (selection != null) {
-                DiscoveryQuality.rank(result.items, selection, recentlySeen)
-            } else result.items
-            val canTryAlternateQuery = selection != null && before.items.isEmpty() && freshItems.isEmpty() &&
-                !result.hadFailure && result.statuses.none { it.state is SourceState.Failed || it.state is SourceState.Skipped }
-            if (canTryAlternateQuery) {
-                val alternate = selection?.fallbackQuery()
-                if (alternate != null) {
-                    val currentSettings = prefs ?: app.settings.current()
-                    val description = if (currentSettings.rotateDiscoveryHourly) {
-                        "Changes each hour · ${alternate.style.description}"
-                    } else alternate.style.description
-                    startDiscoveryFeed(alternate, currentSettings, emptyList(), null, description, false, recentlySeen)
-                    return
-                }
-            }
-            val replaceFallback = selection != null && discoveryFallbackCache && freshItems.isNotEmpty()
-            val combined = if (replaceFallback) freshItems else dedupeByKey(before.items + freshItems)
-            if (selection != null && freshItems.isNotEmpty()) {
-                app.discoveryCache.save(selection, combined, System.currentTimeMillis())
-                discoveryFallbackCache = false
-            } else {
-                app.wallpaperStore.remember(result.items)
-            }
+            val freshItems = result.items
+            val combined = dedupeByKey(before.items + freshItems)
+            app.wallpaperStore.remember(freshItems)
             val sourceErrors = result.statuses.mapNotNull { status ->
                 val error = (status.state as? SourceState.Failed)?.error ?: return@mapNotNull null
                 "${status.source.displayName}: ${error.message ?: error.kind.title}"
@@ -500,7 +621,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                 endReached = result.endReached,
                 pageError = sourceErrors.takeIf { it.isNotEmpty() }?.joinToString(" · "),
                 appendCount = before.appendCount + if (freshItems.isNotEmpty()) 1 else 0,
-                cacheNotice = if (replaceFallback || freshItems.isNotEmpty()) null else before.cacheNotice,
+                cacheNotice = if (freshItems.isNotEmpty()) null else before.cacheNotice,
             )
         } catch (e: CancellationException) {
             throw e

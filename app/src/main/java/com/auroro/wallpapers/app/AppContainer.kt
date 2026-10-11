@@ -14,6 +14,8 @@ import coil3.request.crossfade
 import okio.Path.Companion.toOkioPath
 import com.auroro.wallpapers.core.data.CollectionsRepository
 import com.auroro.wallpapers.core.data.DiscoverySnapshotCache
+import com.auroro.wallpapers.core.data.DiscoveryEngine
+import com.auroro.wallpapers.core.data.SettingsDiscoveryPoolStore
 import com.auroro.wallpapers.core.data.FavoritesRepository
 import com.auroro.wallpapers.core.data.HistoryRepository
 import com.auroro.wallpapers.core.data.LegacyDataCleanup
@@ -66,6 +68,7 @@ class AppContainer(context: Context) {
     val database: AppDatabase = AppDatabase.build(appContext)
     val wallpaperStore = WallpaperStore(database.wallpapers())
     val discoveryCache = DiscoverySnapshotCache(settings, wallpaperStore)
+    val discoveryPools = SettingsDiscoveryPoolStore(settings, wallpaperStore)
     val favorites = FavoritesRepository(database, wallpaperStore)
     val collections = CollectionsRepository(database, wallpaperStore)
     val history = HistoryRepository(database, wallpaperStore)
@@ -117,6 +120,7 @@ class AppContainer(context: Context) {
     )
 
     val aggregator = WallpaperAggregator(listOf(wallhaven, openverse))
+    val discoveryEngine = DiscoveryEngine(wallhaven, discoveryPools)
 
     val notifier = DownloadNotifier(appContext, settings)
     val wallpaperApplier = WallpaperApplier(appContext)

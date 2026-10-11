@@ -98,6 +98,9 @@ jobs:
           if [ "${{ steps.signing.outputs.signed }}" = "true" ] && [ -f app/build/outputs/apk/release/app-release.apk ]; then
             cp app/build/outputs/apk/release/app-release.apk "dist/auroro-wallpapers-${VERSION}-release.apk"
           fi
+          for apk in dist/*.apk; do
+            sha256sum "$apk" > "$apk.sha256"
+          done
           ls -la dist
 
       - name: Upload APKs
@@ -105,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: auroro-wallpapers-apk
-          path: dist/*.apk
+          path: dist/*
           if-no-files-found: error
 
       - name: Upload test and lint reports
@@ -123,7 +126,9 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') && success() && steps.signing.outputs.signed == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/*-release.apk
+          files: |
+            dist/*-release.apk
+            dist/*-release.apk.sha256
           generate_release_notes: true
 
   emulator-smoke:

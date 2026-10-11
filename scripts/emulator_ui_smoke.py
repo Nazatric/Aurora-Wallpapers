@@ -427,7 +427,7 @@ def wait_for_feed_content(label: str, timeout: int = 90, max_empty_pages: int = 
                 REPORT["checks"].append({"name": f"{label} results or honest empty/error state (page {attempt + 1})", "result": "passed"})
                 break
 
-            # The home screen places style/topic controls above its lazy image grid. On a compact
+            # The home screen places topic controls above its lazy image grid. On a compact
             # emulator the feed may be below the initial viewport; advance the real scroll container
             # instead of mistaking off-screen cards (or an empty state) for a stuck request.
             now = time.monotonic()
@@ -476,20 +476,20 @@ def main() -> None:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
     home_header = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Auto · hourly")),
-        "For You hourly Auto selection", timeout=60,
+        lambda ui: bool(find_nodes(ui, text="An internal mix of validated SFW searches", contains=True)),
+        "For You internal SFW discovery description", timeout=60,
     )
-    home_feed = wait_for_feed_content("initial hourly For You collection", timeout=120)
+    if find_nodes(home_header, text="Discover styles") or find_nodes(home_header, text="Auto · hourly"):
+        raise AssertionError("For You must not expose a selectable aesthetic/style row")
+    home_feed = wait_for_feed_content("initial validated For You mix", timeout=120)
     if not wallpaper_descriptions(home_feed):
         visible = [node_text(node) for node in home_feed.iter("node") if node_text(node)]
         raise AssertionError(
-            "The initial SFW For You query/fallback produced no visible wallpaper cards; "
+            "The internal SFW query mix produced no visible validated wallpaper cards; "
             f"visible text/accessibility labels: {visible[:100]}"
         )
-    if not find_nodes(home_header, text="Auto · hourly"):
-        raise AssertionError("For You did not expose its hourly Auto selection")
     REPORT["for_you_result_count"] = len(wallpaper_descriptions(home_feed))
-    REPORT["checks"].append({"name": "hourly For You uses a live SFW Wallhaven collection", "result": "passed"})
+    REPORT["checks"].append({"name": "For You shows source-validated SFW results without style-selector pills", "result": "passed"})
     screenshot("01-home.png")
 
     tap_text("Search", prefer_bottom=True)

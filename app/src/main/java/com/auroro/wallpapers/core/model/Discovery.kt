@@ -138,8 +138,8 @@ object DiscoveryRotation {
 /** Small, explainable local ranking: relevance and usable detail win; popularity is never used. */
 object DiscoveryQuality {
     private val obviousNonWallpaperTags = setOf(
-        "map", "maps", "diagram", "chart", "infographic", "screenshot", "contact sheet", "collage",
-        "document", "text", "model sheet", "meme", "logo sheet",
+        "map", "maps", "diagram", "chart", "infographic", "screenshot", "contact sheet",
+        "document", "model sheet", "meme", "logo sheet",
     )
 
     fun isUsable(wallpaper: Wallpaper): Boolean {
@@ -163,6 +163,38 @@ object DiscoveryQuality {
             compareByDescending<Wallpaper> { score(it, selection.style, recentlySeenKeys) }
                 .thenBy { stableTieBreak(it.key, selection.cacheKey) },
         )
+    }
+
+    fun rank(
+        items: List<Wallpaper>,
+        recipe: DiscoveryRecipe,
+        recentlySeenKeys: Set<String> = emptySet(),
+    ): List<Wallpaper> = items.asSequence()
+        .filter(::isUsable)
+        .filter(recipe::isRelevant)
+        .distinctBy { it.key }
+        .sortedWith(
+            compareByDescending<Wallpaper> { score(it, recipe, recentlySeenKeys) }
+                .thenBy { stableTieBreak(it.key, recipe.id) },
+        )
+        .toList()
+
+    /** Relevance is a hard gate; resolution and portrait suitability only order already-matched art. */
+    fun score(wallpaper: Wallpaper, recipe: DiscoveryRecipe, recentlySeenKeys: Set<String> = emptySet()): Int {
+        val shortEdge = min(wallpaper.width, wallpaper.height)
+        val longEdge = max(wallpaper.width, wallpaper.height)
+        val ratio = wallpaper.aspectRatio
+        val resolution = (log10(shortEdge.toDouble().coerceAtLeast(1.0)) * 8).toInt() +
+            (log10(longEdge.toDouble().coerceAtLeast(1.0)) * 4).toInt()
+        val phoneShape = when {
+            ratio in 0.42f..0.82f -> 18
+            ratio in 0.83f..1.12f -> 7
+            ratio > 1.12f && ratio <= 2.2f -> 2
+            else -> -8
+        }
+        val relevance = recipe.evidenceScore(wallpaper)
+        val repeatPenalty = if (wallpaper.key in recentlySeenKeys) 120 else 0
+        return relevance * 80 + resolution + phoneShape - repeatPenalty
     }
 
     fun score(wallpaper: Wallpaper, style: DiscoveryStyle, recentlySeenKeys: Set<String> = emptySet()): Int {

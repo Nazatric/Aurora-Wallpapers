@@ -80,8 +80,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.NavHostController
@@ -184,7 +184,10 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
         }
     }
     val reducedMotion = LocalReducedMotion.current
-    val goWallpaper: (Wallpaper) -> Unit = { w -> openWallpaper(nav, w) }
+    val goWallpaper: (Wallpaper) -> Unit = { w ->
+        vm.openWallpaper(w) // Seed detail state from the visible card before the route transition.
+        openWallpaper(nav, w)
+    }
     var homeTab by rememberSaveable { mutableStateOf(HomeTab.FOR_YOU) }
     val homeGridStateHolder = rememberSaveableStateHolder()
     val retainedHomeGridKeys = remember { mutableStateListOf<String>() }
@@ -207,28 +210,22 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "home"
-    LaunchedEffect(route, homeTab, settings.pinnedDiscoveryStyleId) {
+    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly, settings.reducePotentiallyExplicitContent, settings.wallhavenEnabled, settings.openverseEnabled) {
         when (route) {
-            "home" -> vm.openHome(homeTab, settings.pinnedDiscoveryStyleId)
+            "home" -> vm.openHome(homeTab)
             "search" -> vm.openSearch()
         }
     }
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, route, homeTab) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && route == "home" && homeTab == HomeTab.FOR_YOU) {
-                vm.refreshHourlyHomeOnResume()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly) {
+    LaunchedEffect(lifecycleOwner, route, homeTab, settings.rotateDiscoveryHourly) {
         if (route == "home" && homeTab == HomeTab.FOR_YOU && settings.rotateDiscoveryHourly) {
-            while (true) {
-                val remaining = DiscoveryRotation.HOUR_MILLIS - Math.floorMod(System.currentTimeMillis(), DiscoveryRotation.HOUR_MILLIS)
-                delay(remaining.coerceAtLeast(1L))
+            lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 vm.refreshHourlyHomeOnResume()
+                while (true) {
+                    val remaining = DiscoveryRotation.HOUR_MILLIS - Math.floorMod(System.currentTimeMillis(), DiscoveryRotation.HOUR_MILLIS)
+                    delay(remaining.coerceAtLeast(1L))
+                    vm.refreshHourlyHomeOnResume()
+                }
             }
         }
     }
@@ -345,14 +342,12 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                         HomeScreen(
                             feed = feed,
                             selectedTab = homeTab,
-                            rotateHourly = settings.rotateDiscoveryHourly,
                             gridStateHolder = homeGridStateHolder,
                             retainedGridKeys = retainedHomeGridKeys,
-                            onTab = { tab -> homeTab = tab; vm.openHome(tab, settings.pinnedDiscoveryStyleId) },
+                            onTab = { tab -> homeTab = tab; vm.openHome(tab) },
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
                             onCategory = { startSearch(it) },
-                            onStyle = { styleId -> vm.updateSettings { it.copy(pinnedDiscoveryStyleId = styleId) } },
                             onRefresh = vm::manualRefreshHome,
                             onOpen = goWallpaper,
                             onLoadMore = vm::loadMore,

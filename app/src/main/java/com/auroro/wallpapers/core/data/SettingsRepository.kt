@@ -44,6 +44,18 @@ enum class GlassQuality(val label: String, val description: String) {
 
 data class ManualRefreshResult(val allowed: Boolean, val remainingMillis: Long, val ordinal: Int)
 
+/** Bounded source/recipe metadata; image bytes and user saves are stored separately. */
+data class DiscoveryAvailabilityRecord(
+    val sourceId: String,
+    val recipeId: String,
+    val lastSuccessfulAtMillis: Long = 0L,
+    val updatedAtMillis: Long = 0L,
+    val retryAfterMillis: Long = 0L,
+    val consecutiveFailures: Int = 0,
+    val lastFailureKind: String? = null,
+    val wallpaperKeys: List<String> = emptyList(),
+)
+
 enum class SaveLocation(val label: String, val description: String) {
     GALLERY("Gallery", "Pictures/Auroro Wallpapers, visible in your gallery and kept if you uninstall."),
     APP_STORAGE("App storage only", "Private to Auroro. Not shown in the gallery; removed on uninstall."),
@@ -163,6 +175,81 @@ class SettingsRepository(
         }
     }
 
+    suspend fun recentlyUsedDiscoveryRecipeIds(now: Long, repeatAfterHours: Int): Set<String> {
+        val cutoff = now - repeatAfterHours.coerceIn(1, 720) * 60L * 60L * 1000L
+        return store.data.first()[RECENT_DISCOVERY_RECIPES].orEmpty()
+            .lineSequence()
+            .mapNotNull { line ->
+                val separator = line.lastIndexOf('|')
+                if (separator <= 0) return@mapNotNull null
+                val recipeId = line.substring(0, separator)
+                val at = line.substring(separator + 1).toLongOrNull() ?: return@mapNotNull null
+                recipeId.takeIf { at >= cutoff && at <= now }
+            }
+            .toSet()
+    }
+
+    suspend fun recordDiscoveryRecipeIds(recipeIds: List<String>, now: Long) {
+        if (recipeIds.isEmpty()) return
+        store.edit { prefs ->
+            val entries = linkedMapOf<String, Long>()
+            prefs[RECENT_DISCOVERY_RECIPES].orEmpty().lineSequence().forEach { line ->
+                val separator = line.lastIndexOf('|')
+                if (separator > 0) line.substring(separator + 1).toLongOrNull()?.let {
+                    entries[line.substring(0, separator)] = it
+                }
+            }
+            recipeIds.forEach { id -> if (id.matches(RECIPE_ID_PATTERN)) entries[id] = now }
+            prefs[RECENT_DISCOVERY_RECIPES] = entries.entries
+                .sortedByDescending { it.value }
+                .take(MAX_RECENT_DISCOVERY_RECIPES)
+                .joinToString("\n") { (id, at) -> "$id|$at" }
+        }
+    }
+
+    suspend fun discoveryAvailability(sourceId: String, recipeId: String): DiscoveryAvailabilityRecord? {
+        val raw = store.data.first()[availabilityKey(sourceId, recipeId)] ?: return null
+        val lines = raw.lineSequence().toList()
+        val header = lines.firstOrNull()?.split('|').orEmpty()
+        if (header.size < 5) return null
+        return DiscoveryAvailabilityRecord(
+            sourceId = sourceId,
+            recipeId = recipeId,
+            lastSuccessfulAtMillis = header[0].toLongOrNull() ?: 0L,
+            updatedAtMillis = header[1].toLongOrNull() ?: 0L,
+            retryAfterMillis = header[2].toLongOrNull() ?: 0L,
+            consecutiveFailures = header[3].toIntOrNull()?.coerceAtLeast(0) ?: 0,
+            lastFailureKind = header[4].takeIf { it.isNotBlank() && it != "-" },
+            wallpaperKeys = lines.drop(1).filter(String::isNotBlank).distinct().take(MAX_DISCOVERY_POOL_ITEMS),
+        )
+    }
+
+    suspend fun saveDiscoveryAvailability(record: DiscoveryAvailabilityRecord) {
+        require(record.sourceId.matches(RECIPE_ID_PATTERN) && record.recipeId.matches(RECIPE_ID_PATTERN))
+        val safe = record.copy(
+            consecutiveFailures = record.consecutiveFailures.coerceAtLeast(0),
+            lastFailureKind = record.lastFailureKind.orEmpty().replace('|', ' ').replace('\r', ' ').replace('\n', ' ').take(80),
+            wallpaperKeys = record.wallpaperKeys.distinct().take(MAX_DISCOVERY_POOL_ITEMS)
+                .filterNot { it.contains('\n') || it.contains('|') },
+        )
+        store.edit { prefs ->
+            val identity = "${safe.sourceId}:${safe.recipeId}"
+            val prior = prefs[DISCOVERY_AVAILABILITY_INDEX].orEmpty().lineSequence().filter(String::isNotBlank).toList()
+            val next = (listOf(identity) + prior.filterNot { it == identity }).take(MAX_DISCOVERY_POOLS)
+            (prior - next.toSet()).forEach { old -> prefs.remove(availabilityKeyForIdentity(old)) }
+            val header = listOf(
+                safe.lastSuccessfulAtMillis,
+                safe.updatedAtMillis,
+                safe.retryAfterMillis,
+                safe.consecutiveFailures,
+                safe.lastFailureKind?.takeIf(String::isNotBlank) ?: "-",
+            ).joinToString("|")
+            prefs[availabilityKey(safe.sourceId, safe.recipeId)] =
+                if (safe.wallpaperKeys.isEmpty()) header else "$header\n${safe.wallpaperKeys.joinToString("\n")}"
+            prefs[DISCOVERY_AVAILABILITY_INDEX] = next.joinToString("\n")
+        }
+    }
+
     /** Small identifier-only snapshots support fast return and offline recovery; image bytes stay in Coil's cache. */
     suspend fun saveDiscoverySnapshot(cacheKey: String, wallpaperKeys: List<String>) {
         if (wallpaperKeys.isEmpty()) return
@@ -206,10 +293,14 @@ class SettingsRepository(
     suspend fun resetDiscovery() {
         store.edit { prefs ->
             prefs.remove(RECENT_DISCOVERY_KEYS)
+            prefs.remove(RECENT_DISCOVERY_RECIPES)
             prefs.remove(DISCOVERY_SNAPSHOT_INDEX)
+            prefs.remove(DISCOVERY_AVAILABILITY_INDEX)
             prefs.remove(LAST_MANUAL_DISCOVERY_REFRESH)
             prefs.remove(DISCOVERY_REFRESH_ORDINAL)
-            prefs.asMap().keys.filter { it.name.startsWith(DISCOVERY_SNAPSHOT_PREFIX) }.forEach { key -> prefs.remove(key) }
+            prefs.asMap().keys.filter {
+                it.name.startsWith(DISCOVERY_SNAPSHOT_PREFIX) || it.name.startsWith(DISCOVERY_AVAILABILITY_PREFIX)
+            }.forEach { key -> prefs.remove(key) }
         }
         update { it.copy(
             rotateDiscoveryHourly = true,
@@ -310,6 +401,12 @@ class SettingsRepository(
 
     private fun snapshotKey(cacheKey: String) = stringPreferencesKey(DISCOVERY_SNAPSHOT_PREFIX + sha256(cacheKey))
 
+    private fun availabilityKey(sourceId: String, recipeId: String) =
+        availabilityKeyForIdentity("$sourceId:$recipeId")
+
+    private fun availabilityKeyForIdentity(identity: String) =
+        stringPreferencesKey(DISCOVERY_AVAILABILITY_PREFIX + sha256(identity))
+
     private fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8))
         .joinToString("") { byte -> "%02x".format(byte) }
@@ -325,12 +422,19 @@ class SettingsRepository(
         private const val MAX_RECENT_SEARCHES = 8
         private const val MAX_SEARCH_LENGTH = 200
         private const val MAX_RECENT_DISCOVERY_KEYS = 600
+        private const val MAX_RECENT_DISCOVERY_RECIPES = 128
         private const val MAX_DISCOVERY_SNAPSHOTS = 8
         private const val MAX_DISCOVERY_SNAPSHOT_ITEMS = 60
+        private const val MAX_DISCOVERY_POOLS = 96
+        private const val MAX_DISCOVERY_POOL_ITEMS = 24
         private const val DISCOVERY_SNAPSHOT_PREFIX = "discovery_snapshot_"
+        private const val DISCOVERY_AVAILABILITY_PREFIX = "discovery_availability_"
+        private val RECIPE_ID_PATTERN = Regex("[a-z0-9][a-z0-9-]{0,79}")
         private val RECENT_SEARCHES = stringPreferencesKey("recent_searches")
         private val RECENT_DISCOVERY_KEYS = stringPreferencesKey("recent_discovery_keys")
+        private val RECENT_DISCOVERY_RECIPES = stringPreferencesKey("recent_discovery_recipes")
         private val DISCOVERY_SNAPSHOT_INDEX = stringPreferencesKey("discovery_snapshot_index")
+        private val DISCOVERY_AVAILABILITY_INDEX = stringPreferencesKey("discovery_availability_index")
         private val LAST_MANUAL_DISCOVERY_REFRESH = longPreferencesKey("last_manual_discovery_refresh")
         private val THEME = stringPreferencesKey("theme_mode")
         private val ACCENT = stringPreferencesKey("accent")
