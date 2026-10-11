@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AppSettings
+import com.auroro.wallpapers.core.data.AccentTheme
 import com.auroro.wallpapers.core.data.AppearancePreset
 import com.auroro.wallpapers.core.data.FontChoice
 import com.auroro.wallpapers.core.data.GlassQuality
@@ -79,6 +80,10 @@ fun SettingsScreen(
                         }
                     }
                     Text(settings.appearance.description, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Text("Accent", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    ChoiceRow(AccentTheme.entries.map { it to it.label }, settings.accent) { value ->
+                        onSettings { it.copy(accent = value) }
+                    }
                     Text("Typeface", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
                     ChoiceRow(FontChoice.entries.map { it to it.label }, settings.fontChoice) { value -> onSettings { it.copy(fontChoice = value) } }
                     Text("Text size · ${(settings.fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textSecondary)

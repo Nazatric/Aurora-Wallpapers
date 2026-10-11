@@ -812,8 +812,8 @@ def main() -> None:
     wait_until(lambda ui: bool(find_nodes(ui, text="Settings")), "navigation drawer Settings entry", timeout=20)
     tap_text("Settings", timeout=20)
     settings = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Appearance")) and bool(find_nodes(ui, text="Reduce transparency")),
-        "Settings appearance and transparency controls", timeout=45,
+        lambda ui: bool(find_nodes(ui, text="Appearance")),
+        "Settings appearance section", timeout=45,
     )
     if not selected_state(settings, "System"):
         raise AssertionError("The System theme is not initially selected")
@@ -829,6 +829,18 @@ def main() -> None:
     settings = wait_until(lambda ui: selected_state(ui, "Emerald"), "Emerald accent selection", timeout=20)
     tap_text("Aqua", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Aqua"), "restore Aqua accent", timeout=20)
+    size_output = adb("shell", "wm", "size").stdout
+    size = re.search(r"(\d+)x(\d+)", size_output)
+    width, height = map(int, size.groups()) if size else (1080, 2400)
+    for _ in range(8):
+        if find_nodes(settings, text="Reduce transparency"):
+            break
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.82)),
+            str(width // 2), str(int(height * 0.27)), "450")
+        time.sleep(1)
+        settings = dump_hierarchy()
+    if not find_nodes(settings, text="Reduce transparency"):
+        raise AssertionError("The Settings appearance panel did not expose Reduce transparency after scrolling")
     transparency = switch_node(settings, "Reduce transparency")
     if transparency.attrib.get("checked") != "false":
         raise AssertionError(f"Expected fresh-install Reduce transparency=false, got {transparency.attrib}")
