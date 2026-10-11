@@ -960,11 +960,23 @@ def main() -> None:
     wait_until(lambda ui: bool(find_nodes(ui, text="Settings")), "Settings entry after process recreation", timeout=20)
     tap_text("Settings", timeout=20)
     settings = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Appearance")) and bool(find_nodes(ui, text="Reduce transparency")),
-        "restored Settings after process recreation", timeout=45,
+        lambda ui: bool(find_nodes(ui, text="Appearance")),
+        "restored Settings appearance section after process recreation", timeout=45,
     )
     if not selected_state(settings, "Frutiger Aero") or not selected_state(settings, "Aqua"):
         raise AssertionError("Appearance or accent selection did not survive process recreation")
+    size_output = adb("shell", "wm", "size").stdout
+    size = re.search(r"(\d+)x(\d+)", size_output)
+    width, height = map(int, size.groups()) if size else (1080, 2400)
+    for _ in range(8):
+        if find_nodes(settings, text="Reduce transparency"):
+            break
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.82)),
+            str(width // 2), str(int(height * 0.27)), "450")
+        time.sleep(1)
+        settings = dump_hierarchy()
+    if not find_nodes(settings, text="Reduce transparency"):
+        raise AssertionError("Reduce transparency was not reachable after restoring Settings")
     if switch_node(settings, "Reduce transparency").attrib.get("checked") != "true":
         raise AssertionError("Reduce transparency did not survive process recreation")
     for _ in range(8):
