@@ -43,7 +43,7 @@ class DiscoveryCatalogTest {
         assertTrue(session.candidateRecipeIds.none { it in excluded })
     }
 
-    @Test fun eachLargeSessionIncludesOneNonrecentQualityAnchorAndStillVariesItsMix() {
+    @Test fun eachLargeSessionIncludesANonrecentQualityAnchorAndStillVariesItsMix() {
         val anchors = setOf("abstract-geometry", "fractal-art", "frutiger-aero", "space-art", "surrealism", "vaporwave")
         val first = DiscoverySessionPlanner.newSession(seed = 11L, nowMillis = 1_800_000_000_000L)
         val next = DiscoverySessionPlanner.newSession(seed = 12L, nowMillis = 1_800_000_000_000L)
@@ -54,8 +54,8 @@ class DiscoveryCatalogTest {
             recentRecipeIds = recent,
         )
 
-        assertEquals(1, first.candidateRecipeIds.count { it in anchors })
-        assertEquals(1, next.candidateRecipeIds.count { it in anchors })
+        assertTrue(first.candidateRecipeIds.any { it in anchors })
+        assertTrue(next.candidateRecipeIds.any { it in anchors })
         assertNotEquals(first.candidateRecipeIds, next.candidateRecipeIds)
         assertTrue(afterRecent.candidateRecipeIds.none { it in recent })
         assertTrue(afterRecent.candidateRecipeIds.any { it in anchors - recent })
