@@ -835,7 +835,7 @@ def main() -> None:
         raise AssertionError("The combined search showed no results; inspect its explicit empty/error state")
     adb("shell", "input", "keyevent", "4")
     home = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")) and bool(find_nodes(ui, text="Explore topics")) and not find_nodes(ui, text="Try ocean, forest or a place"),
+        lambda ui: bool(find_nodes(ui, text="Home")) and bool(find_nodes(ui, text="Explore topics")) and not find_nodes(ui, text="Try ocean, forest or a place"),
         "system-back navigation to Home",
         timeout=45,
     )
