@@ -122,14 +122,29 @@ jobs:
             app/build/test-results/
           if-no-files-found: ignore
 
+      - name: Prepare release notes from the versioned changelog
+        if: startsWith(github.ref, 'refs/tags/v') && success() && steps.signing.outputs.signed == 'true'
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=$(grep -oP 'versionName = "\K[^" ]+' app/build.gradle.kts)
+          if [ "$TAG_NAME" != "v$VERSION" ]; then
+            echo "Release tag $TAG_NAME does not match app version v$VERSION" >&2
+            exit 1
+          fi
+          python3 .github/scripts/extract_release_notes.py "$VERSION" CHANGELOG.md "$RUNNER_TEMP/release-notes.md"
+
       - name: Attach verified production APK to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') && success() && steps.signing.outputs.signed == 'true'
         uses: softprops/action-gh-release@v3
         with:
+          name: Auroro Wallpapers ${{ github.ref_name }}
           files: |
             dist/*-release.apk
             dist/*-release.apk.sha256
-          generate_release_notes: true
+          body_path: ${{ runner.temp }}/release-notes.md
+          generate_release_notes: false
+          fail_on_unmatched_files: true
 
   emulator-smoke:
     needs: build

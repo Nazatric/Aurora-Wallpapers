@@ -46,7 +46,7 @@ No additional source is silently mixed into For You. AIC/Met/NASA can be reconsi
 
 ## Version and installation
 
-The requested app version name is **0.1** with Android `versionCode` **3**. The code is higher than the checkout's prior code (2) so Android update ordering remains monotonic. The repository already has public v1.0.0/v1.1.0 debug-only history; there is no existing v0.1 release/tag. Those old debug APKs are not production releases. A v0.1 production APK/tag must wait until a durable release keystore is safely configured and its signature is verified.
+See [CHANGELOG.md](CHANGELOG.md) for the prepared v0.1 release notes. The version name is **0.1** with Android `versionCode` **3**. The code is higher than the checkout's prior code (2) so Android update ordering remains monotonic. The repository already has public v1.0.0/v1.1.0 debug-only history; there is no existing v0.1 release/tag. Those old debug APKs are not production releases. A v0.1 production APK/tag must wait until a durable release keystore is safely configured and its signature is verified.
 
 For local development, use the debug variant (debug signature only):
 
