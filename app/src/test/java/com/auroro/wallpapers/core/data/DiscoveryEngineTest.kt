@@ -92,6 +92,8 @@ class DiscoveryEngineTest {
         assertEquals(DiscoveryEngine.MAX_REQUESTS_PER_SESSION, provider.requests.size)
         assertTrue(result.requestBudgetReached)
         assertTrue(result.message()!!.contains("15-request budget"))
+        assertTrue(result.message()!!.contains("0 mapped, 0 image-usable, 0 recipe-matched, and 0 passed local filters"))
+        assertEquals(0, result.providerItemsReceived)
         assertTrue(result.errors.isEmpty())
         assertEquals(3, store.empties.size)
     }
@@ -118,6 +120,10 @@ class DiscoveryEngineTest {
         assertTrue(seenQueries[0] != seenQueries[1])
         assertEquals(seenQueries.last(), result.sections.single().identity.query)
         assertEquals(2, result.items.size)
+        assertEquals(4, result.providerItemsReceived)
+        assertEquals(4, result.sourceUsableItems)
+        assertEquals(2, result.recipeRelevantItems)
+        assertEquals(4, result.locallyValidatedItems)
     }
 
     @Test fun boundedQueryPagingContinuesUntilOneRelevantResultIsFound() = runTest {
@@ -220,7 +226,7 @@ class DiscoveryEngineTest {
             assertEquals(setOf(WallpaperSource.WALLHAVEN), request.filter.sources)
             assertEquals(Orientation.PORTRAIT, request.filter.orientation)
             assertEquals(ResolutionFilter.Preset(ResolutionPreset.P1080), request.filter.resolution)
-            assertEquals(SortOption.RANDOM, request.filter.sort)
+            assertEquals(SortOption.RELEVANCE, request.filter.sort)
             assertEquals(setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE), request.filter.wallhavenCategories)
             assertTrue(request.filter.reducePotentiallyExplicitContent)
         }
@@ -381,8 +387,8 @@ class DiscoveryEngineTest {
     ) : WallpaperProvider {
         override val source = WallpaperSource.WALLHAVEN
         override val capabilities = ProviderCapabilities(
-            sortsWithoutQuery = setOf(SortOption.RANDOM),
-            sortsWithQuery = setOf(SortOption.RANDOM),
+            sortsWithoutQuery = setOf(SortOption.RELEVANCE),
+            sortsWithQuery = setOf(SortOption.RELEVANCE),
             supportsCategories = true,
         )
         var availabilityState: SourceAvailability = SourceAvailability.Available

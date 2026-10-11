@@ -77,6 +77,10 @@ data class DiscoveryBuildResult(
     val errors: List<ProviderException>,
     val disabledReason: String? = null,
     val requestBudgetReached: Boolean = false,
+    val providerItemsReceived: Int = 0,
+    val sourceUsableItems: Int = 0,
+    val recipeRelevantItems: Int = 0,
+    val locallyValidatedItems: Int = 0,
 ) {
     val staleCacheUsed: Boolean get() = sections.any { it.staleCache }
     val allFromCache: Boolean get() = sections.isNotEmpty() && sections.all { it.fromCache }
@@ -93,14 +97,28 @@ data class DiscoveryBuildResult(
         disabledReason != null -> disabledReason
         errors.isNotEmpty() && items.isEmpty() -> errors.first().message ?: errors.first().kind.title
         errors.isNotEmpty() -> "Some searches could not finish (${errors.map { it.kind.title }.distinct().joinToString()}); showing ${items.size} validated wallpapers."
-        requestBudgetReached && items.isEmpty() -> "No validated results were available within this mix's ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget. Try again later."
+        requestBudgetReached && items.isEmpty() ->
+            "No validated results were available within this mix's ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget. ${emptyDiagnostics()}. Try again later."
         requestBudgetReached -> "Showing ${items.size} validated results; the ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget was reached before six recipe matches."
         items.isEmpty() && skippedCoolingDown > 0 -> "Discovery searches are cooling down after empty or failed requests. Try again later."
-        items.isEmpty() && attemptedRecipes > 0 -> "No relevant results passed the checks from $attemptedRecipes attempted recipe candidates. Try again later."
+        items.isEmpty() && attemptedRecipes > 0 ->
+            "No relevant results passed the checks from $attemptedRecipes attempted recipe candidates. ${emptyDiagnostics()}. Try again later."
         items.isEmpty() -> "No suitable results matched this discovery mix. Try again later."
         staleCacheUsed -> "Showing previously validated wallpapers while Wallhaven refreshes this mix."
         allFromCache -> "Showing validated wallpapers from the on-device cache."
         else -> null
+    }
+
+    private fun emptyDiagnostics(): String {
+        val reason = when {
+            providerItemsReceived == 0 -> "No usable wallpaper rows were returned"
+            sourceUsableItems == 0 -> "The returned rows did not pass the basic image-quality checks"
+            recipeRelevantItems == 0 -> "No usable row had metadata matching the selected recipes"
+            locallyValidatedItems == 0 -> "Recipe matches did not pass the active SFW, portrait, or 1080p+ filters"
+            else -> "No recipe produced an accepted result"
+        }
+        return "Wallhaven page rows: $providerItemsReceived mapped, $sourceUsableItems image-usable, " +
+            "$recipeRelevantItems recipe-matched, and $locallyValidatedItems passed local filters. $reason"
     }
 }
 
@@ -242,6 +260,10 @@ class DiscoveryEngine(
         var attempted = 0
         var emptyRecipes = 0
         var requestBudgetReached = false
+        var providerItemsReceived = 0
+        var sourceUsableItems = 0
+        var recipeRelevantItems = 0
+        var locallyValidatedItems = 0
         val requestBudget = DiscoveryRequestBudget(MAX_REQUESTS_PER_SESSION)
         val semaphore = Semaphore(requestConcurrency)
         for (batch in toFetch.chunked(requestConcurrency.coerceAtMost(3))) {
@@ -266,6 +288,10 @@ class DiscoveryEngine(
                 if (outcome.error != null) errors += outcome.error
                 if (outcome.empty) emptyRecipes++
                 if (outcome.requestBudgetReached) requestBudgetReached = true
+                providerItemsReceived += outcome.providerItemsReceived
+                sourceUsableItems += outcome.sourceUsableItems
+                recipeRelevantItems += outcome.recipeRelevantItems
+                locallyValidatedItems += outcome.locallyValidatedItems
                 val section = outcome.section
                 if (section != null) {
                     sections[section.identity.recipeId] = section
@@ -295,6 +321,10 @@ class DiscoveryEngine(
             skippedCoolingDown,
             errors,
             requestBudgetReached,
+            providerItemsReceived,
+            sourceUsableItems,
+            recipeRelevantItems,
+            locallyValidatedItems,
         )
         onProgress(result.toProgress(loading = false))
         return result
@@ -308,9 +338,32 @@ class DiscoveryEngine(
         recentlySeenKeys: Set<String>,
         requestBudget: DiscoveryRequestBudget,
     ): QueryOutcome {
+        var providerItemsReceived = 0
+        var sourceUsableItems = 0
+        var recipeRelevantItems = 0
+        var locallyValidatedItems = 0
+        fun outcome(
+            queryIdentity: DiscoveryQueryIdentity,
+            section: ValidatedDiscoverySection? = null,
+            error: ProviderException? = null,
+            empty: Boolean = false,
+            requestBudgetReached: Boolean = false,
+        ) = QueryOutcome(
+            identity = queryIdentity,
+            recipe = recipe,
+            section = section,
+            error = error,
+            empty = empty,
+            requestBudgetReached = requestBudgetReached,
+            providerItemsReceived = providerItemsReceived,
+            sourceUsableItems = sourceUsableItems,
+            recipeRelevantItems = recipeRelevantItems,
+            locallyValidatedItems = locallyValidatedItems,
+        )
+
         return try {
             val sourceQuery = recipe.sourceQueries[provider.source]
-                ?: return QueryOutcome(identity, recipe, empty = true)
+                ?: return outcome(identity, empty = true)
             val initialIndex = sourceQuery.phrases.indexOf(identity.query).takeIf { it >= 0 } ?: 0
             val queryVariants = (0 until minOf(MAX_QUERY_VARIANTS_PER_RECIPE, sourceQuery.phrases.size))
                 .map { sourceQuery.phraseAt(initialIndex + it) }
@@ -326,12 +379,20 @@ class DiscoveryEngine(
                 while (pagesFetched < MAX_PAGES_PER_RECIPE && valid.size < MIN_ITEMS_PER_RECIPE) {
                     val currentCursor = cursor ?: break
                     if (!requestBudget.tryAcquire()) {
-                        return QueryOutcome(identity = attemptIdentity, recipe = recipe, requestBudgetReached = true)
+                        return outcome(attemptIdentity, requestBudgetReached = true)
                     }
                     val page = withTimeout(perRecipeTimeoutMillis) {
                         provider.fetchPage(attemptRequest, currentCursor)
                     }
                     fetchedItems += page.items
+                    providerItemsReceived += page.items.size
+                    val sourceUsable = page.items.filter { it.source == provider.source && DiscoveryQuality.isUsable(it) }
+                    sourceUsableItems += sourceUsable.size
+                    val recipeRelevant = sourceUsable.filter(recipe::isRelevant)
+                    recipeRelevantItems += recipeRelevant.size
+                    locallyValidatedItems += recipeRelevant.count {
+                        LocalFilter.matches(it, request.filter, request.aspectTolerance)
+                    }
                     pagesFetched++
                     valid = validate(fetchedItems, recipe, request.filter, request.aspectTolerance, recentlySeenKeys)
                     cursor = page.next
@@ -339,16 +400,15 @@ class DiscoveryEngine(
                 if (valid.size >= MIN_ITEMS_PER_RECIPE) {
                     val sectionItems = valid.take(MAX_ITEMS_PER_RECIPE)
                     pools.recordSuccess(provider.source, recipe, sectionItems, clock())
-                    return QueryOutcome(
-                        identity = attemptIdentity,
-                        recipe = recipe,
+                    return outcome(
+                        queryIdentity = attemptIdentity,
                         section = ValidatedDiscoverySection(attemptIdentity, sectionItems, fromCache = false),
                     )
                 }
             }
 
             pools.recordEmpty(provider.source, recipe, clock())
-            QueryOutcome(identity, recipe, empty = true)
+            outcome(identity, empty = true)
         } catch (timeout: TimeoutCancellationException) {
             val error = ProviderException(
                 ProviderErrorKind.TIMEOUT,
@@ -356,13 +416,13 @@ class DiscoveryEngine(
                 cause = timeout,
             )
             pools.recordFailure(provider.source, recipe, error, clock())
-            QueryOutcome(identity, recipe, error = error)
+            outcome(identity, error = error)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (failure: Throwable) {
             val error = failure.toProviderException(provider.source.displayName)
             pools.recordFailure(provider.source, recipe, error, clock())
-            QueryOutcome(identity, recipe, error = error)
+            outcome(identity, error = error)
         }
     }
 
@@ -389,7 +449,8 @@ class DiscoveryEngine(
         sources = setOf(provider.source),
         orientation = Orientation.PORTRAIT,
         resolution = ResolutionFilter.Preset(ResolutionPreset.P1080),
-        sort = SortOption.RANDOM,
+        // Session/query selection carries variety; the provider relevance order prioritizes usable matches.
+        sort = SortOption.RELEVANCE,
         wallhavenCategories = if (provider.source == WallpaperSource.WALLHAVEN) {
             setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE)
         } else emptySet(),
@@ -415,6 +476,10 @@ class DiscoveryEngine(
         skipped: Int,
         errors: List<ProviderException>,
         requestBudgetReached: Boolean = false,
+        providerItemsReceived: Int = 0,
+        sourceUsableItems: Int = 0,
+        recipeRelevantItems: Int = 0,
+        locallyValidatedItems: Int = 0,
     ) = DiscoveryBuildResult(
         sessionId = session.sessionId,
         generation = generation,
@@ -425,6 +490,10 @@ class DiscoveryEngine(
         skippedCoolingDown = skipped,
         errors = errors.distinctBy { it.kind },
         requestBudgetReached = requestBudgetReached,
+        providerItemsReceived = providerItemsReceived,
+        sourceUsableItems = sourceUsableItems,
+        recipeRelevantItems = recipeRelevantItems,
+        locallyValidatedItems = locallyValidatedItems,
     )
 
     private fun progress(
@@ -476,6 +545,10 @@ class DiscoveryEngine(
         val error: ProviderException? = null,
         val empty: Boolean = false,
         val requestBudgetReached: Boolean = false,
+        val providerItemsReceived: Int = 0,
+        val sourceUsableItems: Int = 0,
+        val recipeRelevantItems: Int = 0,
+        val locallyValidatedItems: Int = 0,
     )
 
     companion object {
