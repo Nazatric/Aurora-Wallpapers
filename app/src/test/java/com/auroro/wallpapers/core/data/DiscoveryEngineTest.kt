@@ -73,6 +73,46 @@ class DiscoveryEngineTest {
         assertEquals(15, permitted)
     }
 
+    @Test fun missingSearchMetadataIsEnrichedWithOneBudgetedProviderDetailCall() = runTest {
+        val provider = ScriptedDiscoveryProvider(
+            answerPage = { _, _ -> ProviderPage(items = listOf(tagged("from-search")), next = null) },
+            answerDetail = { sourceId -> tagged(sourceId, "fractal art") },
+            supportsDetail = true,
+            answer = { error("The cursor-aware response must be used") },
+        )
+
+        val result = DiscoveryEngine(provider, MemoryDiscoveryPoolStore()).discover(
+            session(listOf("fractal-art")), generation = 21L, preferences = AppSettings(),
+        )
+
+        assertEquals(1, provider.requests.size)
+        assertEquals(listOf("from-search"), provider.detailRequests)
+        assertEquals(listOf("fractal art"), result.items.single().tags.map { it.name })
+        assertEquals(1, result.recipeRelevantItems)
+        assertEquals(1, result.locallyValidatedItems)
+        assertTrue(!result.requestBudgetReached)
+    }
+
+    @Test fun providerDetailLookupsAndSearchPagesShareOneSessionBudget() = runTest {
+        val provider = ScriptedDiscoveryProvider(
+            answerPage = { _, _ -> ProviderPage(items = listOf(tagged("unmatched")), next = null) },
+            answerDetail = { sourceId -> tagged(sourceId, "mountain") },
+            supportsDetail = true,
+            answer = { error("The cursor-aware response must be used") },
+        )
+
+        val result = DiscoveryEngine(provider, MemoryDiscoveryPoolStore()).discover(
+            session(recipeIds), generation = 22L, preferences = AppSettings(),
+        )
+
+        assertEquals(
+            DiscoveryEngine.MAX_REQUESTS_PER_SESSION,
+            provider.requests.size + provider.detailRequests.size,
+        )
+        assertTrue(result.requestBudgetReached)
+        assertTrue(result.errors.isEmpty())
+    }
+
     @Test fun candidateFallbackAndPagingStopAtTheSessionRequestBudget() = runTest {
         val provider = ScriptedDiscoveryProvider(
             answer = { error("The cursor-aware response must be used") },
@@ -383,6 +423,8 @@ class DiscoveryEngineTest {
 
     private class ScriptedDiscoveryProvider(
         private val answerPage: (suspend (FeedRequest, PageCursor) -> ProviderPage)? = null,
+        private val answerDetail: (suspend (String) -> Wallpaper?)? = null,
+        private val supportsDetail: Boolean = false,
         private val answer: suspend (FeedRequest) -> ProviderPage,
     ) : WallpaperProvider {
         override val source = WallpaperSource.WALLHAVEN
@@ -390,12 +432,19 @@ class DiscoveryEngineTest {
             sortsWithoutQuery = setOf(SortOption.RELEVANCE),
             sortsWithQuery = setOf(SortOption.RELEVANCE),
             supportsCategories = true,
+            supportsDetail = supportsDetail,
         )
         var availabilityState: SourceAvailability = SourceAvailability.Available
         val requests = mutableListOf<FeedRequest>()
         val cursors = mutableListOf<PageCursor>()
+        val detailRequests = mutableListOf<String>()
 
         override suspend fun availability(): SourceAvailability = availabilityState
+
+        override suspend fun detail(sourceId: String): Wallpaper? {
+            detailRequests += sourceId
+            return answerDetail?.invoke(sourceId)
+        }
 
         override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
             requests += request

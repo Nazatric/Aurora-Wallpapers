@@ -343,6 +343,7 @@ class DiscoveryEngine(
         var sourceUsableItems = 0
         var recipeRelevantItems = 0
         var locallyValidatedItems = 0
+        var detailLookups = 0
         fun outcome(
             queryIdentity: DiscoveryQueryIdentity,
             section: ValidatedDiscoverySection? = null,
@@ -385,9 +386,29 @@ class DiscoveryEngine(
                     val page = withTimeout(perRecipeTimeoutMillis) {
                         provider.fetchPage(attemptRequest, currentCursor)
                     }
-                    fetchedItems += page.items
+                    val enrichedItems = page.items.toMutableList()
+                    if (provider.capabilities.supportsDetail && detailLookups < MAX_DETAIL_LOOKUPS_PER_RECIPE) {
+                        val pageHasEvidence = page.items.any {
+                            it.source == provider.source && DiscoveryQuality.isUsable(it) && recipe.isRelevant(it)
+                        }
+                        val candidateIndex = if (pageHasEvidence) -1 else page.items.indexOfFirst {
+                            it.source == provider.source && DiscoveryQuality.isUsable(it) && it.tags.isEmpty()
+                        }
+                        if (candidateIndex >= 0) {
+                            if (!requestBudget.tryAcquire()) {
+                                return outcome(attemptIdentity, requestBudgetReached = true)
+                            }
+                            detailLookups++
+                            val candidate = page.items[candidateIndex]
+                            val detailed = withTimeout(perRecipeTimeoutMillis) { provider.detail(candidate.sourceId) }
+                            if (detailed?.source == provider.source && detailed.sourceId == candidate.sourceId) {
+                                enrichedItems[candidateIndex] = detailed
+                            }
+                        }
+                    }
+                    fetchedItems += enrichedItems
                     providerItemsReceived += page.items.size
-                    val sourceUsable = page.items.filter { it.source == provider.source && DiscoveryQuality.isUsable(it) }
+                    val sourceUsable = enrichedItems.filter { it.source == provider.source && DiscoveryQuality.isUsable(it) }
                     sourceUsableItems += sourceUsable.size
                     val recipeRelevant = sourceUsable.filter(recipe::isRelevant)
                     recipeRelevantItems += recipeRelevant.size
@@ -395,7 +416,7 @@ class DiscoveryEngine(
                         LocalFilter.matches(it, request.filter, request.aspectTolerance)
                     }
                     if (Log.isLoggable(DISCOVERY_LOG_TAG, Log.DEBUG)) {
-                        val sampleTags = page.items.asSequence()
+                        val sampleTags = enrichedItems.asSequence()
                             .flatMap { it.tags.asSequence() }
                             .map { it.name.trim() }
                             .filter(String::isNotEmpty)
@@ -405,7 +426,7 @@ class DiscoveryEngine(
                         Log.d(
                             DISCOVERY_LOG_TAG,
                             "recipe=${recipe.id} query=${phrase.take(48)} rows=${page.items.size} " +
-                                "usable=${sourceUsable.size} evidence=${recipeRelevant.size} " +
+                                "details=$detailLookups usable=${sourceUsable.size} evidence=${recipeRelevant.size} " +
                                 "local=${recipeRelevant.count { LocalFilter.matches(it, request.filter, request.aspectTolerance) }} " +
                                 "sampleTags=$sampleTags",
                         )
@@ -578,6 +599,7 @@ class DiscoveryEngine(
         const val MAX_REQUESTS_PER_SESSION = 15
         const val MAX_QUERY_VARIANTS_PER_RECIPE = 2
         const val MAX_PAGES_PER_RECIPE = 2
+        const val MAX_DETAIL_LOOKUPS_PER_RECIPE = 1
         const val ITEMS_PER_RECIPE_IN_MIX = 8
         const val DEFAULT_QUERY_TIMEOUT_MILLIS = 10_000L
     }
