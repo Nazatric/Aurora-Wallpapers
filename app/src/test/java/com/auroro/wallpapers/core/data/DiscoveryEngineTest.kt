@@ -18,10 +18,15 @@ import com.auroro.wallpapers.core.network.ProviderErrorKind
 import com.auroro.wallpapers.core.network.ProviderException
 import com.auroro.wallpapers.wallpaper
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -55,6 +60,18 @@ class DiscoveryEngineTest {
         "brutalist-architecture",
         "isometric-worlds",
     )
+
+    @Test fun requestBudgetIsSafeAcrossConcurrentCandidateRequests() = runTest {
+        val budget = DiscoveryRequestBudget(15)
+
+        val permitted = withContext(Dispatchers.Default) {
+            coroutineScope {
+                (0 until 100).map { async { budget.tryAcquire() } }.awaitAll().count { it }
+            }
+        }
+
+        assertEquals(15, permitted)
+    }
 
     @Test fun candidateFallbackAndPagingStopAtTheSessionRequestBudget() = runTest {
         val provider = ScriptedDiscoveryProvider(

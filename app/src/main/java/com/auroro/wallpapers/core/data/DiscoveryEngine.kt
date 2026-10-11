@@ -104,7 +104,7 @@ data class DiscoveryBuildResult(
     }
 }
 
-private class DiscoveryRequestBudget(private val maximum: Int) {
+internal class DiscoveryRequestBudget(private val maximum: Int) {
     private var used = 0
 
     @Synchronized
@@ -480,6 +480,7 @@ class DiscoveryEngine(
 
     companion object {
         const val TARGET_VALIDATED_RECIPES = 6
+        // A single strictly relevant, usable image is enough to show a recipe rather than discard it.
         const val MIN_ITEMS_PER_RECIPE = 1
         const val MAX_ITEMS_PER_RECIPE = 24
         const val MAX_CANDIDATES = 12
