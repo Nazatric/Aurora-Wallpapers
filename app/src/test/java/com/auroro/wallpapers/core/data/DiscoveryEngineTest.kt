@@ -56,6 +56,29 @@ class DiscoveryEngineTest {
         "isometric-worlds",
     )
 
+    @Test fun candidateFallbackAndPagingStopAtTheSessionRequestBudget() = runTest {
+        val provider = ScriptedDiscoveryProvider(
+            answer = { error("The cursor-aware response must be used") },
+            answerPage = { _, cursor ->
+                ProviderPage(
+                    items = emptyList(),
+                    next = if (cursor.page == 1) PageCursor(page = 2, seed = cursor.seed) else null,
+                )
+            },
+        )
+        val store = MemoryDiscoveryPoolStore()
+
+        val result = DiscoveryEngine(provider, store).discover(
+            session(recipeIds), generation = 20L, preferences = AppSettings(),
+        )
+
+        assertEquals(DiscoveryEngine.MAX_REQUESTS_PER_SESSION, provider.requests.size)
+        assertTrue(result.requestBudgetReached)
+        assertTrue(result.message()!!.contains("15-request budget"))
+        assertTrue(result.errors.isEmpty())
+        assertEquals(3, store.empties.size)
+    }
+
     @Test fun emptyQueryPhraseFallsBackToAnotherMappedPhraseAndPreservesItsIdentity() = runTest {
         val seenQueries = mutableListOf<String>()
         val provider = ScriptedDiscoveryProvider(

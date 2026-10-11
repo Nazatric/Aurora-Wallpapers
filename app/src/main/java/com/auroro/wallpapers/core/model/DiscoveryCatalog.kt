@@ -94,6 +94,9 @@ data class DiscoverySession(
 object DiscoverySessionPlanner {
     const val TARGET_VALIDATED_RECIPES = 6
     const val MAX_CANDIDATE_RECIPES = 12
+    private val qualityAnchorRecipeIds = setOf(
+        "abstract-geometry", "fractal-art", "frutiger-aero", "space-art", "surrealism", "vaporwave",
+    )
 
     fun newSession(
         seed: Long,
@@ -115,10 +118,19 @@ object DiscoverySessionPlanner {
         val requested = candidateCount.coerceIn(1, MAX_CANDIDATE_RECIPES).coerceAtMost(pool.size)
         val chosen = mutableListOf<DiscoveryRecipe>()
         val usedFamilies = mutableSetOf<DiscoveryFamily>()
+        if (requested > 1) {
+            val anchors = pool.filter { it.id in qualityAnchorRecipeIds && it.id !in recentSafe }
+            if (anchors.isNotEmpty()) {
+                val anchor = anchors[random.nextInt(anchors.size)]
+                chosen += anchor
+                usedFamilies += anchor.family
+            }
+        }
         val preferredBudget = minOf(preferred.size, maxOf(1, requested / 3))
+        val alreadyPreferred = chosen.count { it.id in preferred }
 
-        repeat(requested) { index ->
-            val wantsPreferred = preferred.isNotEmpty() && index < preferredBudget
+        repeat(requested - chosen.size) { index ->
+            val wantsPreferred = preferred.isNotEmpty() && index + alreadyPreferred < preferredBudget
             val remaining = pool.filter { candidate ->
                 candidate !in chosen && (usedFamilies.size >= DiscoveryFamily.entries.size || candidate.family !in usedFamilies) &&
                     (!wantsPreferred || candidate.id in preferred)
@@ -275,8 +287,8 @@ object DiscoveryCatalog {
         recipe("paper-craft", "Paper craft", DiscoveryFamily.ILLUSTRATION, listOf("paper craft art", "paper sculpture"), "paper craft|paper sculpture", OpenverseCategory.DIGITIZED_ARTWORK),
         recipe("papercut-art", "Papercut art", DiscoveryFamily.ILLUSTRATION, listOf("papercut art", "paper cut illustration"), "papercut|paper cut", OpenverseCategory.DIGITIZED_ARTWORK),
         recipe("scientific-illustration", "Scientific illustration", DiscoveryFamily.SCIENTIFIC, listOf("scientific illustration", "natural history illustration"), "scientific illustration|natural history", OpenverseCategory.DIGITIZED_ARTWORK),
-        recipe("celestial-art", "Celestial art", DiscoveryFamily.DIGITAL_WORLDS, listOf("celestial art", "celestial illustration"), "celestial|astronomy"),
-        recipe("sci-fi-environments", "Sci-fi environments", DiscoveryFamily.DIGITAL_WORLDS, listOf("science fiction environment art", "sci fi landscape"), "science fiction|sci fi"),
+        recipe("celestial-art", "Celestial art", DiscoveryFamily.DIGITAL_WORLDS, listOf("space art planetary landscape", "space stars nebula"), "space|planet|astronomy|cosmic|nebula|stars"),
+        recipe("sci-fi-environments", "Sci-fi environments", DiscoveryFamily.DIGITAL_WORLDS, listOf("science fiction environment art", "sci fi landscape"), "science fiction|sci fi|scifi|futuristic"),
         recipe("experimental-typography", "Experimental typography", DiscoveryFamily.EXPERIMENTAL, listOf("experimental typography", "typographic art"), "typography|typographic"),
         recipe("unusual-texture-studies", "Unusual texture studies", DiscoveryFamily.PHOTOGRAPHY, listOf("abstract texture study", "unusual surface texture"), "texture study|surface texture", OpenverseCategory.PHOTOGRAPH),
         recipe("frutiger-aero", "Frutiger Aero", DiscoveryFamily.AERO, listOf("frutiger aero", "aqua glass architecture"), "frutiger aero|aqua glass"),

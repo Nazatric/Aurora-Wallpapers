@@ -76,6 +76,7 @@ data class DiscoveryBuildResult(
     val skippedCoolingDown: Int,
     val errors: List<ProviderException>,
     val disabledReason: String? = null,
+    val requestBudgetReached: Boolean = false,
 ) {
     val staleCacheUsed: Boolean get() = sections.any { it.staleCache }
     val allFromCache: Boolean get() = sections.isNotEmpty() && sections.all { it.fromCache }
@@ -92,12 +93,25 @@ data class DiscoveryBuildResult(
         disabledReason != null -> disabledReason
         errors.isNotEmpty() && items.isEmpty() -> errors.first().message ?: errors.first().kind.title
         errors.isNotEmpty() -> "Some searches could not finish (${errors.map { it.kind.title }.distinct().joinToString()}); showing ${items.size} validated wallpapers."
+        requestBudgetReached && items.isEmpty() -> "No validated results were available within this mix's ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget. Try again later."
+        requestBudgetReached -> "Showing ${items.size} validated results; the ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget was reached before six recipe matches."
         items.isEmpty() && skippedCoolingDown > 0 -> "Discovery searches are cooling down after empty or failed requests. Try again later."
         items.isEmpty() && attemptedRecipes > 0 -> "No relevant results passed the checks from $attemptedRecipes attempted recipe candidates. Try again later."
         items.isEmpty() -> "No suitable results matched this discovery mix. Try again later."
         staleCacheUsed -> "Showing previously validated wallpapers while Wallhaven refreshes this mix."
         allFromCache -> "Showing validated wallpapers from the on-device cache."
         else -> null
+    }
+}
+
+private class DiscoveryRequestBudget(private val maximum: Int) {
+    private var used = 0
+
+    @Synchronized
+    fun tryAcquire(): Boolean {
+        if (used >= maximum) return false
+        used++
+        return true
     }
 }
 
@@ -227,6 +241,8 @@ class DiscoveryEngine(
         val errors = mutableListOf<ProviderException>()
         var attempted = 0
         var emptyRecipes = 0
+        var requestBudgetReached = false
+        val requestBudget = DiscoveryRequestBudget(MAX_REQUESTS_PER_SESSION)
         val semaphore = Semaphore(requestConcurrency)
         for (batch in toFetch.chunked(requestConcurrency.coerceAtMost(3))) {
             val outcomes = coroutineScope {
@@ -239,6 +255,7 @@ class DiscoveryEngine(
                                 request = request(queryDetails.getValue(recipe).query, filter, preferences.aspectTolerance),
                                 seed = requestSeed(session.seed, recipe.id),
                                 recentlySeenKeys = recentlySeenKeys,
+                                requestBudget = requestBudget,
                             )
                         }
                     }
@@ -248,6 +265,7 @@ class DiscoveryEngine(
             outcomes.forEach { outcome ->
                 if (outcome.error != null) errors += outcome.error
                 if (outcome.empty) emptyRecipes++
+                if (outcome.requestBudgetReached) requestBudgetReached = true
                 val section = outcome.section
                 if (section != null) {
                     sections[section.identity.recipeId] = section
@@ -267,7 +285,17 @@ class DiscoveryEngine(
             if (sections.size >= TARGET_VALIDATED_RECIPES) break
         }
 
-        val result = result(session, generation, recipes, sections, attempted, emptyRecipes, skippedCoolingDown, errors)
+        val result = result(
+            session,
+            generation,
+            recipes,
+            sections,
+            attempted,
+            emptyRecipes,
+            skippedCoolingDown,
+            errors,
+            requestBudgetReached,
+        )
         onProgress(result.toProgress(loading = false))
         return result
     }
@@ -278,6 +306,7 @@ class DiscoveryEngine(
         request: FeedRequest,
         seed: String,
         recentlySeenKeys: Set<String>,
+        requestBudget: DiscoveryRequestBudget,
     ): QueryOutcome {
         return try {
             val sourceQuery = recipe.sourceQueries[provider.source]
@@ -296,6 +325,9 @@ class DiscoveryEngine(
                 var valid = emptyList<Wallpaper>()
                 while (pagesFetched < MAX_PAGES_PER_RECIPE && valid.size < MIN_ITEMS_PER_RECIPE) {
                     val currentCursor = cursor ?: break
+                    if (!requestBudget.tryAcquire()) {
+                        return QueryOutcome(identity = attemptIdentity, recipe = recipe, requestBudgetReached = true)
+                    }
                     val page = withTimeout(perRecipeTimeoutMillis) {
                         provider.fetchPage(attemptRequest, currentCursor)
                     }
@@ -382,6 +414,7 @@ class DiscoveryEngine(
         empty: Int,
         skipped: Int,
         errors: List<ProviderException>,
+        requestBudgetReached: Boolean = false,
     ) = DiscoveryBuildResult(
         sessionId = session.sessionId,
         generation = generation,
@@ -391,6 +424,7 @@ class DiscoveryEngine(
         emptyRecipes = empty,
         skippedCoolingDown = skipped,
         errors = errors.distinctBy { it.kind },
+        requestBudgetReached = requestBudgetReached,
     )
 
     private fun progress(
@@ -441,6 +475,7 @@ class DiscoveryEngine(
         val section: ValidatedDiscoverySection? = null,
         val error: ProviderException? = null,
         val empty: Boolean = false,
+        val requestBudgetReached: Boolean = false,
     )
 
     companion object {
@@ -448,6 +483,7 @@ class DiscoveryEngine(
         const val MIN_ITEMS_PER_RECIPE = 2
         const val MAX_ITEMS_PER_RECIPE = 24
         const val MAX_CANDIDATES = 12
+        const val MAX_REQUESTS_PER_SESSION = 15
         const val MAX_QUERY_VARIANTS_PER_RECIPE = 2
         const val MAX_PAGES_PER_RECIPE = 2
         const val ITEMS_PER_RECIPE_IN_MIX = 8

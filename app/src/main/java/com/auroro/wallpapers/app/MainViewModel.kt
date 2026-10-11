@@ -340,6 +340,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                     result.disabledReason != null -> result.disabledReason
                     result.items.isEmpty() && safeInitial.isNotEmpty() -> "Showing the last validated mix; this refresh did not return a replacement."
                     finalItems.isNotEmpty() && result.errors.isNotEmpty() && result.staleCacheUsed -> "Using validated on-device results while Wallhaven refreshes."
+                    finalItems.isNotEmpty() && result.requestBudgetReached -> message
                     finalItems.isNotEmpty() && result.errors.isEmpty() && result.allFromCache -> message
                     finalItems.isEmpty() && result.errors.isEmpty() -> message
                     else -> null

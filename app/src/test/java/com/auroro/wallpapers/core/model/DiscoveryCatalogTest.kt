@@ -43,6 +43,24 @@ class DiscoveryCatalogTest {
         assertTrue(session.candidateRecipeIds.none { it in excluded })
     }
 
+    @Test fun eachLargeSessionIncludesOneNonrecentQualityAnchorAndStillVariesItsMix() {
+        val anchors = setOf("abstract-geometry", "fractal-art", "frutiger-aero", "space-art", "surrealism", "vaporwave")
+        val first = DiscoverySessionPlanner.newSession(seed = 11L, nowMillis = 1_800_000_000_000L)
+        val next = DiscoverySessionPlanner.newSession(seed = 12L, nowMillis = 1_800_000_000_000L)
+        val recent = setOf("abstract-geometry", "fractal-art", "frutiger-aero", "space-art", "surrealism")
+        val afterRecent = DiscoverySessionPlanner.newSession(
+            seed = 13L,
+            nowMillis = 1_800_000_000_000L,
+            recentRecipeIds = recent,
+        )
+
+        assertEquals(1, first.candidateRecipeIds.count { it in anchors })
+        assertEquals(1, next.candidateRecipeIds.count { it in anchors })
+        assertNotEquals(first.candidateRecipeIds, next.candidateRecipeIds)
+        assertTrue(afterRecent.candidateRecipeIds.none { it in recent })
+        assertTrue(afterRecent.candidateRecipeIds.any { it in anchors - recent })
+    }
+
     @Test fun explicitExclusionOfTheWholeCatalogueDoesNotSilentlyReintroduceRecipes() {
         val session = DiscoverySessionPlanner.newSession(
             seed = 19L,
