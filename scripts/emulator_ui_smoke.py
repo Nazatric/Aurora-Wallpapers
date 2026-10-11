@@ -828,11 +828,18 @@ def main() -> None:
 
     # Finally exercise All Sources and return to Home, keeping any provider failures visible in the report.
     search_size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
-    if search_size:
-        width, height = map(int, search_size.groups())
-        for _ in range(2):
-            adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.24)), str(width // 2), str(int(height * 0.82)), "350")
-            time.sleep(1)
+    width, height = map(int, search_size.groups()) if search_size else (1080, 2400)
+    all_sources_root: ET.Element | None = None
+    for _ in range(10):
+        all_sources_root = dump_hierarchy()
+        if find_nodes(all_sources_root, text="All"):
+            break
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.22)),
+            str(width // 2), str(int(height * 0.84)), "350")
+        time.sleep(0.5)
+    else:
+        visible = [node_text(node) for node in all_sources_root.iter("node") if node_text(node)] if all_sources_root is not None else []
+        raise AssertionError(f"Search source controls were not reachable after scrolling to the top; visible labels: {visible[:100]}")
     tap_text("All", timeout=20)
     combined = wait_for_feed_content("combined-source search", timeout=90)
     REPORT["combined_result_count"] = len(wallpaper_descriptions(combined))

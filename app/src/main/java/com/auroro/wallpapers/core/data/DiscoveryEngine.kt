@@ -2,6 +2,7 @@ package com.auroro.wallpapers.core.data
 
 import android.util.Log
 import com.auroro.wallpapers.core.model.DiscoveryQuality
+import com.auroro.wallpapers.core.model.ContentSensitivity
 import com.auroro.wallpapers.core.model.DiscoveryRecipe
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.FeedRequest
@@ -344,6 +345,7 @@ class DiscoveryEngine(
         var recipeRelevantItems = 0
         var locallyValidatedItems = 0
         var detailLookups = 0
+        val detailedSourceIds = mutableSetOf<String>()
         fun outcome(
             queryIdentity: DiscoveryQueryIdentity,
             section: ValidatedDiscoverySection? = null,
@@ -378,6 +380,7 @@ class DiscoveryEngine(
                 var cursor: PageCursor? = PageCursor(page = 1, seed = seed)
                 var pagesFetched = 0
                 var valid = emptyList<Wallpaper>()
+                var detailBudgetBlocked = false
                 while (pagesFetched < MAX_PAGES_PER_RECIPE && valid.size < MIN_ITEMS_PER_RECIPE) {
                     val currentCursor = cursor ?: break
                     if (!requestBudget.tryAcquire()) {
@@ -388,21 +391,41 @@ class DiscoveryEngine(
                     }
                     val enrichedItems = page.items.toMutableList()
                     if (provider.capabilities.supportsDetail && detailLookups < MAX_DETAIL_LOOKUPS_PER_RECIPE) {
-                        val pageHasEvidence = page.items.any {
-                            it.source == provider.source && DiscoveryQuality.isUsable(it) && recipe.isRelevant(it)
-                        }
-                        val candidateIndex = if (pageHasEvidence) -1 else page.items.indexOfFirst {
-                            it.source == provider.source && DiscoveryQuality.isUsable(it) && it.tags.isEmpty()
-                        }
-                        if (candidateIndex >= 0) {
+                        val pageHasValidatedItem = validate(
+                            page.items,
+                            recipe,
+                            request.filter,
+                            request.aspectTolerance,
+                            recentlySeenKeys,
+                        ).isNotEmpty()
+                        val detailCandidates = if (pageHasValidatedItem) emptyList() else page.items.withIndex()
+                            .filter { (_, item) ->
+                                item.source == provider.source &&
+                                    DiscoveryQuality.isUsable(item) &&
+                                    item.tags.isEmpty() &&
+                                    item.sourceId !in detailedSourceIds &&
+                                    LocalFilter.matches(item, request.filter, request.aspectTolerance)
+                            }
+                            .sortedByDescending { (_, item) -> DiscoveryQuality.score(item, recipe, recentlySeenKeys) }
+                        for ((candidateIndex, candidate) in detailCandidates) {
+                            if (detailLookups >= MAX_DETAIL_LOOKUPS_PER_RECIPE) break
                             if (!requestBudget.tryAcquire()) {
-                                return outcome(attemptIdentity, requestBudgetReached = true)
+                                detailBudgetBlocked = true
+                                break
                             }
                             detailLookups++
-                            val candidate = page.items[candidateIndex]
+                            detailedSourceIds += candidate.sourceId
                             val detailed = withTimeout(perRecipeTimeoutMillis) { provider.detail(candidate.sourceId) }
                             if (detailed?.source == provider.source && detailed.sourceId == candidate.sourceId) {
                                 enrichedItems[candidateIndex] = detailed
+                                if (validate(
+                                        listOf(detailed),
+                                        recipe,
+                                        request.filter,
+                                        request.aspectTolerance,
+                                        recentlySeenKeys,
+                                    ).isNotEmpty()
+                                ) break
                             }
                         }
                     }
@@ -423,12 +446,15 @@ class DiscoveryEngine(
                             .distinct()
                             .take(8)
                             .joinToString(",")
+                        val sampleGeometry = enrichedItems.take(3).joinToString(",") {
+                            "${it.width}x${it.height}/${it.category}/explicit=${ContentSensitivity.isPotentiallyExplicit(it)}"
+                        }
                         Log.d(
                             DISCOVERY_LOG_TAG,
                             "recipe=${recipe.id} query=${phrase.take(48)} rows=${page.items.size} " +
                                 "details=$detailLookups usable=${sourceUsable.size} evidence=${recipeRelevant.size} " +
                                 "local=${recipeRelevant.count { LocalFilter.matches(it, request.filter, request.aspectTolerance) }} " +
-                                "sampleTags=$sampleTags",
+                                "sampleTags=$sampleTags sampleGeometry=$sampleGeometry",
                         )
                     }
                     pagesFetched++
@@ -443,6 +469,7 @@ class DiscoveryEngine(
                         section = ValidatedDiscoverySection(attemptIdentity, sectionItems, fromCache = false),
                     )
                 }
+                if (detailBudgetBlocked) return outcome(attemptIdentity, requestBudgetReached = true)
             }
 
             pools.recordEmpty(provider.source, recipe, clock())
@@ -599,7 +626,7 @@ class DiscoveryEngine(
         const val MAX_REQUESTS_PER_SESSION = 15
         const val MAX_QUERY_VARIANTS_PER_RECIPE = 2
         const val MAX_PAGES_PER_RECIPE = 2
-        const val MAX_DETAIL_LOOKUPS_PER_RECIPE = 1
+        const val MAX_DETAIL_LOOKUPS_PER_RECIPE = 3
         const val ITEMS_PER_RECIPE_IN_MIX = 8
         const val DEFAULT_QUERY_TIMEOUT_MILLIS = 10_000L
     }
