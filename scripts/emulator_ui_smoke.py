@@ -815,16 +815,16 @@ def main() -> None:
         lambda ui: bool(find_nodes(ui, text="Appearance")),
         "Settings appearance section", timeout=45,
     )
-    if not selected_state(settings, "System"):
-        raise AssertionError("The System theme is not initially selected")
-    tap_text("Dark ocean", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "Dark ocean"), "Dark ocean theme selection", timeout=20)
+    if not selected_state(settings, "Frutiger Aero"):
+        raise AssertionError("The default Frutiger Aero appearance is not initially selected")
+    tap_text("Dark Aero", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Dark Aero"), "Dark Aero appearance selection", timeout=20)
     screenshot("22-theme-dark.png")
-    tap_text("Light sky", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "Light sky"), "Light sky theme selection", timeout=20)
+    tap_text("Aqua Day", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Aqua Day"), "Aqua Day appearance selection", timeout=20)
     screenshot("23-theme-light.png")
-    tap_text("System", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "System"), "restore System theme", timeout=20)
+    tap_text("Frutiger Aero", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Frutiger Aero"), "restore Frutiger Aero appearance", timeout=20)
     tap_text("Emerald", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Emerald"), "Emerald accent selection", timeout=20)
     tap_text("Aqua", timeout=20)
@@ -922,8 +922,8 @@ def main() -> None:
         lambda ui: bool(find_nodes(ui, text="Appearance")) and bool(find_nodes(ui, text="Reduce transparency")),
         "restored Settings after process recreation", timeout=45,
     )
-    if not selected_state(settings, "System") or not selected_state(settings, "Aqua"):
-        raise AssertionError("Theme or accent selection did not survive process recreation")
+    if not selected_state(settings, "Frutiger Aero") or not selected_state(settings, "Aqua"):
+        raise AssertionError("Appearance or accent selection did not survive process recreation")
     if switch_node(settings, "Reduce transparency").attrib.get("checked") != "true":
         raise AssertionError("Reduce transparency did not survive process recreation")
     for _ in range(8):
