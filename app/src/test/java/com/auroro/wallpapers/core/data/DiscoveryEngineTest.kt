@@ -239,6 +239,7 @@ class DiscoveryEngineTest {
                     next = null,
                 )
             },
+            answer = { error("The cursor-aware response must be used") },
         )
         val store = MemoryDiscoveryPoolStore()
         val progress = mutableListOf<DiscoveryBuildProgress>()
