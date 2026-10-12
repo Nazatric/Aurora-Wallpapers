@@ -148,14 +148,14 @@ class ConfigurationAndMappingTest {
         assertTrue(settings.recentlyUsedDiscoveryRecipeIds(now + 1, 24).isEmpty())
     }
 
-    @Test fun appearanceDefaultsToFollowSystemAndMaterial3() = runBlocking {
+    @Test fun appearanceDefaultsToFollowSystemAndFrutigerAero() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "appearance-defaults.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null).current()
 
         assertEquals(ThemeMode.SYSTEM, settings.themeMode)
         assertEquals("Follow system", settings.themeMode.label)
-        assertEquals(DesignTheme.MATERIAL_3, settings.designTheme)
-        assertEquals(listOf(DesignTheme.MATERIAL_3, DesignTheme.FRUTIGER_AERO, DesignTheme.FRUTIGER_ZEN), DesignTheme.entries)
+        assertEquals(DesignTheme.FRUTIGER_AERO, settings.designTheme)
+        assertEquals(listOf(DesignTheme.FRUTIGER_AERO, DesignTheme.MATERIAL_3, DesignTheme.FRUTIGER_ZEN), DesignTheme.entries)
     }
 
     @Test fun basicModeAndAdvancedThemePersistIndependently() = runBlocking {
@@ -181,22 +181,29 @@ class ConfigurationAndMappingTest {
         val oldPinned = stringPreferencesKey("pinned_discovery_style")
         store.edit {
             it[legacyAppearance] = "FRUTIGER_FLOWER"
-            it[oldPreferred] = setOf("surreal")
+            it[oldPreferred] = setOf("surreal", "frutiger-flower")
             it[oldHidden] = setOf("weirdcore")
             it[oldPinned] = "surreal"
         }
 
         val settings = SettingsRepository(store, bootPrefs = null)
         val migrated = kotlinx.coroutines.withTimeout(5_000L) {
-            store.data.first { !it.contains(legacyAppearance) && it.contains(stringPreferencesKey("design_theme")) }
+            store.data.first {
+                !it.contains(legacyAppearance) &&
+                    it.contains(stringPreferencesKey("design_theme")) &&
+                    it[oldPreferred]?.contains("botanical-art") == true
+            }
         }
         assertEquals(ThemeMode.LIGHT, settings.current().themeMode)
         assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
         assertFalse(migrated.contains(legacyAppearance))
-        assertFalse(migrated.contains(oldPreferred))
-        assertFalse(migrated.contains(oldHidden))
-        assertFalse(migrated.contains(oldPinned))
-        assertEquals(listOf("Material 3", "Frutiger Aero", "Frutiger Zen"), DesignTheme.entries.map { it.label })
+        assertEquals(setOf("surreal", "botanical-art"), migrated[oldPreferred])
+        assertEquals(setOf("weirdcore"), migrated[oldHidden])
+        assertEquals("surreal", migrated[oldPinned])
+        assertEquals(setOf("surreal", "botanical-art"), settings.current().preferredDiscoveryStyleIds)
+        assertEquals(setOf("weirdcore"), settings.current().hiddenDiscoveryStyleIds)
+        assertEquals("surreal", settings.current().pinnedDiscoveryStyleId)
+        assertEquals(listOf("Frutiger Aero", "Material 3", "Frutiger Zen"), DesignTheme.entries.map { it.label })
     }
 
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {

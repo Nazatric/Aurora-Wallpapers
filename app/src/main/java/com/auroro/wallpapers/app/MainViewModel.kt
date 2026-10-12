@@ -18,6 +18,7 @@ import com.auroro.wallpapers.core.model.DiscoveryQuality
 import com.auroro.wallpapers.core.model.DiscoveryRotation
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
+import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
 import com.auroro.wallpapers.core.model.LocalFilter
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.SearchSourceSelection
@@ -60,6 +61,8 @@ data class FeedUiState(
     val discoveryValidatedRecipeCount: Int = 0,
     val discoveryRotationEnabled: Boolean? = null,
     val discoveryEnabledSources: Set<WallpaperSource>? = null,
+    val discoveryPreferredStyleIds: Set<String>? = null,
+    val discoveryHiddenStyleIds: Set<String>? = null,
     val enabledSourcesAtRequest: Set<WallpaperSource>? = null,
     val cacheNotice: String? = null,
 )
@@ -179,9 +182,14 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         val previousDiscoverySession = _feed.value.discoverySession ?: lastDiscoverySession
         val currentFeedIsDiscovery = _feed.value.discoverySession?.sessionId != null &&
             _feed.value.discoverySession?.sessionId == previousDiscoverySession?.sessionId
+        val discoveryTopicsChanged = currentFeedIsDiscovery && (
+            _feed.value.discoveryPreferredStyleIds != visibleSettings.preferredDiscoveryStyleIds ||
+                _feed.value.discoveryHiddenStyleIds != visibleSettings.hiddenDiscoveryStyleIds
+            )
         val settingsStillMatch = !currentFeedIsDiscovery || (
             _feed.value.discoveryRotationEnabled == visibleSettings.rotateDiscoveryHourly &&
-                _feed.value.discoveryEnabledSources == visibleSettings.enabledSources()
+                _feed.value.discoveryEnabledSources == visibleSettings.enabledSources() &&
+                !discoveryTopicsChanged
             )
         val selectionIsCurrent = tab != HomeTab.FOR_YOU || previousDiscoverySession?.let { session ->
             !visibleSettings.rotateDiscoveryHourly ||
@@ -206,7 +214,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             if (tab == HomeTab.FOR_YOU) {
                 val currentTime = System.currentTimeMillis()
                 var session = when {
-                    forceRefresh -> null
+                    forceRefresh || discoveryTopicsChanged -> null
                     previousDiscoverySession == null -> null
                     !prefs.rotateDiscoveryHourly -> previousDiscoverySession
                     previousDiscoverySession.hourBucket == DiscoveryRotation.bucketAt(currentTime) -> previousDiscoverySession
@@ -224,6 +232,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                         rotateHourly = prefs.rotateDiscoveryHourly,
                         refreshOrdinal = prefs.discoveryRefreshOrdinal,
                         recentRecipeIds = recentRecipes,
+                        preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.preferredDiscoveryStyleIds),
+                        excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
                     )
                     app.discoveryPools.recordSessionRecipeIds(session.candidateRecipeIds, currentTime)
                 }
@@ -292,6 +302,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             discoverySession = session,
             discoveryRotationEnabled = prefs.rotateDiscoveryHourly,
             discoveryEnabledSources = enabledSources,
+            discoveryPreferredStyleIds = prefs.preferredDiscoveryStyleIds,
+            discoveryHiddenStyleIds = prefs.hiddenDiscoveryStyleIds,
             cacheNotice = safeInitial.takeIf { it.isNotEmpty() }?.let { "Refreshing this saved mix…" },
         )
         feedJob = viewModelScope.launch {
@@ -455,8 +467,10 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             pager = null
             val preferences = settings.value
             val enabledSources = preferences.enabledSources()
+            val discoveryTopicsChanged = state.discoveryPreferredStyleIds != preferences.preferredDiscoveryStyleIds ||
+                state.discoveryHiddenStyleIds != preferences.hiddenDiscoveryStyleIds
             val needsSettingsSync = state.discoveryRotationEnabled != preferences.rotateDiscoveryHourly ||
-                state.discoveryEnabledSources != enabledSources
+                state.discoveryEnabledSources != enabledSources || discoveryTopicsChanged
             val request = state.request.copy(filter = state.request.filter.copy(sources = enabledSources))
             val safeItems = state.items.filter { wallpaper ->
                 wallpaper.source in enabledSources &&
@@ -467,6 +481,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                 items = safeItems,
                 loading = false,
                 discoveryEnabledSources = enabledSources,
+                discoveryPreferredStyleIds = preferences.preferredDiscoveryStyleIds,
+                discoveryHiddenStyleIds = preferences.hiddenDiscoveryStyleIds,
             )
             _feed.value = restoredState
             if (session.resumeOnReturn || needsSettingsSync) {
@@ -479,7 +495,10 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                     val stillActive = activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU &&
                         lastDiscoverySession?.sessionId == discoverySession.sessionId &&
                         _feed.value.discoverySession?.sessionId == discoverySession.sessionId
-                    if (stillActive) startDiscoveryFeed(discoverySession, currentPreferences, restoredState.items, seen)
+                    if (stillActive) {
+                        if (discoveryTopicsChanged) openHome(HomeTab.FOR_YOU, forceRefresh = true)
+                        else startDiscoveryFeed(discoverySession, currentPreferences, restoredState.items, seen)
+                    }
                 }
             }
             return

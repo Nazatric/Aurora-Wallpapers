@@ -46,7 +46,7 @@ fun designColors(
     accent: AccentTheme,
     amoled: Boolean,
     reduceTransparency: Boolean,
-    designTheme: DesignTheme = DesignTheme.MATERIAL_3,
+    designTheme: DesignTheme = DesignTheme.FRUTIGER_AERO,
     glassQuality: GlassQuality = GlassQuality.BALANCED,
 ): AeroColors {
     val (a, aLight, aDeep, green, greenDeep) = when (designTheme) {
@@ -171,6 +171,6 @@ val LocalAero = staticCompositionLocalOf {
         accent = AccentTheme.AQUA,
         amoled = false,
         reduceTransparency = false,
-        designTheme = DesignTheme.MATERIAL_3,
+        designTheme = DesignTheme.FRUTIGER_AERO,
     )
 }

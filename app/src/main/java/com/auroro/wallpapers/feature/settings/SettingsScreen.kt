@@ -43,8 +43,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.mergeDescendants
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -56,8 +54,11 @@ import com.auroro.wallpapers.core.data.GlassQuality
 import com.auroro.wallpapers.core.data.SaveLocation
 import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.design.Aero
+import com.auroro.wallpapers.core.design.AeroColors
 import com.auroro.wallpapers.core.design.GlassPanel
+import com.auroro.wallpapers.core.design.designColors
 import com.auroro.wallpapers.core.design.HeaderBar
+import com.auroro.wallpapers.core.model.DiscoveryStyle
 
 @Composable
 fun SettingsScreen(
@@ -99,6 +100,7 @@ fun SettingsScreen(
                     DesignTheme.entries.forEach { theme ->
                         ThemeChoiceCard(
                             theme = theme,
+                            accent = settings.accent,
                             selected = settings.designTheme == theme,
                             onClick = { onSettings { it.copy(designTheme = theme) } },
                         )
@@ -156,7 +158,7 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup("For You", "Tune refresh and repeat behaviour without narrowing the source mix.") {
+            SettingsGroup("For You", "Tune recipe rotation and topic preferences; results still come from enabled sources.") {
                 SettingSwitch(
                     "Rotate hourly",
                     "Keep one stable discovery mix during the hour.",
@@ -173,6 +175,27 @@ fun SettingsScreen(
                         listOf(12 to "12 hours", 24 to "24 hours", 72 to "3 days", 168 to "7 days"),
                         settings.repeatAfterHours,
                     ) { hours -> onSettings { it.copy(repeatAfterHours = hours) } }
+                }
+                Text("Preferred topics", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
+                Text(
+                    "Bias the recipe mix toward these topics; source responses are never fabricated.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Aero.colors.textTertiary,
+                )
+                MultiChoiceGrid(DiscoveryStyle.entries.map { it.id to it.label }, settings.preferredDiscoveryStyleIds) { id ->
+                    onSettings { current ->
+                        val preferred = if (id in current.preferredDiscoveryStyleIds) {
+                            current.preferredDiscoveryStyleIds - id
+                        } else current.preferredDiscoveryStyleIds + id
+                        current.copy(preferredDiscoveryStyleIds = preferred, hiddenDiscoveryStyleIds = current.hiddenDiscoveryStyleIds - id)
+                    }
+                }
+                Text("Skip topics", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
+                MultiChoiceGrid(DiscoveryStyle.entries.map { it.id to it.label }, settings.hiddenDiscoveryStyleIds) { id ->
+                    onSettings { current ->
+                        val hidden = if (id in current.hiddenDiscoveryStyleIds) current.hiddenDiscoveryStyleIds - id else current.hiddenDiscoveryStyleIds + id
+                        current.copy(hiddenDiscoveryStyleIds = hidden, preferredDiscoveryStyleIds = current.preferredDiscoveryStyleIds - id)
+                    }
                 }
                 TextButton(onClick = onResetDiscovery, modifier = Modifier.align(Alignment.End)) {
                     Text("Reset For You history")
@@ -242,12 +265,21 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun ThemeChoiceCard(theme: DesignTheme, selected: Boolean, onClick: () -> Unit) {
-    val (light, dark) = when (theme) {
-        DesignTheme.MATERIAL_3 -> Color(0xFFE9EDF6) to Color(0xFF191B21)
-        DesignTheme.FRUTIGER_AERO -> Color(0xFFE2F3F5) to Color(0xFF0B2029)
-        DesignTheme.FRUTIGER_ZEN -> Color(0xFFE7F0E8) to Color(0xFF17231D)
-    }
+private fun ThemeChoiceCard(theme: DesignTheme, accent: AccentTheme, selected: Boolean, onClick: () -> Unit) {
+    val lightPreview = designColors(
+        dark = false,
+        accent = accent,
+        amoled = false,
+        reduceTransparency = false,
+        designTheme = theme,
+    )
+    val darkPreview = designColors(
+        dark = true,
+        accent = accent,
+        amoled = false,
+        reduceTransparency = false,
+        designTheme = theme,
+    )
     val border = if (selected) Aero.colors.accent else Aero.colors.glassRimDark.copy(alpha = 0.20f)
     Surface(
         onClick = onClick,
@@ -258,8 +290,8 @@ private fun ThemeChoiceCard(theme: DesignTheme, selected: Boolean, onClick: () -
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                ThemeVariantSwatch("Light", light, dark = false, modifier = Modifier.weight(1f))
-                ThemeVariantSwatch("Dark", dark, dark = true, modifier = Modifier.weight(1f))
+                ThemeVariantSwatch("Light", lightPreview, modifier = Modifier.weight(1f))
+                ThemeVariantSwatch("Dark", darkPreview, modifier = Modifier.weight(1f))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -273,19 +305,16 @@ private fun ThemeChoiceCard(theme: DesignTheme, selected: Boolean, onClick: () -
 }
 
 @Composable
-private fun ThemeVariantSwatch(label: String, color: Color, dark: Boolean, modifier: Modifier = Modifier) {
-    val foreground = if (dark) Color(0xFFE6F4F3) else Color(0xFF25343A)
+private fun ThemeVariantSwatch(label: String, colors: AeroColors, modifier: Modifier = Modifier) {
     Column(
         modifier.height(62.dp).background(
-            Brush.linearGradient(
-                if (dark) listOf(color, color.copy(alpha = 0.76f)) else listOf(color, Color.White),
-            ),
+            Brush.linearGradient(listOf(colors.backdropTop, colors.backdropMid, colors.backdropBottom)),
             RoundedCornerShape(12.dp),
         ).padding(7.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        Box(Modifier.fillMaxWidth(0.54f).height(5.dp).background(foreground.copy(alpha = 0.74f), RoundedCornerShape(8.dp)))
-        Text(label, style = MaterialTheme.typography.labelSmall, color = foreground)
+        Box(Modifier.fillMaxWidth(0.54f).height(5.dp).background(colors.accent, RoundedCornerShape(8.dp)))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = colors.textPrimary)
     }
 }
 
@@ -314,6 +343,29 @@ private fun <T> ChoiceGrid(values: List<Pair<T, String>>, selected: T, onSelect:
             Surface(
                 onClick = { onSelect(value) },
                 modifier = Modifier.heightIn(min = 44.dp).semantics { this.selected = active },
+                shape = RoundedCornerShape(13.dp),
+                color = if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .58f),
+                border = BorderStroke(1.dp, if (active) Aero.colors.accent.copy(alpha = .38f) else Aero.colors.glassRimDark.copy(alpha = .15f)),
+            ) {
+                Text(
+                    label,
+                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (active) Aero.colors.accent else Aero.colors.textSecondary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MultiChoiceGrid(values: List<Pair<String, String>>, selected: Set<String>, onToggle: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        values.forEach { (value, label) ->
+            val active = value in selected
+            Surface(
+                onClick = { onToggle(value) },
+                modifier = Modifier.heightIn(min = 48.dp).semantics { this.selected = active },
                 shape = RoundedCornerShape(13.dp),
                 color = if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .58f),
                 border = BorderStroke(1.dp, if (active) Aero.colors.accent.copy(alpha = .38f) else Aero.colors.glassRimDark.copy(alpha = .15f)),

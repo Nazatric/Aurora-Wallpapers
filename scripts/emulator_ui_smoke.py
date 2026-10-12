@@ -27,7 +27,7 @@ EMPTY_STATES = (
     "Couldn't load wallpapers",
 )
 THEME_MODE_LABELS = ("Follow system", "Light", "Dark")
-DESIGN_THEME_LABELS = ("Material 3", "Frutiger Aero", "Frutiger Zen")
+DESIGN_THEME_LABELS = ("Frutiger Aero", "Material 3", "Frutiger Zen")
 
 
 def run(command: list[str], *, timeout: int = 30, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -915,8 +915,8 @@ def main() -> None:
         lambda ui: bool(find_nodes(ui, text="Display mode")) and bool(find_nodes(ui, text="Advanced theme")),
         "Settings display mode and advanced theme sections", timeout=45,
     )
-    if not selected_state(settings, "Follow system") or not selected_state(settings, "Material 3"):
-        raise AssertionError("Fresh settings must select Follow system and Material 3 by default")
+    if not selected_state(settings, "Follow system") or not selected_state(settings, "Frutiger Aero"):
+        raise AssertionError("Fresh settings must select Follow system and Frutiger Aero by default")
 
     settings = scroll_horizontal_choice_into_view(settings, "Dark", THEME_MODE_LABELS)
     tap_text("Dark", timeout=20)
@@ -954,9 +954,12 @@ def main() -> None:
     settings = scroll_horizontal_choice_into_view(settings, "Frutiger Zen", DESIGN_THEME_LABELS)
     tap_text("Frutiger Zen", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Frutiger Zen"), "Frutiger Zen design theme selection", timeout=20)
-    settings = scroll_horizontal_choice_into_view(settings, "Material 3", DESIGN_THEME_LABELS, direction="right")
+    settings = scroll_horizontal_choice_into_view(settings, "Material 3", DESIGN_THEME_LABELS)
     tap_text("Material 3", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "Material 3"), "restore Material 3 design theme", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Material 3"), "Material 3 design theme selection", timeout=20)
+    settings = scroll_horizontal_choice_into_view(settings, "Frutiger Aero", DESIGN_THEME_LABELS, direction="right")
+    tap_text("Frutiger Aero", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Frutiger Aero"), "restore Frutiger Aero design theme", timeout=20)
 
     tap_text("Emerald", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Emerald"), "Emerald accent selection", timeout=20)
@@ -1068,7 +1071,7 @@ def main() -> None:
         lambda ui: bool(find_nodes(ui, text="Display mode")) and bool(find_nodes(ui, text="Advanced theme")),
         "restored Settings display mode and advanced theme after process recreation", timeout=45,
     )
-    if not selected_state(settings, "Follow system") or not selected_state(settings, "Material 3") or not selected_state(settings, "Aqua"):
+    if not selected_state(settings, "Follow system") or not selected_state(settings, "Frutiger Aero") or not selected_state(settings, "Aqua"):
         raise AssertionError("Display mode, design theme, or accent selection did not survive process recreation")
     size_output = adb("shell", "wm", "size").stdout
     size = re.search(r"(\d+)x(\d+)", size_output)

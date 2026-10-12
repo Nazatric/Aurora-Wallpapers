@@ -6,7 +6,7 @@
 
 1. **The wallpaper is the product.** Artwork stays untinted and preserves source proportions. Chrome is quiet around image grids; provider, rights, dimensions, and actions appear on the detail page.
 2. **Glass must sample its backdrop.** Use the existing Haze source/effect path for foreground chrome where it improves hierarchy. A translucent fill or gradient by itself is not the glass treatment. Keep a high-contrast opaque fallback for accessibility, reduced rendering, and unsupported renderers.
-3. **Three coherent design languages, two modes each.** Basic mode is `Follow system` (default), `Light`, or `Dark`. Independently choose `Material 3`, `Frutiger Aero`, or `Frutiger Zen`. All three design languages use the selected mode; no design language silently overrides it.
+3. **Three coherent design languages, two modes each.** Basic mode is `Follow system` (default), `Light`, or `Dark`. Independently choose `Material 3`, `Frutiger Aero`, or `Frutiger Zen`; fresh installs select Frutiger Aero to follow the supplied glass-forward direction. All three design languages use the selected mode; no design language silently overrides it.
 4. **Source truth over decoration.** Do not display fabricated result counts, image dimensions, attribution, license, or provider availability. Unknown metadata is labelled unknown or omitted. One failed catalogue must not blank working catalogues.
 5. **Access is part of the design.** Touch targets are at least 48 dp where practical, selected states are not colour-only, text scales with Android accessibility settings, focus is visible, and images have useful semantics.
 
@@ -116,8 +116,8 @@ Create these as Figma/Penpot components with the indicated properties. Compose c
 
 - Settings section order: Display mode → Advanced theme → Typography → Effects & accessibility → For You → Image matching → Downloads → Cache → Sources & information.
 - Display mode is the three-way segmented choice `Follow system` / `Light` / `Dark`; the initial default is Follow system. The selected mode is independent of Advanced theme.
-- Advanced themes show Material 3, Frutiger Aero, and Frutiger Zen cards, each with Light and Dark mini previews. No invented flower theme or discovery preference appears.
-- For You keeps only rotation, recently-shown avoidance, repeat window, and reset history. Do not duplicate preferred/excluded style lists.
+- Advanced themes show Frutiger Aero first on a fresh install, followed by Material 3 and Frutiger Zen; every card previews the actual Light and Dark palette tokens. The retired Frutiger Flower name appears neither as a theme nor a discovery topic; botanical art remains an ordinary topic.
+- For You retains hourly rotation, recently-shown avoidance, repeat window, preferred/skipped topics, and reset history. Topic choices bias existing curated recipes; they never gate returned items by tags, ratings, or global content classifications. Keep them visibly optional and separate from provider enablement.
 - Source management lists each integrated provider, its terms/link, user enablement, data actually returned, and current success/failure/cooldown. No secret entry for an unapproved provider; Reddit remains off until authorized API access and rights are verified.
 - Cache controls state that preview cache is disposable and do not threaten saved files. Settings remain on-device and survive app restarts.
 

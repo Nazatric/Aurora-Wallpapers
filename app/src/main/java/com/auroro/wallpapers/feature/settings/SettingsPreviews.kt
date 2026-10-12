@@ -11,6 +11,13 @@ import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.design.AuroroTheme
 import com.auroro.wallpapers.core.design.AmbientBackdrop
 
+@Preview(name = "Settings · Material 3 Light", showBackground = true, widthDp = 393, heightDp = 852)
+@Composable
+private fun Material3SettingsPreview() {
+    val settings = AppSettings(themeMode = ThemeMode.LIGHT, designTheme = DesignTheme.MATERIAL_3)
+    PreviewFrame(settings)
+}
+
 @Preview(name = "Settings · Light Aero", showBackground = true, widthDp = 393, heightDp = 852)
 @Composable
 private fun LightAeroSettingsPreview() {

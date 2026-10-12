@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.auroro.wallpapers.core.model.AspectMath
+import com.auroro.wallpapers.core.model.DiscoveryStyle
 import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,8 +25,8 @@ import java.util.Locale
 enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"), DARK("Dark") }
 enum class AccentTheme(val label: String) { AQUA("Aqua"), EMERALD("Emerald"), SKY("Sky blue") }
 enum class DesignTheme(val label: String, val description: String) {
-    MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),
     FRUTIGER_AERO("Frutiger Aero", "Luminous sky, water, glass and optimistic greens"),
+    MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),
     FRUTIGER_ZEN("Frutiger Zen", "Quiet sea-glass, sage and warm stone"),
 }
 enum class FontChoice(val label: String, val description: String) {
@@ -61,7 +62,7 @@ data class AppSettings(
     /** Basic colour mode; system changes remain live while SYSTEM is selected. */
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** Independent design language; it never overrides the basic colour mode. */
-    val designTheme: DesignTheme = DesignTheme.MATERIAL_3,
+    val designTheme: DesignTheme = DesignTheme.FRUTIGER_AERO,
     val accent: AccentTheme = AccentTheme.AQUA,
     val fontChoice: FontChoice = FontChoice.OPEN_SANS,
     val fontScale: Float = 1f,
@@ -72,6 +73,10 @@ data class AppSettings(
     val rotateDiscoveryHourly: Boolean = true,
     val avoidRecentlySeen: Boolean = true,
     val repeatAfterHours: Int = 24,
+    /** User-selected topic preferences bias For You's curated query mix; they do not filter provider responses globally. */
+    val preferredDiscoveryStyleIds: Set<String> = emptySet(),
+    val hiddenDiscoveryStyleIds: Set<String> = emptySet(),
+    val pinnedDiscoveryStyleId: String? = null,
     val discoveryRefreshOrdinal: Int = 0,
     val aspectTolerance: Float = AspectMath.DEFAULT_TOLERANCE,
     val cacheLimitMb: Int = DEFAULT_CACHE_MB,
@@ -111,10 +116,17 @@ class SettingsRepository(
                 if (!prefs.contains(DESIGN_THEME)) prefs[DESIGN_THEME] = migratedSettings.designTheme.name
                 prefs.remove(LEGACY_APPEARANCE)
 
-                // These unused style filters are retired; For You now remains a balanced source mix.
-                prefs.remove(PREFERRED_DISCOVERY_STYLES)
-                prefs.remove(HIDDEN_DISCOVERY_STYLES)
-                prefs.remove(PINNED_DISCOVERY_STYLE)
+                // Preserve existing discovery-topic choices. The retired Frutiger Flower id is
+                // migrated to ordinary Botanical art so stored preferences remain meaningful.
+                prefs[PREFERRED_DISCOVERY_STYLES]?.let { saved ->
+                    prefs[PREFERRED_DISCOVERY_STYLES] = saved.mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId)
+                }
+                prefs[HIDDEN_DISCOVERY_STYLES]?.let { saved ->
+                    prefs[HIDDEN_DISCOVERY_STYLES] = saved.mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId)
+                }
+                prefs[PINNED_DISCOVERY_STYLE]?.let { saved ->
+                    prefs[PINNED_DISCOVERY_STYLE] = migrateLegacyDiscoveryStyleId(saved)
+                }
             }
         }
     }
@@ -313,6 +325,9 @@ class SettingsRepository(
             rotateDiscoveryHourly = true,
             avoidRecentlySeen = true,
             repeatAfterHours = 24,
+            preferredDiscoveryStyleIds = emptySet(),
+            hiddenDiscoveryStyleIds = emptySet(),
+            pinnedDiscoveryStyleId = null,
             discoveryRefreshOrdinal = 0,
         ) }
     }
@@ -336,6 +351,14 @@ class SettingsRepository(
             prefs[ROTATE_DISCOVERY_HOURLY] = next.rotateDiscoveryHourly
             prefs[AVOID_RECENT_DISCOVERY] = next.avoidRecentlySeen
             prefs[DISCOVERY_REPEAT_HOURS] = next.repeatAfterHours.coerceIn(1, 720)
+            prefs[PREFERRED_DISCOVERY_STYLES] = next.preferredDiscoveryStyleIds
+                .mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId).intersect(DiscoveryStyle.allIds)
+            prefs[HIDDEN_DISCOVERY_STYLES] = next.hiddenDiscoveryStyleIds
+                .mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId).intersect(DiscoveryStyle.allIds)
+            next.pinnedDiscoveryStyleId?.let(::migrateLegacyDiscoveryStyleId)
+                ?.takeIf { it in DiscoveryStyle.allIds }
+                ?.let { prefs[PINNED_DISCOVERY_STYLE] = it }
+                ?: prefs.remove(PINNED_DISCOVERY_STYLE)
             prefs[DISCOVERY_REFRESH_ORDINAL] = next.discoveryRefreshOrdinal.coerceAtLeast(0)
             prefs[ASPECT_TOL] = next.aspectTolerance.coerceIn(0.005f, 0.10f)
             prefs[CACHE_MB] = next.cacheLimitMb.coerceIn(50, 2_000)
@@ -352,6 +375,9 @@ class SettingsRepository(
         }
         bootPrefs?.edit()?.putInt(BOOT_CACHE_MB, committed.cacheLimitMb.coerceIn(50, 2_000))?.apply()
     }
+
+    private fun migrateLegacyDiscoveryStyleId(id: String): String =
+        if (id == LEGACY_BOTANICAL_STYLE_ID) DiscoveryStyle.BOTANICAL_ART.id else id
 
     private fun Preferences.toSettings(): AppSettings {
         val defaults = AppSettings()
@@ -384,6 +410,13 @@ class SettingsRepository(
             rotateDiscoveryHourly = this[ROTATE_DISCOVERY_HOURLY] ?: defaults.rotateDiscoveryHourly,
             avoidRecentlySeen = this[AVOID_RECENT_DISCOVERY] ?: defaults.avoidRecentlySeen,
             repeatAfterHours = (this[DISCOVERY_REPEAT_HOURS] ?: defaults.repeatAfterHours).coerceIn(1, 720),
+            preferredDiscoveryStyleIds = this[PREFERRED_DISCOVERY_STYLES].orEmpty()
+                .mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId).intersect(DiscoveryStyle.allIds),
+            hiddenDiscoveryStyleIds = this[HIDDEN_DISCOVERY_STYLES].orEmpty()
+                .mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId).intersect(DiscoveryStyle.allIds),
+            pinnedDiscoveryStyleId = this[PINNED_DISCOVERY_STYLE]
+                ?.let(::migrateLegacyDiscoveryStyleId)
+                ?.takeIf { it in DiscoveryStyle.allIds },
             discoveryRefreshOrdinal = (this[DISCOVERY_REFRESH_ORDINAL] ?: 0).coerceAtLeast(0),
             aspectTolerance = (this[ASPECT_TOL] ?: defaults.aspectTolerance).coerceIn(0.005f, 0.10f),
             cacheLimitMb = (this[CACHE_MB] ?: defaults.cacheLimitMb).coerceIn(50, 2_000),
@@ -448,6 +481,7 @@ class SettingsRepository(
         private val ROTATE_DISCOVERY_HOURLY = booleanPreferencesKey("rotate_discovery_hourly")
         private val AVOID_RECENT_DISCOVERY = booleanPreferencesKey("avoid_recent_discovery")
         private val DISCOVERY_REPEAT_HOURS = intPreferencesKey("discovery_repeat_hours")
+        private const val LEGACY_BOTANICAL_STYLE_ID = "frutiger-flower"
         private val PREFERRED_DISCOVERY_STYLES = stringSetPreferencesKey("preferred_discovery_styles")
         private val HIDDEN_DISCOVERY_STYLES = stringSetPreferencesKey("hidden_discovery_styles")
         private val PINNED_DISCOVERY_STYLE = stringPreferencesKey("pinned_discovery_style")

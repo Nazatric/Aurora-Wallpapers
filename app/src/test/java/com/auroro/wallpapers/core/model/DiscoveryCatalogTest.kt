@@ -25,6 +25,17 @@ class DiscoveryCatalogTest {
         }
     }
 
+    @Test fun userFacingTopicsMapToExistingRecipesWithoutTheRetiredFlowerName() {
+        val botanicalRecipes = DiscoveryStylePreferenceMapping.recipeIds(setOf(DiscoveryStyle.BOTANICAL_ART.id))
+
+        assertTrue("botanical-illustration" in botanicalRecipes)
+        assertTrue("luminous-botanical-art" in botanicalRecipes)
+        assertTrue(botanicalRecipes.all { it in DiscoveryCatalog.allIds })
+        assertFalse("frutiger-flower" in DiscoveryCatalog.allIds)
+        assertEquals("Botanical art", DiscoveryStyle.BOTANICAL_ART.label)
+        assertFalse(DiscoveryStyle.entries.any { it.label == "Frutiger Flower" })
+    }
+
     @Test fun sessionPlannerIsRepeatableForASeedAndVariesForANewSession() {
         val now = 1_800_000_000_000L
         val first = DiscoverySessionPlanner.newSession(seed = 271828L, nowMillis = now)
