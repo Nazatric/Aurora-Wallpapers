@@ -68,6 +68,7 @@ import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
+import com.auroro.wallpapers.core.design.isLiveGlassEnabled
 import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.design.SourceGlyph
@@ -158,7 +159,11 @@ fun WallpaperDetailScreen(
 
         // The fit layer keeps the complete image visible. A dimmed crop of that same provider image
         // fills the surrounding space; no local or synthetic wallpaper artwork is added.
-        Box(Modifier.fillMaxSize().background(Color.Black).hazeSource(heroHazeState)) {
+        Box(
+            Modifier.fillMaxSize()
+                .background(Color.Black)
+                .then(if (isLiveGlassEnabled()) Modifier.hazeSource(heroHazeState) else Modifier),
+        ) {
             val currentPreviewUrl = previewUrl
             if (currentPreviewUrl != null) {
                 AsyncImage(

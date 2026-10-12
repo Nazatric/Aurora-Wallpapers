@@ -47,7 +47,7 @@ fun SourcesScreen(
         item { HeaderBar("Sources", "Real catalogues, clear source policies", onBack = onBack) }
         item {
             Text(
-                "Only source-backed results appear in Browse. Each provider keeps its own order and rights information.",
+                "Search and For You use source-native Wallhaven and Art Institute queries plus the dated APOD archive. Each catalogue keeps its own query rules, dimensions and rights; APOD remains view-only.",
                 Modifier.padding(horizontal = 4.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Aero.colors.textSecondary,
@@ -72,7 +72,7 @@ fun SourcesScreen(
                 enabled = settings.nasaApodEnabled,
                 onToggle = { onToggle(WallpaperSource.NASA_APOD, it) },
                 description = "Current APOD Basic endpoint · newest-first · daily entries only.",
-                detail = "APOD credit does not grant reuse permission. Entries stay view-only until item-specific rights are verified with the image owner; credit and copyright metadata link back to the original entry.",
+                detail = "APOD Basic does not report pixel dimensions. Credit does not grant reuse permission: entries stay view-only until item-specific rights are verified with the image owner, and their size remains unknown.",
                 docsLabel = "NASA APOD",
                 docsUrl = "https://science.nasa.gov/apod/",
                 onOpen = onOpen,

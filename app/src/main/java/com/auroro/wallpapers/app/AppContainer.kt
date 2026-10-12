@@ -15,6 +15,7 @@ import okio.Path.Companion.toOkioPath
 import com.auroro.wallpapers.core.data.CollectionsRepository
 import com.auroro.wallpapers.core.data.DiscoverySnapshotCache
 import com.auroro.wallpapers.core.data.DiscoveryEngine
+import com.auroro.wallpapers.core.data.MultiSourceDiscoveryEngine
 import com.auroro.wallpapers.core.data.SettingsDiscoveryPoolStore
 import com.auroro.wallpapers.core.data.FavoritesRepository
 import com.auroro.wallpapers.core.data.HistoryRepository
@@ -152,7 +153,16 @@ class AppContainer(context: Context) {
     )
 
     val aggregator = WallpaperAggregator(listOf(wallhaven, nasaApod, artInstitute))
-    val discoveryEngine = DiscoveryEngine(wallhaven, discoveryPools)
+    private val wallhavenDiscovery = DiscoveryEngine(wallhaven, discoveryPools)
+    private val artInstituteDiscovery = DiscoveryEngine(
+        provider = artInstitute,
+        pools = discoveryPools,
+        maxRequestsPerSession = 1,
+    )
+    val discoveryEngine = MultiSourceDiscoveryEngine(
+        searchEngines = listOf(wallhavenDiscovery, artInstituteDiscovery),
+        archiveProviders = listOf(nasaApod),
+    )
 
     val notifier = DownloadNotifier(appContext, settings)
     val wallpaperApplier = WallpaperApplier(appContext)

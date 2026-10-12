@@ -27,7 +27,7 @@ data class DiscoverySourceQuery(
     fun phraseAt(index: Int): String = phrases[Math.floorMod(index, phrases.size)]
 }
 
-/** One internal visual recipe. It is eligible for display only after source metadata supports it. */
+/** One internal query recipe; its evidence vocabulary ranks results but does not reject provider rows. */
 data class DiscoveryRecipe(
     val id: String,
     val label: String,
@@ -59,6 +59,7 @@ data class DiscoveryRecipe(
         }
     }
 
+    /** Advisory evidence used for ranking/diagnostics only; this is never a result-acceptance gate. */
     fun isRelevant(wallpaper: Wallpaper, minimumEvidence: Int = 1): Boolean =
         wallpaper.source in sourceQueries && evidenceScore(wallpaper) >= minimumEvidence
 
@@ -124,6 +125,23 @@ object DiscoverySessionPlanner {
                 usedFamilies += anchor.family
             }
         }
+        // Keep one genuinely mapped museum search in each normal For You mix; the provider can
+        // then contribute its own public-domain records without pretending its metadata matches
+        // every Wallhaven recipe.
+        if (requested > 0 && chosen.none { WallpaperSource.ART_INSTITUTE in it.sourceQueries }) {
+            val museumCandidates = pool.filter {
+                WallpaperSource.ART_INSTITUTE in it.sourceQueries && it !in chosen
+            }.ifEmpty {
+                // Source coverage takes precedence over skipping every mapped museum recipe as recent.
+                all.filter { WallpaperSource.ART_INSTITUTE in it.sourceQueries && it !in chosen }
+            }
+            if (museumCandidates.isNotEmpty()) {
+                val candidate = museumCandidates[random.nextInt(museumCandidates.size)]
+                if (chosen.size >= requested) chosen.removeAt(chosen.lastIndex)
+                chosen += candidate
+                usedFamilies += candidate.family
+            }
+        }
         val preferredBudget = minOf(preferred.size, maxOf(1, requested / 3))
         val alreadyPreferred = chosen.count { it.id in preferred }
 
@@ -186,20 +204,27 @@ object DiscoveryCatalog {
         family: DiscoveryFamily,
         wallhavenPhrases: List<String>,
         evidence: String,
+        artInstitutePhrase: String? = null,
+        artInstituteEvidence: String = "",
     ): DiscoveryRecipe {
         val evidenceTerms = evidence.split('|').map(String::trim).filter(String::isNotEmpty).toSet()
+        val sourceQueries = buildMap {
+            put(WallpaperSource.WALLHAVEN, DiscoverySourceQuery(wallhavenPhrases, evidenceTerms))
+            artInstitutePhrase?.let { phrase ->
+                val terms = artInstituteEvidence.split('|').map(String::trim).filter(String::isNotEmpty).toSet()
+                put(WallpaperSource.ART_INSTITUTE, DiscoverySourceQuery(listOf(phrase), terms))
+            }
+        }
         return DiscoveryRecipe(
             id = id,
             label = label,
             family = family,
-            sourceQueries = mapOf(
-                WallpaperSource.WALLHAVEN to DiscoverySourceQuery(wallhavenPhrases, evidenceTerms),
-            ),
+            sourceQueries = sourceQueries,
         )
     }
 
     val recipes: List<DiscoveryRecipe> = listOf(
-        recipe("abstract-geometry", "Abstract geometry", DiscoveryFamily.ABSTRACT, listOf("abstract geometric art", "geometric abstraction"), "geometric|geometry"),
+        recipe("abstract-geometry", "Abstract geometry", DiscoveryFamily.ABSTRACT, listOf("abstract geometric art", "geometric abstraction"), "geometric|geometry", artInstitutePhrase = "geometric", artInstituteEvidence = "geometric|geometry|abstract"),
         recipe("generative-art", "Generative art", DiscoveryFamily.EXPERIMENTAL, listOf("generative art", "algorithmic abstract art"), "generative|algorithmic"),
         recipe("procedural-patterns", "Procedural patterns", DiscoveryFamily.EXPERIMENTAL, listOf("procedural pattern art", "generative patterns"), "procedural|procedural pattern"),
         recipe("fractal-art", "Fractal art", DiscoveryFamily.ABSTRACT, listOf("fractal art", "fractal landscape"), "fractal|mandelbrot"),
@@ -261,17 +286,17 @@ object DiscoveryCatalog {
         recipe("scanography", "Scanography", DiscoveryFamily.EXPERIMENTAL, listOf("scanography art", "scanner photography art"), "scanography|scanner photography"),
         recipe("mixed-media-collage", "Mixed-media collage", DiscoveryFamily.ILLUSTRATION, listOf("mixed media collage art", "experimental collage"), "mixed media|collage"),
         recipe("maximalist-compositions", "Maximalist compositions", DiscoveryFamily.ILLUSTRATION, listOf("maximalist art composition", "maximalist illustration"), "maximalist composition|maximalist illustration"),
-        recipe("botanical-illustration", "Botanical illustration", DiscoveryFamily.ILLUSTRATION, listOf("botanical illustration", "vintage botanical drawing"), "botanical|botany"),
+        recipe("botanical-illustration", "Botanical illustration", DiscoveryFamily.ILLUSTRATION, listOf("botanical illustration", "vintage botanical drawing"), "botanical|botany", artInstitutePhrase = "botanical", artInstituteEvidence = "botanical|botany|plant|flower"),
         recipe("surreal-flowers", "Surreal flowers", DiscoveryFamily.ILLUSTRATION, listOf("surreal flower art", "surreal floral illustration"), "surreal flower|surreal floral"),
         recipe("unusual-plant-photography", "Unusual plant photography", DiscoveryFamily.PHOTOGRAPHY, listOf("unusual plant macro photography", "rare plant photography"), "plant|botanical|macro"),
         recipe("macro-textures", "Macro textures", DiscoveryFamily.PHOTOGRAPHY, listOf("macro texture photography", "abstract macro texture"), "macro texture|texture photography"),
         recipe("microscopic-imagery", "Microscopic imagery", DiscoveryFamily.SCIENTIFIC, listOf("microscopic imagery", "microscope photography"), "microscopic|microscope"),
         recipe("ink-in-water", "Ink in water", DiscoveryFamily.PHOTOGRAPHY, listOf("ink in water photography", "ink diffusion abstract"), "ink in water|ink diffusion"),
-        recipe("stained-glass-art", "Stained glass", DiscoveryFamily.ILLUSTRATION, listOf("stained glass art", "stained glass window"), "stained glass"),
+        recipe("stained-glass-art", "Stained glass", DiscoveryFamily.ILLUSTRATION, listOf("stained glass art", "stained glass window"), "stained glass", artInstitutePhrase = "stained glass", artInstituteEvidence = "stained glass|glass"),
         recipe("paper-craft", "Paper craft", DiscoveryFamily.ILLUSTRATION, listOf("paper craft art", "paper sculpture"), "paper craft|paper sculpture"),
         recipe("papercut-art", "Papercut art", DiscoveryFamily.ILLUSTRATION, listOf("papercut art", "paper cut illustration"), "papercut|paper cut"),
-        recipe("scientific-illustration", "Scientific illustration", DiscoveryFamily.SCIENTIFIC, listOf("scientific illustration", "natural history illustration"), "scientific illustration|natural history"),
-        recipe("celestial-art", "Celestial art", DiscoveryFamily.DIGITAL_WORLDS, listOf("space art planetary landscape", "space stars nebula"), "space|planet|astronomy|cosmic|nebula|stars"),
+        recipe("scientific-illustration", "Scientific illustration", DiscoveryFamily.SCIENTIFIC, listOf("scientific illustration", "natural history illustration"), "scientific illustration|natural history", artInstitutePhrase = "natural history", artInstituteEvidence = "natural history|scientific illustration|botanical"),
+        recipe("celestial-art", "Celestial art", DiscoveryFamily.DIGITAL_WORLDS, listOf("space art planetary landscape", "space stars nebula"), "space|planet|astronomy|cosmic|nebula|stars", artInstitutePhrase = "astronomy", artInstituteEvidence = "astronomy|celestial|space|planet"),
         recipe("sci-fi-environments", "Sci-fi environments", DiscoveryFamily.DIGITAL_WORLDS, listOf("science fiction environment art", "sci fi landscape"), "science fiction|sci fi|scifi|futuristic"),
         recipe("experimental-typography", "Experimental typography", DiscoveryFamily.EXPERIMENTAL, listOf("experimental typography", "typographic art"), "typography|typographic"),
         recipe("unusual-texture-studies", "Unusual texture studies", DiscoveryFamily.PHOTOGRAPHY, listOf("abstract texture study", "unusual surface texture"), "texture study|surface texture"),
@@ -279,7 +304,7 @@ object DiscoveryCatalog {
         recipe("frutiger-flower", "Frutiger Flower", DiscoveryFamily.AERO, listOf("frutiger flower", "luminous translucent flowers"), "frutiger flower|translucent flower"),
         recipe("frutiger-zen", "Frutiger Zen", DiscoveryFamily.AERO, listOf("frutiger zen", "serene water architecture"), "frutiger zen|serene water"),
         recipe("dark-aero", "Dark Aero", DiscoveryFamily.AERO, listOf("dark aero", "dark reflective glass cyan"), "dark aero|dark reflective glass"),
-        recipe("art-nouveau-botanical", "Art Nouveau botanicals", DiscoveryFamily.ILLUSTRATION, listOf("art nouveau botanical illustration", "art nouveau flowers"), "art nouveau|botanical"),
+        recipe("art-nouveau-botanical", "Art Nouveau botanicals", DiscoveryFamily.ILLUSTRATION, listOf("art nouveau botanical illustration", "art nouveau flowers"), "art nouveau|botanical", artInstitutePhrase = "art nouveau", artInstituteEvidence = "art nouveau|botanical|flower"),
         recipe("woodcut-landscapes", "Woodcut landscapes", DiscoveryFamily.ILLUSTRATION, listOf("woodcut landscape art", "woodblock landscape print"), "woodcut|woodblock"),
         recipe("pixel-art-environments", "Pixel-art environments", DiscoveryFamily.DIGITAL_WORLDS, listOf("pixel art landscape", "pixel art environment"), "pixel art|pixelated"),
         recipe("color-inversion-art", "Colour inversion art", DiscoveryFamily.EXPERIMENTAL, listOf("color inversion art", "negative color photography art"), "color inversion|negative color"),
@@ -291,6 +316,9 @@ object DiscoveryCatalog {
 
     private val byId = recipes.associateBy { it.id }
     val allIds: Set<String> = byId.keys
+    val artInstituteRecipeIds: Set<String> = recipes
+        .filter { WallpaperSource.ART_INSTITUTE in it.sourceQueries }
+        .mapTo(linkedSetOf()) { it.id }
 
     init {
         require(recipes.size >= 80) { "The internal discovery vocabulary must include at least 80 recipes." }

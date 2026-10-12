@@ -120,22 +120,22 @@ class ProviderNormalizationTest {
         assertEquals(1, api.requestedPage)
         assertEquals(listOf("2026-09-20", "2026-09-19"), page.items.map { it.sourceId })
         val publicItem = page.items.first()
-        assertEquals(4032, publicItem.width)
-        assertEquals(3024, publicItem.height)
+        assertEquals(0, publicItem.width)
+        assertEquals(0, publicItem.height)
         assertEquals("https://science.nasa.gov/apod/2026-09-20/", publicItem.pageUrl)
         assertNull(publicItem.licenseCode)
         assertFalse(publicItem.downloadAllowed)
         assertFalse(publicItem.setWallpaperAllowed)
         assertEquals("https://images.nasa.gov/apod.jpg?w=960&h=720", publicItem.thumbUrl)
         assertEquals("https://images.nasa.gov/apod.jpg?w=1920&h=1440", publicItem.previewUrl)
-        assertTrue(LocalFilter.matches(publicItem, WallpaperFilter(orientation = Orientation.LANDSCAPE)))
+        assertFalse(LocalFilter.matches(publicItem, WallpaperFilter(orientation = Orientation.LANDSCAPE)))
 
         val copyrighted = page.items.last()
         assertNull(copyrighted.licenseCode)
         assertFalse(copyrighted.downloadAllowed)
         assertFalse(copyrighted.setWallpaperAllowed)
         assertTrue(copyrighted.attribution.orEmpty().contains("Example Photographer"))
-        assertTrue(LocalFilter.matches(copyrighted, WallpaperFilter(orientation = Orientation.PORTRAIT)))
+        assertFalse(LocalFilter.matches(copyrighted, WallpaperFilter(orientation = Orientation.PORTRAIT)))
     }
 
     @Test fun nasaApodKeepsUnsupportedAnimationViewableButDoesNotOfferItAsDownloadOrWallpaper() = runTest {

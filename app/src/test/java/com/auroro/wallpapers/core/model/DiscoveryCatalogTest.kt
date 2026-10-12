@@ -11,10 +11,17 @@ class DiscoveryCatalogTest {
     @Test fun catalogueHasAtLeastEightyDistinctProviderMappedRecipes() {
         assertTrue(DiscoveryCatalog.recipes.size >= 80)
         assertEquals(DiscoveryCatalog.recipes.size, DiscoveryCatalog.allIds.size)
+        assertEquals(
+            setOf("abstract-geometry", "botanical-illustration", "celestial-art", "stained-glass-art", "art-nouveau-botanical", "scientific-illustration"),
+            DiscoveryCatalog.artInstituteRecipeIds,
+        )
         DiscoveryCatalog.recipes.forEach { recipe ->
             assertTrue(recipe.id.matches(Regex("[a-z0-9][a-z0-9-]*")))
-            assertEquals(setOf(WallpaperSource.WALLHAVEN), recipe.sourceQueries.keys)
+            assertTrue(WallpaperSource.WALLHAVEN in recipe.sourceQueries)
             assertTrue(recipe.sourceQueries.getValue(WallpaperSource.WALLHAVEN).phrases.all(String::isNotBlank))
+            recipe.sourceQueries[WallpaperSource.ART_INSTITUTE]?.let { query ->
+                assertTrue(query.phrases.isNotEmpty() && query.phrases.all(String::isNotBlank))
+            }
         }
     }
 
@@ -26,6 +33,7 @@ class DiscoveryCatalogTest {
         assertNotEquals(first.candidateRecipeIds, next.candidateRecipeIds)
         assertEquals(12, first.candidateRecipeIds.size)
         assertTrue(first.recipes.map { it.family }.distinct().size >= 8)
+        assertTrue(first.recipes.any { WallpaperSource.ART_INSTITUTE in it.sourceQueries })
         assertEquals(DiscoveryRotation.bucketAt(now), first.hourBucket)
     }
 
@@ -40,6 +48,17 @@ class DiscoveryCatalogTest {
         )
         assertTrue(session.candidateRecipeIds.none { it in recent })
         assertTrue(session.candidateRecipeIds.none { it in excluded })
+    }
+
+    @Test fun recentHistoryCannotSilentlyRemoveEveryMappedMuseumSearch() {
+        val museumRecipeIds = DiscoveryCatalog.artInstituteRecipeIds
+        assertTrue(museumRecipeIds.isNotEmpty())
+        val session = DiscoverySessionPlanner.newSession(
+            seed = 31L,
+            nowMillis = 1_800_000_000_000L,
+            recentRecipeIds = museumRecipeIds,
+        )
+        assertTrue(session.candidateRecipeIds.any { it in museumRecipeIds })
     }
 
     @Test fun eachLargeSessionIncludesANonrecentQualityAnchorAndStillVariesItsMix() {
@@ -69,7 +88,7 @@ class DiscoveryCatalogTest {
         assertTrue(session.candidateRecipeIds.isEmpty())
     }
 
-    @Test fun genericAbstractOrUploaderNameDoesNotValidateGeometricAbstraction() {
+    @Test fun metadataEvidenceOnlyRanksResultsAndNeverRejectsMissingOrGenericLabels() {
         val recipe = DiscoveryCatalog.find("abstract-geometry")!!
         val generic = wallpaper(id = "generic", tags = listOf(WallpaperTag(null, "abstract")))
         val creatorOnly = wallpaper(id = "creator", tags = emptyList()).copy(creatorName = "Geometric Studio")
@@ -78,5 +97,8 @@ class DiscoveryCatalogTest {
         assertFalse(recipe.isRelevant(generic))
         assertFalse(recipe.isRelevant(creatorOnly))
         assertTrue(recipe.isRelevant(relevant))
+        val ranked = DiscoveryQuality.rank(listOf(generic, creatorOnly, relevant), recipe)
+        assertEquals(setOf(generic.key, creatorOnly.key, relevant.key), ranked.map { it.key }.toSet())
+        assertEquals(relevant.key, ranked.first().key)
     }
 }

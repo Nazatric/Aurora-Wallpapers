@@ -104,7 +104,12 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup("For You", "Validated Wallhaven results; source-side purity settings only.") {
+            SettingsGroup("For You", "Wallhaven and public-domain Art Institute searches, plus the dated view-only APOD archive.") {
+                Text(
+                    "Search-query results need source-reported dimensions and a 720 px minimum short edge; portrait and 1080p are not forced. APOD does not report pixel dimensions, so those view-only entries remain unknown.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Aero.colors.textTertiary,
+                )
                 SettingSwitch("Rotate hourly", "Reuse a stable mix during the hour instead of polling repeatedly.", settings.rotateDiscoveryHourly) { value -> onSettings { it.copy(rotateDiscoveryHourly = value) } }
                 SettingSwitch("Avoid recently shown", "Skip recent recipe and image IDs when possible; new results are not guaranteed.", settings.avoidRecentlySeen) { value -> onSettings { it.copy(avoidRecentlySeen = value) } }
                 if (settings.avoidRecentlySeen) {

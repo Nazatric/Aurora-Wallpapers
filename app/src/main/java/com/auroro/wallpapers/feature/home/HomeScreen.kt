@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.app.FeedUiState
@@ -147,8 +148,14 @@ fun HomeScreen(
                             }
                         }
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val contributingCatalogues = feed.items.map { it.source }.distinct().size
                             Text(
-                                if (feed.discoveryValidatedRecipeCount > 0) "${feed.discoveryValidatedRecipeCount} validated source-backed searches" else "Validated source-backed discovery",
+                                when {
+                                    feed.discoveryValidatedRecipeCount > 0 ->
+                                        "$contributingCatalogues catalogues · ${feed.discoveryValidatedRecipeCount} validated source searches"
+                                    contributingCatalogues > 0 -> "$contributingCatalogues catalogues contributing to this mix"
+                                    else -> "Validated source-backed discovery"
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Aero.colors.textSecondary,
                                 maxLines = 2,
@@ -189,7 +196,7 @@ fun HomeScreen(
 @Composable
 private fun HomeTabLabel(tab: HomeTab, selected: Boolean, onClick: () -> Unit) {
     Column(
-        Modifier.clickable(role = Role.Tab, onClick = onClick).semantics { androidx.compose.ui.semantics.selected = selected }.padding(vertical = 5.dp),
+        Modifier.clickable(role = Role.Tab, onClick = onClick).semantics { this.selected = selected }.padding(vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {

@@ -32,6 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -214,7 +216,7 @@ fun SearchScreen(
 @Composable
 private fun SourceTab(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Column(
-        Modifier.clickable(enabled = enabled, onClick = onClick).semantics { androidx.compose.ui.semantics.selected = selected }.padding(vertical = 5.dp),
+        Modifier.clickable(enabled = enabled, onClick = onClick).semantics { this.selected = selected }.padding(vertical = 5.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {

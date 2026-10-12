@@ -63,6 +63,7 @@ import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
 import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.LocalAeroHazeState
+import com.auroro.wallpapers.core.design.isLiveGlassEnabled
 import com.auroro.wallpapers.app.ApplyPreparationUiState
 import com.auroro.wallpapers.core.model.Wallpaper
 import dev.chrisbanes.haze.ExperimentalHazeApi
@@ -151,7 +152,7 @@ fun CropScreen(
                     contentDescription = "Full-screen crop preview of ${wallpaper?.source?.displayName ?: "saved"} wallpaper",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
-                        .then(hazeState?.let { Modifier.hazeSource(it) } ?: Modifier)
+                        .then(if (hazeState != null && isLiveGlassEnabled()) Modifier.hazeSource(hazeState) else Modifier)
                         .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offsetX; translationY = offsetY }
                         .pointerInput(imageUri, width, height, viewportWidthPx, viewportHeightPx) {
                             detectTransformGestures { _, pan, zoom, _ ->

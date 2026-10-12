@@ -40,7 +40,7 @@ class SettingsDiscoveryPoolStore(
         val age = nowMillis - record.lastSuccessfulAtMillis
         if (record.lastSuccessfulAtMillis <= 0L || age < 0L || age > MAX_STALE_POOL_AGE_MILLIS) return null
         val candidates = wallpapers.getAll(record.wallpaperKeys)
-            .filter { it.source == source && DiscoveryQuality.isUsable(it) && recipe.isRelevant(it) }
+            .filter { it.source == source && DiscoveryQuality.isUsable(it) }
             .distinctBy { it.key }
         if (candidates.size < DiscoveryEngine.MIN_ITEMS_PER_RECIPE) return null
         return CachedDiscoveryPool(
@@ -64,7 +64,7 @@ class SettingsDiscoveryPoolStore(
         nowMillis: Long,
     ) {
         val usable = items.asSequence()
-            .filter { it.source == source && DiscoveryQuality.isUsable(it) && recipe.isRelevant(it) }
+            .filter { it.source == source && DiscoveryQuality.isUsable(it) }
             .distinctBy { it.key }
             .take(DiscoveryEngine.MAX_ITEMS_PER_RECIPE)
             .toList()

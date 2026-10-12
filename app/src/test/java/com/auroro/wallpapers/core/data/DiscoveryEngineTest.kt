@@ -7,7 +7,6 @@ import com.auroro.wallpapers.core.model.DiscoveryRotation
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.ResolutionFilter
-import com.auroro.wallpapers.core.model.ResolutionPreset
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperFilter
@@ -72,7 +71,7 @@ class DiscoveryEngineTest {
         assertEquals(15, permitted)
     }
 
-    @Test fun missingSearchMetadataIsEnrichedWithOneBudgetedProviderDetailCall() = runTest {
+    @Test fun missingSearchMetadataDoesNotRejectAUsableResultOrTriggerDetailTraffic() = runTest {
         val provider = ScriptedDiscoveryProvider(
             answerPage = { _, _ -> ProviderPage(items = listOf(tagged("from-search")), next = null) },
             answerDetail = { sourceId -> tagged(sourceId, "fractal art") },
@@ -85,16 +84,19 @@ class DiscoveryEngineTest {
         )
 
         assertEquals(1, provider.requests.size)
-        assertEquals(listOf("from-search"), provider.detailRequests)
-        assertEquals(listOf("fractal art"), result.items.single().tags.map { it.name })
-        assertEquals(1, result.recipeRelevantItems)
+        assertTrue(provider.detailRequests.isEmpty())
+        assertTrue(result.items.single().tags.isEmpty())
+        assertEquals(0, result.recipeRelevantItems)
         assertEquals(1, result.locallyValidatedItems)
         assertTrue(!result.requestBudgetReached)
     }
 
-    @Test fun providerDetailLookupsAndSearchPagesShareOneSessionBudget() = runTest {
+    @Test fun incompleteMetadataDoesNotSpendTheSessionBudgetOnUnneededDetailCalls() = runTest {
         val provider = ScriptedDiscoveryProvider(
-            answerPage = { _, _ -> ProviderPage(items = listOf(tagged("unmatched")), next = null) },
+            answerPage = { request, _ ->
+                val recipe = recipeFor(request.query)
+                ProviderPage(items = listOf(tagged("${recipe.id}-image")), next = null)
+            },
             answerDetail = { sourceId -> tagged(sourceId, "mountain") },
             supportsDetail = true,
             answer = { error("The cursor-aware response must be used") },
@@ -104,11 +106,10 @@ class DiscoveryEngineTest {
             session(recipeIds), generation = 22L, preferences = AppSettings(),
         )
 
-        assertEquals(
-            DiscoveryEngine.MAX_REQUESTS_PER_SESSION,
-            provider.requests.size + provider.detailRequests.size,
-        )
-        assertTrue(result.requestBudgetReached)
+        assertEquals(recipeIds.size, provider.requests.size)
+        assertTrue(provider.detailRequests.isEmpty())
+        assertFalse(result.requestBudgetReached)
+        assertEquals(recipeIds.size, result.sections.size)
         assertTrue(result.errors.isEmpty())
     }
 
@@ -130,8 +131,8 @@ class DiscoveryEngineTest {
 
         assertEquals(DiscoveryEngine.MAX_REQUESTS_PER_SESSION, provider.requests.size)
         assertTrue(result.requestBudgetReached)
-        assertTrue(result.message()!!.contains("15-request budget"))
-        assertTrue(result.message()!!.contains("0 mapped, 0 image-usable, 0 recipe-matched, and 0 passed local filters"))
+        assertTrue(result.message()!!.contains("request budget"))
+        assertTrue(result.message()!!.contains("0 mapped, 0 passed the known-dimension/720 px floor, 0 had supporting metadata (advisory only), and 0 passed local checks"))
         assertEquals(0, result.providerItemsReceived)
         assertTrue(result.errors.isEmpty())
         assertEquals(3, store.empties.size)
@@ -144,7 +145,7 @@ class DiscoveryEngineTest {
             answerPage = { request, _ ->
                 seenQueries += request.query
                 if (seenQueries.size == 1) {
-                    ProviderPage(items = listOf(tagged("wrong-1", "mountain"), tagged("wrong-2", "mountain")), next = null)
+                    ProviderPage(items = emptyList(), next = null)
                 } else {
                     ProviderPage(items = listOf(tagged("right-1", "fractal art"), tagged("right-2", "fractal art")), next = null)
                 }
@@ -159,24 +160,20 @@ class DiscoveryEngineTest {
         assertTrue(seenQueries[0] != seenQueries[1])
         assertEquals(seenQueries.last(), result.sections.single().identity.query)
         assertEquals(2, result.items.size)
-        assertEquals(4, result.providerItemsReceived)
-        assertEquals(4, result.sourceUsableItems)
+        assertEquals(2, result.providerItemsReceived)
+        assertEquals(2, result.sourceUsableItems)
         assertEquals(2, result.recipeRelevantItems)
         assertEquals(2, result.locallyValidatedItems)
     }
 
-    @Test fun boundedQueryPagingContinuesUntilOneRelevantResultIsFound() = runTest {
+    @Test fun usablePageIsAcceptedWithoutRecipeKeywordMatch() = runTest {
         val provider = ScriptedDiscoveryProvider(
             answer = { error("The cursor-aware response must be used") },
             answerPage = { _, cursor ->
-                if (cursor.page == 1) {
-                    ProviderPage(
-                        items = listOf(tagged("unrelated-1", "mountain"), tagged("unrelated-2", "mountain")),
-                        next = PageCursor(page = 2, seed = cursor.seed),
-                    )
-                } else {
-                    ProviderPage(items = listOf(tagged("single-match", "fractal art")), next = null)
-                }
+                ProviderPage(
+                    items = listOf(tagged("unrelated-1", "mountain"), tagged("unrelated-2", "mountain")),
+                    next = PageCursor(page = cursor.page + 1, seed = cursor.seed),
+                )
             },
         )
 
@@ -184,10 +181,11 @@ class DiscoveryEngineTest {
             session(listOf("fractal-art")), generation = 18L, preferences = AppSettings(),
         )
 
-        assertEquals(listOf(1, 2), provider.cursors.map { it.page })
-        assertEquals(provider.cursors.first().seed, provider.cursors.last().seed)
-        assertEquals(listOf("single-match"), result.items.map { it.sourceId })
-        assertEquals(1, result.sections.single().items.size)
+        assertEquals(listOf(1), provider.cursors.map { it.page })
+        assertEquals(listOf("unrelated-1", "unrelated-2"), result.items.map { it.sourceId })
+        assertEquals(0, result.recipeRelevantItems)
+        assertEquals(2, result.locallyValidatedItems)
+        assertEquals(2, result.sections.single().items.size)
     }
 
     @Test fun discoveryRequestsRespectTheConfiguredConcurrencyBound() = runTest {
@@ -220,26 +218,31 @@ class DiscoveryEngineTest {
         assertEquals(recipeIds.size, result.sections.size)
     }
 
-    @Test fun onlyEnoughRelevantUsableResultsBecomeSectionsAndOtherQueriesDoNotEraseThem() = runTest {
+    @Test fun recipeEvidenceIsAdvisoryAndOneFailedQueryDoesNotEraseOtherSections() = runTest {
         val session = session(recipeIds)
-        val provider = ScriptedDiscoveryProvider { request ->
-            val recipe = recipeFor(request.query)
-            val tag = when (recipe.id) {
-                "fractal-art" -> "fractal art"
-                "botanical-illustration" -> "botanical illustration"
-                else -> "unrelated mountain"
-            }
-            ProviderPage(
-                items = listOf(
-                    tagged("${recipe.id}-1", tag),
-                    tagged("${recipe.id}-2", tag),
-                ),
-                next = null,
-            )
-        }
+        val provider = ScriptedDiscoveryProvider(
+            answerPage = { request, _ ->
+                val recipe = recipeFor(request.query)
+                if (recipe.id == "vaporwave") {
+                    throw ProviderException(ProviderErrorKind.NO_NETWORK, "Simulated provider outage.")
+                }
+                val tag = when (recipe.id) {
+                    "fractal-art" -> "fractal art"
+                    "botanical-illustration" -> "botanical illustration"
+                    else -> "unrelated mountain"
+                }
+                ProviderPage(
+                    items = listOf(
+                        tagged("${recipe.id}-1", tag),
+                        tagged("${recipe.id}-2", tag),
+                    ),
+                    next = null,
+                )
+            },
+        )
         val store = MemoryDiscoveryPoolStore()
         val progress = mutableListOf<DiscoveryBuildProgress>()
-        val result = DiscoveryEngine(provider, store).discover(
+        val result = DiscoveryEngine(provider, store, requestConcurrency = 1).discover(
             session = session,
             generation = 41L,
             preferences = AppSettings(),
@@ -248,10 +251,15 @@ class DiscoveryEngineTest {
 
         assertEquals(session.sessionId, result.sessionId)
         assertEquals(41L, result.generation)
-        assertEquals(setOf("fractal-art", "botanical-illustration"), result.sections.map { it.identity.recipeId }.toSet())
-        assertEquals(4, result.items.size)
-        assertEquals(4, result.emptyRecipes)
-        assertTrue(result.items.all { it.tags.none { tag -> tag.name == "unrelated mountain" } })
+        assertEquals(setOf("fractal-art", "botanical-illustration", "glitch-art", "brutalist-architecture", "isometric-worlds"),
+            result.sections.map { it.identity.recipeId }.toSet())
+        assertEquals(10, result.items.size)
+        assertEquals(0, result.emptyRecipes)
+        assertEquals(1, result.errors.size)
+        assertEquals(4, result.recipeRelevantItems)
+        assertEquals(10, result.locallyValidatedItems)
+        assertEquals(6, provider.requests.size)
+        assertTrue(result.items.any { it.tags.any { tag -> tag.name == "unrelated mountain" } })
         assertTrue(result.sections.all {
             it.identity.sessionId == session.sessionId &&
                 it.identity.generation == 41L &&
@@ -260,11 +268,10 @@ class DiscoveryEngineTest {
         })
         assertTrue(progress.isNotEmpty())
         assertTrue(progress.all { it.sessionId == session.sessionId && it.generation == 41L })
-        assertEquals(recipeIds.size + result.emptyRecipes, provider.requests.size)
         provider.requests.forEach { request ->
             assertEquals(setOf(WallpaperSource.WALLHAVEN), request.filter.sources)
-            assertEquals(Orientation.PORTRAIT, request.filter.orientation)
-            assertEquals(ResolutionFilter.Preset(ResolutionPreset.P1080), request.filter.resolution)
+            assertEquals(Orientation.ANY, request.filter.orientation)
+            assertEquals(ResolutionFilter.Any, request.filter.resolution)
             assertEquals(SortOption.RELEVANCE, request.filter.sort)
             assertTrue(request.filter.wallhavenCategories.isEmpty())
         }

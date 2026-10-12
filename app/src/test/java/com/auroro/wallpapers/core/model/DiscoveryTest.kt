@@ -66,16 +66,18 @@ class DiscoveryTest {
         assertTrue(repeatRanked.first().key != relevant.key)
     }
 
-    @Test fun discoveryQualityKeepsOnlyWallhavenImagesWithUsableDimensions() {
-        val goodNature = wallpaper(id = "nature")
-        val otherCatalogue = wallpaper(source = WallpaperSource.NASA_APOD, id = "apod")
+    @Test fun qualityCheckedSearchResultsNeedKnownDimensionsAndA720PixelShortEdgeAcrossSources() {
+        val wallhaven = wallpaper(id = "nature")
+        val museum = wallpaper(source = WallpaperSource.ART_INSTITUTE, id = "museum")
+        val apodUnknown = wallpaper(source = WallpaperSource.NASA_APOD, id = "apod", width = 0, height = 0)
         val missingDimensions = wallpaper(id = "unknown", width = 0, height = 0)
         val tooSmall = wallpaper(id = "small", width = 400, height = 700)
         val selection = DiscoveryRotation.select(0L)
-        assertEquals(listOf(goodNature), DiscoveryQuality.rank(
-            listOf(otherCatalogue, missingDimensions, tooSmall, goodNature),
-            selection,
-        ))
+        assertEquals(
+            setOf(wallhaven.key, museum.key),
+            DiscoveryQuality.rank(listOf(apodUnknown, missingDimensions, tooSmall, museum, wallhaven), selection)
+                .map { it.key }.toSet(),
+        )
     }
 
     @Test fun discoveryQualityDoesNotSilentlyRejectProviderTagsOrCategories() {

@@ -21,6 +21,8 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
@@ -81,44 +83,44 @@ data class DiscoveryBuildResult(
     val sourceUsableItems: Int = 0,
     val recipeRelevantItems: Int = 0,
     val locallyValidatedItems: Int = 0,
+    val source: WallpaperSource = WallpaperSource.WALLHAVEN,
 ) {
     val staleCacheUsed: Boolean get() = sections.any { it.staleCache }
     val allFromCache: Boolean get() = sections.isNotEmpty() && sections.all { it.fromCache }
     val sourceStatus: SourceStatus
         get() = when {
-            disabledReason != null -> SourceStatus(WallpaperSource.WALLHAVEN, SourceState.Skipped(disabledReason))
-            errors.isNotEmpty() -> SourceStatus(WallpaperSource.WALLHAVEN, SourceState.Failed(errors.first()))
-            items.isNotEmpty() -> SourceStatus(WallpaperSource.WALLHAVEN, SourceState.Ok(items.size))
-            else -> SourceStatus(WallpaperSource.WALLHAVEN, SourceState.Exhausted)
+            disabledReason != null -> SourceStatus(source, SourceState.Skipped(disabledReason))
+            errors.isNotEmpty() -> SourceStatus(source, SourceState.Failed(errors.first()))
+            items.isNotEmpty() -> SourceStatus(source, SourceState.Ok(items.size))
+            else -> SourceStatus(source, SourceState.Exhausted)
         }
 
     /** Honest status for a partial or empty run; no provider count or content is synthesized. */
     fun message(): String? = when {
         disabledReason != null -> disabledReason
         errors.isNotEmpty() && items.isEmpty() -> errors.first().message ?: errors.first().kind.title
-        errors.isNotEmpty() -> "Some searches could not finish (${errors.map { it.kind.title }.distinct().joinToString()}); showing ${items.size} validated wallpapers."
+        errors.isNotEmpty() -> "Some ${source.displayName} searches could not finish (${errors.map { it.kind.title }.distinct().joinToString()}); showing ${items.size} validated images."
         requestBudgetReached && items.isEmpty() ->
-            "No validated results were available within this mix's ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget. ${emptyDiagnostics()}. Try again later."
-        requestBudgetReached -> "Showing ${items.size} validated results; the ${DiscoveryEngine.MAX_REQUESTS_PER_SESSION}-request budget was reached before six recipe matches."
-        items.isEmpty() && skippedCoolingDown > 0 -> "Discovery searches are cooling down after empty or failed requests. Try again later."
+            "No validated results were available within this mix's request budget. ${emptyDiagnostics()}. Try again later."
+        requestBudgetReached -> "Showing ${items.size} validated results; the request budget was reached before six recipe matches."
+        items.isEmpty() && skippedCoolingDown > 0 -> "${source.displayName} searches are cooling down after empty or failed requests. Try again later."
         items.isEmpty() && attemptedRecipes > 0 ->
-            "No relevant results passed the checks from $attemptedRecipes attempted recipe candidates. ${emptyDiagnostics()}. Try again later."
-        items.isEmpty() -> "No suitable results matched this discovery mix. Try again later."
-        staleCacheUsed -> "Showing previously validated wallpapers while Wallhaven refreshes this mix."
+            "No usable images passed the checks from $attemptedRecipes attempted source queries. ${emptyDiagnostics()}. Try again later."
+        items.isEmpty() -> "No suitable results were returned by ${source.displayName} for this discovery mix. Try again later."
+        staleCacheUsed -> "Showing previously validated ${source.displayName} images while the source refreshes this mix."
         allFromCache -> "Showing validated wallpapers from the on-device cache."
         else -> null
     }
 
     private fun emptyDiagnostics(): String {
         val reason = when {
-            providerItemsReceived == 0 -> "No usable wallpaper rows were returned"
-            sourceUsableItems == 0 -> "The returned rows did not pass the basic image-quality checks"
-            recipeRelevantItems == 0 -> "No usable row had metadata matching the selected recipes"
-            locallyValidatedItems == 0 -> "Recipe matches did not pass the active portrait or 1080p+ image-quality filters"
-            else -> "No recipe produced an accepted result"
+            providerItemsReceived == 0 -> "The provider returned no image rows"
+            sourceUsableItems == 0 -> "Rows lacked known dimensions or did not meet the 720 px minimum short edge"
+            locallyValidatedItems == 0 -> "No returned row passed the remaining source and user-selected checks"
+            else -> "No source query produced an accepted result"
         }
-        return "Wallhaven page rows: $providerItemsReceived mapped, $sourceUsableItems image-usable, " +
-            "$recipeRelevantItems recipe-matched, and $locallyValidatedItems passed local filters. $reason"
+        return "${source.displayName} page rows: $providerItemsReceived mapped, $sourceUsableItems passed the known-dimension/720 px floor, " +
+            "$recipeRelevantItems had supporting metadata (advisory only), and $locallyValidatedItems passed local checks. $reason"
     }
 }
 
@@ -135,19 +137,24 @@ internal class DiscoveryRequestBudget(private val maximum: Int) {
 
 /**
  * Builds a quality-checked, varied feed from provider-backed queries. Each candidate is independently
- * validated; empty or mismatched queries never become visible sections. Curated discovery currently
- * uses Wallhaven's official source-side purity parameter; the app adds no cross-provider content filter.
+ * validated against its source and known image quality; provider metadata evidence ranks results but
+ * never rejects them. Curated Wallhaven discovery uses its documented source-side purity parameter;
+ * the app adds no cross-provider content filter.
  */
 class DiscoveryEngine(
     private val provider: WallpaperProvider,
     private val pools: DiscoveryPoolStore,
     private val perRecipeTimeoutMillis: Long = DEFAULT_QUERY_TIMEOUT_MILLIS,
     private val requestConcurrency: Int = 3,
+    private val maxRequestsPerSession: Int = MAX_REQUESTS_PER_SESSION,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    val source: WallpaperSource get() = provider.source
+
     init {
         require(perRecipeTimeoutMillis > 0)
         require(requestConcurrency > 0)
+        require(maxRequestsPerSession > 0)
     }
 
     suspend fun discover(
@@ -157,13 +164,36 @@ class DiscoveryEngine(
         recentlySeenKeys: Set<String> = emptySet(),
         onProgress: suspend (DiscoveryBuildProgress) -> Unit = {},
     ): DiscoveryBuildResult {
-        val recipes = session.recipes.take(MAX_CANDIDATES)
+        val recipes = session.recipes
+            .filter { provider.source in it.sourceQueries }
+            .take(MAX_CANDIDATES)
         if (recipes.isEmpty()) {
-            return DiscoveryBuildResult(session.sessionId, generation, emptyList(), emptyList(), 0, 0, 0, emptyList())
+            return DiscoveryBuildResult(
+                sessionId = session.sessionId,
+                generation = generation,
+                sections = emptyList(),
+                items = emptyList(),
+                attemptedRecipes = 0,
+                emptyRecipes = 0,
+                skippedCoolingDown = 0,
+                errors = emptyList(),
+                source = provider.source,
+            )
         }
 
         val availability = try {
-            provider.availability()
+            withTimeout(perRecipeTimeoutMillis) { provider.availability() }
+        } catch (timeout: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            val providerError = ProviderException(
+                ProviderErrorKind.TIMEOUT,
+                "${provider.source.displayName} took too long to report availability.",
+                cause = timeout,
+            )
+            return DiscoveryBuildResult(
+                session.sessionId, generation, emptyList(), emptyList(), 0, 0, 0, listOf(providerError),
+                source = provider.source,
+            )
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Throwable) {
@@ -177,6 +207,7 @@ class DiscoveryEngine(
                 0,
                 0,
                 listOf(providerError),
+                source = provider.source,
             )
         }
         if (availability is SourceAvailability.DisabledByUser) {
@@ -190,6 +221,7 @@ class DiscoveryEngine(
                 skippedCoolingDown = 0,
                 errors = emptyList(),
                 disabledReason = availability.reason,
+                source = provider.source,
             )
         }
 
@@ -262,7 +294,7 @@ class DiscoveryEngine(
         var sourceUsableItems = 0
         var recipeRelevantItems = 0
         var locallyValidatedItems = 0
-        val requestBudget = DiscoveryRequestBudget(MAX_REQUESTS_PER_SESSION)
+        val requestBudget = DiscoveryRequestBudget(maxRequestsPerSession)
         val semaphore = Semaphore(requestConcurrency)
         for (batch in toFetch.chunked(requestConcurrency.coerceAtMost(3))) {
             val outcomes = coroutineScope {
@@ -377,7 +409,8 @@ class DiscoveryEngine(
                 var pagesFetched = 0
                 var valid = emptyList<Wallpaper>()
                 var detailBudgetBlocked = false
-                while (pagesFetched < MAX_PAGES_PER_RECIPE && valid.size < MIN_ITEMS_PER_RECIPE) {
+                val pageLimit = provider.maxPagesPerLoad(attemptRequest).coerceIn(1, MAX_PAGES_PER_RECIPE)
+                while (pagesFetched < pageLimit && valid.size < MIN_ITEMS_PER_RECIPE) {
                     val currentCursor = cursor ?: break
                     if (!requestBudget.tryAcquire()) {
                         return outcome(attemptIdentity, requestBudgetReached = true)
@@ -431,9 +464,10 @@ class DiscoveryEngine(
                     sourceUsableItems += sourceUsable.size
                     val recipeRelevant = sourceUsable.filter(recipe::isRelevant)
                     recipeRelevantItems += recipeRelevant.size
-                    locallyValidatedItems += recipeRelevant.count {
+                    val locallyValidated = sourceUsable.count {
                         LocalFilter.matches(it, request.filter, request.aspectTolerance)
                     }
+                    locallyValidatedItems += locallyValidated
                     if (Log.isLoggable(DISCOVERY_LOG_TAG, Log.DEBUG)) {
                         val sampleTags = enrichedItems.asSequence()
                             .flatMap { it.tags.asSequence() }
@@ -449,7 +483,7 @@ class DiscoveryEngine(
                             DISCOVERY_LOG_TAG,
                             "recipe=${recipe.id} query=${phrase.take(48)} rows=${page.items.size} " +
                                 "details=$detailLookups usable=${sourceUsable.size} evidence=${recipeRelevant.size} " +
-                                "local=${recipeRelevant.count { LocalFilter.matches(it, request.filter, request.aspectTolerance) }} " +
+                                "local=$locallyValidated " +
                                 "sampleTags=$sampleTags sampleGeometry=$sampleGeometry",
                         )
                     }
@@ -471,6 +505,7 @@ class DiscoveryEngine(
             pools.recordEmpty(provider.source, recipe, clock())
             outcome(identity, empty = true)
         } catch (timeout: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
             val error = ProviderException(
                 ProviderErrorKind.TIMEOUT,
                 "${provider.source.displayName} took too long to respond.",
@@ -508,9 +543,8 @@ class DiscoveryEngine(
 
     private fun discoveryFilter() = WallpaperFilter(
         sources = setOf(provider.source),
-        orientation = Orientation.PORTRAIT,
-        resolution = ResolutionFilter.Preset(ResolutionPreset.P1080),
-        // Session/query selection carries variety; the provider relevance order prioritizes usable matches.
+        // Preserve each provider's actual query/relevance order. Image geometry is validated from
+        // reported dimensions, with no forced portrait or 1080p prefilter.
         sort = SortOption.RELEVANCE,
     )
 
@@ -521,7 +555,7 @@ class DiscoveryEngine(
         tolerance: Float,
         recentlySeenKeys: Set<String>,
     ): List<Wallpaper> = DiscoveryQuality.rank(items, recipe, recentlySeenKeys)
-        .filter { it.source == provider.source && recipe.isRelevant(it) && LocalFilter.matches(it, filter, tolerance) }
+        .filter { it.source == provider.source && LocalFilter.matches(it, filter, tolerance) }
 
     private fun result(
         session: DiscoverySession,
@@ -551,6 +585,7 @@ class DiscoveryEngine(
         sourceUsableItems = sourceUsableItems,
         recipeRelevantItems = recipeRelevantItems,
         locallyValidatedItems = locallyValidatedItems,
+        source = provider.source,
     )
 
     private fun progress(

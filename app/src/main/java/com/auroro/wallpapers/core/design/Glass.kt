@@ -48,6 +48,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
+import com.auroro.wallpapers.core.data.GlassQuality
 import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
@@ -58,6 +59,12 @@ import dev.chrisbanes.haze.glass.hazeGlass
 
 /** Shared, window-local source used by real Glass surfaces across the app. */
 val LocalAeroHazeState = staticCompositionLocalOf<HazeState?> { null }
+
+/** Avoid backdrop capture entirely when the selected effect or accessibility mode will not render it. */
+@OptIn(ExperimentalHazeApi::class)
+@Composable
+fun isLiveGlassEnabled(): Boolean =
+    !LocalGlassAccessibilitySettings.current.reduceTransparency && Aero.colors.glassQuality != GlassQuality.REDUCED
 
 /**
  * Source-backed glass panel. Haze samples the earlier Compose content, applies size-aware blur and
@@ -87,7 +94,7 @@ fun GlassPanel(
         )
         .clip(shape)
         .then(
-            if (hazeState != null && !reducedTransparency && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) {
+            if (hazeState != null && isLiveGlassEnabled()) {
                 Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
             } else {
                 Modifier.background(glassFallbackBrush(c, opacity))
@@ -136,7 +143,7 @@ fun GlassSurface(
         .shadow(5.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = if (c.isDark) 0.18f else 0.07f))
         .clip(shape)
         .then(
-            if (hazeState != null && !reducedTransparency && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) {
+            if (hazeState != null && isLiveGlassEnabled()) {
                 Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
             } else {
                 Modifier.background(glassFallbackBrush(c, opacity))
@@ -269,11 +276,10 @@ fun SectionTitle(
 @Composable
 fun AmbientBackdrop(modifier: Modifier = Modifier, imageUrl: String? = null) {
     val c = Aero.colors
-    val reducedTransparency = LocalGlassAccessibilitySettings.current.reduceTransparency
     val hazeState = LocalAeroHazeState.current
     Box(
         modifier
-            .then(if (hazeState != null && !reducedTransparency && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) Modifier.hazeSource(hazeState) else Modifier)
+            .then(if (hazeState != null && isLiveGlassEnabled()) Modifier.hazeSource(hazeState) else Modifier)
             .background(Brush.verticalGradient(listOf(c.backdropTop, c.backdropMid, c.backdropBottom))),
     ) {
         if (!imageUrl.isNullOrBlank()) {
@@ -398,7 +404,7 @@ fun GlassIconButton(
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clip(shape)
             .then(
-                if (hazeState != null && !reducedTransparency && c.glassQuality != com.auroro.wallpapers.core.data.GlassQuality.REDUCED) {
+                if (hazeState != null && isLiveGlassEnabled()) {
                     Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
                 } else {
                     Modifier.background(fallback)

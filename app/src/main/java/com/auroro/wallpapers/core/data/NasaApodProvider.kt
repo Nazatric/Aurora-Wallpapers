@@ -65,8 +65,10 @@ class NasaApodProvider(
         val original = dto.hdurl?.trim()?.takeIf(String::isNotEmpty) ?: return null
         if (!UrlPolicy.isAllowedForNetwork(WallpaperSource.NASA_APOD, original)) return null
 
-        val width = imageDimension(original, "w")
-        val height = imageDimension(original, "h")
+        // APOD Basic does not report pixel dimensions. CDN URL parameters are rendition requests,
+        // not authoritative source metadata, so keep the original size unknown.
+        val width = 0
+        val height = 0
         val title = cleanText(dto.title).takeIf(String::isNotBlank)
         val copyright = cleanText(dto.copyright).takeIf(String::isNotBlank)
         val credit = cleanText(dto.credit).takeIf(String::isNotBlank)
@@ -133,7 +135,5 @@ class NasaApodProvider(
                 .toString()
         }
 
-        private fun imageDimension(raw: String, name: String): Int =
-            raw.toHttpUrlOrNull()?.queryParameter(name)?.toIntOrNull()?.takeIf { it in 1..50_000 } ?: 0
     }
 }

@@ -14,15 +14,13 @@ import com.auroro.wallpapers.core.data.download.ApplyResult
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
+import com.auroro.wallpapers.core.model.DiscoveryQuality
 import com.auroro.wallpapers.core.model.DiscoveryRotation
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
 import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
 import com.auroro.wallpapers.core.model.LocalFilter
 import com.auroro.wallpapers.core.model.FeedRequest
-import com.auroro.wallpapers.core.model.Orientation
-import com.auroro.wallpapers.core.model.ResolutionFilter
-import com.auroro.wallpapers.core.model.ResolutionPreset
 import com.auroro.wallpapers.core.model.SearchSourceSelection
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -62,7 +60,7 @@ data class FeedUiState(
     val discoverySession: DiscoverySession? = null,
     val discoveryValidatedRecipeCount: Int = 0,
     val discoveryRotationEnabled: Boolean? = null,
-    val discoveryWallhavenEnabled: Boolean? = null,
+    val discoveryEnabledSources: Set<WallpaperSource>? = null,
     val enabledSourcesAtRequest: Set<WallpaperSource>? = null,
     val cacheNotice: String? = null,
 )
@@ -184,7 +182,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             _feed.value.discoverySession?.sessionId == previousDiscoverySession?.sessionId
         val settingsStillMatch = !currentFeedIsDiscovery || (
             _feed.value.discoveryRotationEnabled == visibleSettings.rotateDiscoveryHourly &&
-                _feed.value.discoveryWallhavenEnabled == visibleSettings.wallhavenEnabled
+                _feed.value.discoveryEnabledSources == visibleSettings.enabledSources()
             )
         val selectionIsCurrent = tab != HomeTab.FOR_YOU || previousDiscoverySession?.let { session ->
             !visibleSettings.rotateDiscoveryHourly ||
@@ -278,27 +276,25 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         feedInitialized = true
         lastDiscoverySession = session
         val generation = discoveryGeneration.begin()
+        val enabledSources = prefs.enabledSources()
         val request = FeedRequest(
-            filter = WallpaperFilter(
-                sources = setOf(WallpaperSource.WALLHAVEN),
-                orientation = Orientation.PORTRAIT,
-                resolution = ResolutionFilter.Preset(ResolutionPreset.P1080),
-                sort = SortOption.RANDOM,
-                wallhavenCategories = setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE),
-            ),
+            filter = WallpaperFilter(sources = enabledSources),
             aspectTolerance = prefs.aspectTolerance,
         )
-        val safeInitial = LocalFilter.apply(initialItems, request.filter, request.aspectTolerance)
+        val safeInitial = initialItems.filter { wallpaper ->
+            wallpaper.source in enabledSources &&
+                (wallpaper.source == WallpaperSource.NASA_APOD || DiscoveryQuality.isUsable(wallpaper))
+        }
         _feed.value = FeedUiState(
             request = request,
             items = safeInitial,
             loading = true,
             initialLoadFinished = safeInitial.isNotEmpty(),
             endReached = true,
-            forYouLabel = "Source-matched discovery",
+            forYouLabel = "Multi-source discovery",
             discoverySession = session,
             discoveryRotationEnabled = prefs.rotateDiscoveryHourly,
-            discoveryWallhavenEnabled = prefs.wallhavenEnabled,
+            discoveryEnabledSources = enabledSources,
             cacheNotice = safeInitial.takeIf { it.isNotEmpty() }?.let { "Refreshing this saved mix…" },
         )
         feedJob = viewModelScope.launch {
@@ -324,36 +320,32 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                     }
                 }
                 if (!isCurrentDiscovery(session.sessionId, generation)) return@launch
-                val finalItems = when {
-                    result.items.isNotEmpty() -> result.items
-                    result.disabledReason != null -> emptyList()
-                    else -> safeInitial
-                }
+                val finalItems = result.items.ifEmpty { safeInitial }
                 if (result.items.isNotEmpty()) {
                     app.settings.recordDiscoverySeen(result.items.map { it.key }, System.currentTimeMillis())
                 }
                 val message = result.message()
                 val hasError = result.errors.isNotEmpty()
                 val cacheNotice = when {
-                    result.disabledReason != null -> result.disabledReason
                     result.items.isEmpty() && safeInitial.isNotEmpty() -> "Showing the last validated mix; this refresh did not return a replacement."
-                    finalItems.isNotEmpty() && result.errors.isNotEmpty() && result.staleCacheUsed -> "Using validated on-device results while Wallhaven refreshes."
-                    finalItems.isNotEmpty() && result.requestBudgetReached -> message
-                    finalItems.isNotEmpty() && result.errors.isEmpty() && result.allFromCache -> message
-                    finalItems.isEmpty() && result.errors.isEmpty() -> message
+                    result.errors.isNotEmpty() && result.staleCacheUsed -> "Using validated on-device results while an enabled catalogue refreshes."
+                    result.requestBudgetReached -> message
+                    result.items.isEmpty() -> message
+                    result.staleCacheUsed -> message
                     else -> null
                 }
                 _feed.value = _feed.value.copy(
                     items = finalItems,
-                    statuses = listOf(result.sourceStatus),
+                    statuses = result.statuses,
                     loading = false,
                     initialLoadFinished = true,
                     endReached = true,
                     pageError = message.takeIf { hasError },
                     appendCount = if (finalItems.isNotEmpty()) 1 else 0,
-                    forYouLabel = "Source-matched discovery",
+                    forYouLabel = "Multi-source discovery",
                     discoverySession = session,
                     discoveryValidatedRecipeCount = result.sections.size,
+                    discoveryEnabledSources = enabledSources,
                     cacheNotice = cacheNotice,
                 )
             } catch (cancelled: CancellationException) {
@@ -465,17 +457,19 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             lastDiscoverySession = discoverySession
             pager = null
             val preferences = settings.value
+            val enabledSources = preferences.enabledSources()
             val needsSettingsSync = state.discoveryRotationEnabled != preferences.rotateDiscoveryHourly ||
-                state.discoveryWallhavenEnabled != preferences.wallhavenEnabled
-            val request = state.request
-            val safeItems = if (preferences.wallhavenEnabled) {
-                LocalFilter.apply(state.items, request.filter, request.aspectTolerance)
-            } else emptyList()
+                state.discoveryEnabledSources != enabledSources
+            val request = state.request.copy(filter = state.request.filter.copy(sources = enabledSources))
+            val safeItems = state.items.filter { wallpaper ->
+                wallpaper.source in enabledSources &&
+                    (wallpaper.source == WallpaperSource.NASA_APOD || DiscoveryQuality.isUsable(wallpaper))
+            }
             val restoredState = state.copy(
                 request = request,
                 items = safeItems,
                 loading = false,
-                discoveryWallhavenEnabled = preferences.wallhavenEnabled,
+                discoveryEnabledSources = enabledSources,
             )
             _feed.value = restoredState
             if (session.resumeOnReturn || needsSettingsSync) {

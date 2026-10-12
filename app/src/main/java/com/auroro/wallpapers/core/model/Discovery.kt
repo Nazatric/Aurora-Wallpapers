@@ -137,12 +137,15 @@ object DiscoveryRotation {
 
 /** Small, explainable local ranking: relevance and usable detail win; popularity is never used. */
 object DiscoveryQuality {
+    /** Minimum known short edge for quality-checked source-query results; unknown size stays unknown. */
+    const val MINIMUM_SHORT_EDGE = 720
+    private const val MAX_PIXEL_EDGE = 100_000
+
     fun isUsable(wallpaper: Wallpaper): Boolean {
-        if (wallpaper.source != WallpaperSource.WALLHAVEN || !wallpaper.hasKnownDimensions) return false
-        if (wallpaper.width > 32_000 || wallpaper.height > 32_000) return false
-        if (wallpaper.width < 720 || wallpaper.height < 720) return false
-        // Content labels are not a global acceptance rule; recipe matching and user-selected filters
-        // are the only metadata-based selection steps.
+        if (!wallpaper.source.isIntegrated || !wallpaper.hasKnownDimensions) return false
+        if (wallpaper.width > MAX_PIXEL_EDGE || wallpaper.height > MAX_PIXEL_EDGE) return false
+        if (min(wallpaper.width, wallpaper.height) < MINIMUM_SHORT_EDGE) return false
+        // Metadata evidence only influences rank. No category, tag, title, or keyword is a rejection rule.
         return true
     }
 
@@ -164,7 +167,9 @@ object DiscoveryQuality {
         recentlySeenKeys: Set<String> = emptySet(),
     ): List<Wallpaper> = items.asSequence()
         .filter(::isUsable)
-        .filter(recipe::isRelevant)
+        .filter { it.source in recipe.sourceQueries }
+        // The source's search response is the discovery signal. Metadata evidence can sort matches,
+        // but missing or incomplete provider labels never discard an otherwise usable result.
         .distinctBy { it.key }
         .sortedWith(
             compareByDescending<Wallpaper> { score(it, recipe, recentlySeenKeys) }
@@ -172,7 +177,7 @@ object DiscoveryQuality {
         )
         .toList()
 
-    /** Relevance is a hard gate; resolution and portrait suitability only order already-matched art. */
+    /** Provider metadata evidence, usable resolution, and phone shape rank results; only source/quality do. */
     fun score(wallpaper: Wallpaper, recipe: DiscoveryRecipe, recentlySeenKeys: Set<String> = emptySet()): Int {
         val shortEdge = min(wallpaper.width, wallpaper.height)
         val longEdge = max(wallpaper.width, wallpaper.height)
