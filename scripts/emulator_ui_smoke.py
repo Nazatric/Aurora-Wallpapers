@@ -475,9 +475,9 @@ def main() -> None:
     launch = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
     REPORT["cold_start_launch"] = launch_timing(launch.stdout)
 
-    root = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "initial home brand", timeout=60)
+    root = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")), "initial home brand", timeout=60)
     adb("shell", "dumpsys", "gfxinfo", "com.auroro.wallpapers", "reset", timeout=30, check=False)
-    if len(find_nodes(root, text="Auroro Wallpapers")) != 1:
+    if len(find_nodes(root, text="Auroro")) != 1:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
     home_header = wait_until(
@@ -994,13 +994,13 @@ def main() -> None:
     REPORT["checks"].append({"name": "approved source status and no global content sensitivity setting", "result": "passed"})
     adb("shell", "input", "keyevent", "4")
     adb("shell", "input", "keyevent", "4")
-    wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "return from source settings to Home", timeout=45)
+    wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")), "return from source settings to Home", timeout=45)
 
     # A process death must keep DataStore choices, favorites, collection membership and saved files.
     adb("shell", "am", "force-stop", "com.auroro.wallpapers")
     restart = adb("shell", "am", "start", "-W", "-n", "com.auroro.wallpapers/.app.MainActivity", timeout=60)
     REPORT["process_restart_launch"] = launch_timing(restart.stdout)
-    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after process recreation", timeout=60)
+    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")), "Home after process recreation", timeout=60)
     tap_text("Search", prefer_bottom=True, timeout=20)
     search_history = wait_until(
         lambda ui: bool(find_nodes(ui, text="Subject, place, artist…")),
@@ -1018,7 +1018,7 @@ def main() -> None:
     wait_until(lambda ui: not find_nodes(ui, text="Recent searches"), "recent search history cleared", timeout=30)
     REPORT["checks"].append({"name": "recent search history can be cleared", "result": "passed"})
     tap_text("Home", prefer_bottom=True, timeout=20)
-    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after clearing recent searches", timeout=45)
+    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")), "Home after clearing recent searches", timeout=45)
     home = scroll_to_navigation_header(home, "Home")
     home_menu = find_nodes(home, description="Open navigation menu")
     if not home_menu:
@@ -1057,7 +1057,7 @@ def main() -> None:
     REPORT["checks"].append({"name": "settings persist across Android process recreation", "result": "passed"})
     adb("shell", "input", "keyevent", "4")
 
-    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after Settings", timeout=45)
+    home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")), "Home after Settings", timeout=45)
     home = scroll_to_navigation_header(home, "Home")
     menu_nodes = find_nodes(home, description="Open navigation menu")
     if not menu_nodes:
@@ -1099,7 +1099,7 @@ def main() -> None:
     REPORT["checks"].append({"name": "saved original opens from local storage in airplane mode", "result": "passed"})
     set_airplane_mode(False)
     adb("shell", "input", "keyevent", "4")
-    wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")) or bool(find_nodes(ui, text="Downloads")), "exit offline detail", timeout=45)
+    wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")) or bool(find_nodes(ui, text="Downloads")), "exit offline detail", timeout=45)
 
     # Report actual emulator launch/frame data, but do not present it as physical-device performance.
     REPORT["gfxinfo_smoke_profile"] = gfxinfo_profile()
