@@ -50,6 +50,13 @@ def adb(*args: str, timeout: int = 30, check: bool = True) -> subprocess.Complet
     return run(["adb", *args], timeout=timeout, check=check)
 
 
+def type_text_slowly(value: str, delay_seconds: float = 0.1) -> None:
+    """Send one character per ADB call with a pause so the emulator UI can settle between keys."""
+    for character in value:
+        adb("shell", "input", "text", "%s" if character == " " else character)
+        time.sleep(delay_seconds)
+
+
 def wait_until(predicate: Callable[[ET.Element], bool], label: str, timeout: int = 60) -> ET.Element:
     deadline = time.monotonic() + timeout
     last_root: ET.Element | None = None
@@ -502,7 +509,8 @@ def main() -> None:
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Subject, place, artist…")), "Search screen field", timeout=30)
     field = find_nodes(root, text="Subject, place, artist…")[0]
     tap_node(field)
-    adb("shell", "input", "text", "ocean")
+    type_text_slowly("ocean")
+    wait_until(lambda ui: bool(find_nodes(ui, text="ocean")), "exact search query text", timeout=20)
     adb("shell", "input", "keyevent", "66")
     time.sleep(3)  # allow the app's intentional 520 ms type-ahead debounce to fire
     tap_text("Wallhaven", timeout=20)
@@ -567,7 +575,8 @@ def main() -> None:
     wait_until(lambda ui: bool(find_nodes(ui, text="Name")) and bool(find_nodes(ui, text="Create")), "new collection name dialog", timeout=20)
     collection_name = "AuroroSmokeCollection"
     tap_text("Name", timeout=15)
-    adb("shell", "input", "text", collection_name)
+    type_text_slowly(collection_name)
+    wait_until(lambda ui: bool(find_nodes(ui, text=collection_name)), "exact collection name text", timeout=20)
     tap_text("Create", timeout=15)
     collection_dialog = wait_until(
         lambda ui: bool(find_nodes(ui, text=collection_name)) and bool(find_nodes(ui, text="Done")),
@@ -842,7 +851,8 @@ def main() -> None:
     if not query_fields:
         raise AssertionError("Search query field was not available after the APOD archive check")
     tap_node(query_fields[0])
-    adb("shell", "input", "text", "ocean")
+    type_text_slowly("ocean")
+    wait_until(lambda ui: bool(find_nodes(ui, text="ocean")), "exact search query text", timeout=20)
     adb("shell", "input", "keyevent", "66")
     time.sleep(1)
     search = scroll_horizontal_choice_into_view(
