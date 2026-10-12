@@ -963,13 +963,22 @@ def main() -> None:
     tap_text("Frutiger Aero", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Frutiger Aero"), "restore Frutiger Aero design theme", timeout=20)
 
+    size_output = adb("shell", "wm", "size").stdout
+    size = re.search(r"(\d+)x(\d+)", size_output)
+    width, height = map(int, size.groups()) if size else (1080, 2400)
+    for _ in range(8):
+        if find_nodes(settings, text="Emerald"):
+            break
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.82)),
+            str(width // 2), str(int(height * 0.27)), "450")
+        time.sleep(1)
+        settings = dump_hierarchy()
+    if not find_nodes(settings, text="Emerald"):
+        raise AssertionError("The Advanced theme accent choices did not expose Emerald after scrolling")
     tap_text("Emerald", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Emerald"), "Emerald accent selection", timeout=20)
     tap_text("Aqua", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Aqua"), "restore Aqua accent", timeout=20)
-    size_output = adb("shell", "wm", "size").stdout
-    size = re.search(r"(\d+)x(\d+)", size_output)
-    width, height = map(int, size.groups()) if size else (1080, 2400)
     for _ in range(8):
         if find_nodes(settings, text="Reduce transparency"):
             break
