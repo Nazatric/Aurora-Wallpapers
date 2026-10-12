@@ -104,7 +104,7 @@ fun SourcesScreen(
         }
         item {
             Text(
-                "Pixabay is not integrated because permission and current terms for wallpaper-file use have not been verified. Random placeholder feeds are not used.",
+                "Pixabay is not integrated because permission and current terms for wallpaper-file use have not been verified. Unsplash's API guidelines explicitly exclude wallpaper applications, so no Unsplash feed is shipped either. Random placeholder feeds are not used.",
                 Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = Aero.colors.textTertiary,
