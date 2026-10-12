@@ -173,7 +173,7 @@ class ConfigurationAndMappingTest {
         assertEquals(DesignTheme.FRUTIGER_AERO, settings.current().designTheme)
     }
 
-    @Test fun legacyCombinedAppearanceAndStylePreferencesMigrateWithoutExposingRetiredPreset() = runBlocking {
+    @Test fun legacyCombinedAppearanceAndStylePreferencesRemainReadableWithoutExposingRetiredPreset() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "legacy-theme.preferences_pb") })
         val legacyAppearance = stringPreferencesKey("appearance_preset")
         val oldPreferred = stringSetPreferencesKey("preferred_discovery_styles")
@@ -188,21 +188,20 @@ class ConfigurationAndMappingTest {
 
         val settings = SettingsRepository(store, bootPrefs = null)
         val migrated = kotlinx.coroutines.withTimeout(5_000L) {
-            store.data.first {
-                !it.contains(legacyAppearance) &&
-                    it.contains(stringPreferencesKey("design_theme")) &&
-                    it[oldPreferred]?.contains("botanical-art") == true
-            }
+            store.data.first { !it.contains(legacyAppearance) && it.contains(stringPreferencesKey("design_theme")) }
         }
         assertEquals(ThemeMode.LIGHT, settings.current().themeMode)
         assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
         assertFalse(migrated.contains(legacyAppearance))
-        assertEquals(setOf("surreal", "botanical-art"), migrated[oldPreferred])
+        assertEquals(setOf("surreal", "frutiger-flower"), migrated[oldPreferred])
         assertEquals(setOf("weirdcore"), migrated[oldHidden])
         assertEquals("surreal", migrated[oldPinned])
         assertEquals(setOf("surreal", "botanical-art"), settings.current().preferredDiscoveryStyleIds)
         assertEquals(setOf("weirdcore"), settings.current().hiddenDiscoveryStyleIds)
         assertEquals("surreal", settings.current().pinnedDiscoveryStyleId)
+        settings.update { it.copy(fontScale = 1.05f) }
+        val normalized = store.data.first()
+        assertEquals(setOf("surreal", "botanical-art"), normalized[oldPreferred])
         assertEquals(listOf("Frutiger Aero", "Material 3", "Frutiger Zen"), DesignTheme.entries.map { it.label })
     }
 

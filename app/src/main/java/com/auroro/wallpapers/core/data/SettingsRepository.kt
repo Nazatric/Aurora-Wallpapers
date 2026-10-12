@@ -116,17 +116,8 @@ class SettingsRepository(
                 if (!prefs.contains(DESIGN_THEME)) prefs[DESIGN_THEME] = migratedSettings.designTheme.name
                 prefs.remove(LEGACY_APPEARANCE)
 
-                // Preserve existing discovery-topic choices. The retired Frutiger Flower id is
-                // migrated to ordinary Botanical art so stored preferences remain meaningful.
-                prefs[PREFERRED_DISCOVERY_STYLES]?.let { saved ->
-                    prefs[PREFERRED_DISCOVERY_STYLES] = saved.mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId)
-                }
-                prefs[HIDDEN_DISCOVERY_STYLES]?.let { saved ->
-                    prefs[HIDDEN_DISCOVERY_STYLES] = saved.mapTo(linkedSetOf(), ::migrateLegacyDiscoveryStyleId)
-                }
-                prefs[PINNED_DISCOVERY_STYLE]?.let { saved ->
-                    prefs[PINNED_DISCOVERY_STYLE] = migrateLegacyDiscoveryStyleId(saved)
-                }
+                // Discovery topic IDs are normalized when settings are read or next written,
+                // leaving the existing preference values intact until that ordinary update.
             }
         }
     }
