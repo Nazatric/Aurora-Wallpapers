@@ -484,9 +484,7 @@ def main() -> None:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
     home_header = wait_until(
-        lambda ui: bool(find_nodes(ui, text="catalogues", contains=True))
-        or bool(find_nodes(ui, text="Validated source-backed", contains=True))
-        or bool(find_nodes(ui, text="For You")),
+        lambda ui: bool(find_nodes(ui, text="For You")),
         "For You multi-source discovery header", timeout=60,
     )
     if find_nodes(home_header, text="Discover styles") or find_nodes(home_header, text="Auto · hourly"):
@@ -896,9 +894,9 @@ def main() -> None:
     adb("shell", "input", "keyevent", "4")
     home = wait_until(
         lambda ui: bool(find_nodes(ui, text="Home"))
-        and any(node_text(node).startswith("Explore ") for node in ui.iter("node"))
+        and bool(find_nodes(ui, text="Auroro"))
         and not find_nodes(ui, text="Subject, place, artist…"),
-        "system-back navigation to Home with topic controls",
+        "system-back navigation to Home",
         timeout=45,
     )
     screenshot("12-home-restored.png")
@@ -1093,11 +1091,35 @@ def main() -> None:
         lambda ui: bool(find_nodes(ui, text="Display mode")) and bool(find_nodes(ui, text="Advanced theme")),
         "restored Settings display mode and advanced theme after process recreation", timeout=45,
     )
-    if not selected_state(settings, "Follow system") or not selected_state(settings, "Frutiger Aero") or not selected_state(settings, "Aqua"):
-        raise AssertionError("Display mode, design theme, or accent selection did not survive process recreation")
+    # A single dump taken mid-transition can miss chips that are below the fold or still animating;
+    # reveal each row, then poll briefly before declaring a persistence failure.
     size_output = adb("shell", "wm", "size").stdout
     size = re.search(r"(\d+)x(\d+)", size_output)
     width, height = map(int, size.groups()) if size else (1080, 2400)
+    restored_selections: dict[str, bool] = {}
+    for label, row_labels in (
+        ("Follow system", THEME_MODE_LABELS),
+        ("Frutiger Aero", DESIGN_THEME_LABELS),
+        ("Aqua", ("Aqua", "Emerald", "Sky blue")),
+    ):
+        for _ in range(6):
+            if find_nodes(settings, text=label):
+                break
+            adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.62)),
+                str(width // 2), str(int(height * 0.38)), "350")
+            time.sleep(0.8)
+            settings = dump_hierarchy()
+        settings = scroll_horizontal_choice_into_view(settings, label, row_labels)
+        selection_deadline = time.monotonic() + 15
+        while time.monotonic() < selection_deadline and not selected_state(settings, label):
+            time.sleep(1)
+            settings = dump_hierarchy()
+        restored_selections[label] = selected_state(settings, label)
+    REPORT["restored_settings_selection"] = restored_selections
+    if not all(restored_selections.values()):
+        raise AssertionError(
+            f"Display mode, design theme, or accent selection did not survive process recreation: {restored_selections}"
+        )
     for _ in range(8):
         if find_nodes(settings, text="Reduce transparency"):
             break

@@ -45,7 +45,7 @@ Appearance has three independent mode choices—**Follow system** (the default),
 
 Haze 2.0.1 Glass is used only where backdrop glass is appropriate. The home/search chrome samples the root Compose backdrop (gradient plus an optional feed preview); wallpaper detail uses its displayed preview as a dedicated source, and crop glass samples the crop preview. Glass surfaces consume those sources through Haze's `HazeInput.Sources` Glass API. Selecting **Reduced effects** or **Reduce transparency** now skips both the live source capture and glass renderer in these paths and uses a legible opaque fallback. Haze's renderer may simplify advanced optics on unsupported/simplified paths; no interaction or meaning depends on blur. Image tiles themselves are not blurred. No real-device latency, overdraw, battery, or frame-pacing result is available; these require device measurements. Haze 2.0.1 is pinned; its 2.0 line is beta and Glass APIs are experimental. The separately evaluated, Apache-2.0 [Kyant0 AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) project was not added: its README documents a lower-level backdrop effect without high-level app components, duplicating the selected Haze capture/render path.
 
-The adaptive launcher foreground uses Google's Apache-2.0 Material Icons `landscape` glyph on a transparent foreground layer, with adaptive and monochrome icon resources. Asset provenance and font licences are recorded in [`ASSET_LICENSES.md`](ASSET_LICENSES.md); third-party software licences are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+The adaptive launcher foreground uses Google's Apache-2.0 Material Icons `wallpaper` glyph on a transparent foreground layer, with adaptive and monochrome icon resources. Asset provenance and font licences are recorded in [`ASSET_LICENSES.md`](ASSET_LICENSES.md); third-party software licences are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ### Implementation references considered
 
@@ -70,7 +70,7 @@ The emulator smoke script installs the produced APK and exercises live provider-
 
 **Current verification:** CI run [38224038282](https://github.com/Nazatric/Aurora-Wallpapers/actions/runs/38224038282) passed unit tests, lint, debug/release assembly, and debug APK signature verification. Hosted-emulator smoke completed 118 checks, including provider-backed search and earlier For You/filter/favorite/set-only flows, then failed at a stale Home-navigation predicate that expected “Explore topics” instead of the actual topic labels. The predicate now checks the visible `Explore ` labels and awaits rerun. The report showed 30 For You images from two catalogues at the captured UI state; it does not establish item-level rights or physical-device performance. Local Android tooling, manual screenshot review, live-source rights checks, and production signing remain outstanding. See [`BLOCKERS.md`](BLOCKERS.md). Do not infer production-release readiness from a debug signature or source code alone.
 
-`versionName` is **0.1** and `versionCode` is **3**. No production APK or release is produced without a configured signing key; see [`CHANGELOG.md`](CHANGELOG.md).
+`versionName` is **1.2.0** and `versionCode` is **4** (the published `v1.0.0`/`v1.1.0` releases predate this Compose rebuild; this train continues from `v1.1.0` rather than reusing the retired `0.1` plan). No production APK or release is produced without a configured signing key; see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Project layout
 

@@ -6,7 +6,7 @@ No wallpaper photographs are bundled. Wallhaven, NASA APOD and qualifying Art In
 
 ## Launcher and notification icon
 
-The launcher foreground, monochrome adaptive-icon layer and notification glyph use Google's **Material Icons `landscape`** icon, under Apache License 2.0. The 24 px upstream SVG is preserved at [`licenses/MaterialLandscape.svg`](licenses/MaterialLandscape.svg); the Android vectors are scale-adjusted copies of its path. Source: <https://github.com/google/material-design-icons/blob/master/src/image/landscape/materialicons/24px.svg>. Licence: <https://github.com/google/material-design-icons/blob/master/LICENSE>.
+The launcher foreground, monochrome adaptive-icon layer and notification glyph use Google's **Material Icons `wallpaper`** icon, under Apache License 2.0. The 24 px upstream SVG is preserved at [`licenses/MaterialWallpaper.svg`](licenses/MaterialWallpaper.svg); the Android vectors are scale-adjusted copies of its path. Source: <https://github.com/google/material-design-icons/blob/master/src/device/wallpaper/materialicons/24px.svg>. Licence: <https://github.com/google/material-design-icons/blob/master/LICENSE>.
 
 The adaptive icon background is an original Auroro color gradient. Its foreground is transparent outside the licensed glyph and the manifest references adaptive launcher resources, including the Android 13+ monochrome layer.
 

@@ -1,11 +1,15 @@
 # Changelog
 
-Notable changes to Auroro Wallpapers are recorded here. Version 0.1 is prepared but is **not a published production release**; production distribution requires a configured signing key and verified release APK.
+Notable changes to Auroro Wallpapers are recorded here. Version 1.2.0 is prepared but is **not a published production release**; production distribution requires a configured signing key and verified release APK. The published `v1.0.0` and `v1.1.0` releases predate this Compose rebuild and shipped debug artifacts; `1.2.0` continues from `v1.1.0` and retires the earlier internal `0.1` version plan without ever tagging it.
 
-## [0.1] — pending verification and signed release
+## [1.2.0] — pending verification and signed release
 
 ### Added and changed
 
+- Simplified the Home header: one clear search entry point (the search icon button and the in-field "Search" action were removed as duplicates), no generic subtitle, and no internal counters such as "N catalogues · M validated source searches" in the browsing UI. The static five-topic pill row was removed from Home; the same shortcuts remain available under **Search topics** and inside Search.
+- Made the APOD-only empty state archive-accurate: it no longer recommends continuing to "the next provider page" as if APOD were an ordinary paginated keyword search, and explains that **Look further** browses older days of NASA's daily astronomy archive. The generic multi-source empty hint was reworded to describe what loading the next page actually does.
+- Replaced the launcher, monochrome and notification glyph with the verified Apache-2.0 Google Material Icons `wallpaper` asset (photo-frame mark), keeping the transparent adaptive foreground and Android 13+ monochrome layer; the previous generic `landscape` glyph and its licence file were removed and provenance records updated.
+- Hardened the emulator UI smoke: the post-process-recreation settings assertion now reveals each choice row, polls the real selected state instead of reading a single mid-transition dump, and reports per-label diagnostics (`restored_settings_selection`) in the run report.
 - Rebuilt the native Compose presentation across Home, search and filters, image detail/crop, favorites, collections, downloads/history, source status, settings, navigation, and empty/error/loading states while retaining Room-backed user data and the existing download/apply separation.
 - Replaced the active source set with Wallhaven, NASA APOD, and Art Institute of Chicago public-domain/Open Access results. Added provider allow-lists, metadata mapping, dimension-aware filters, bounded page caches, and conservative rate pacing.
 - Kept NASA APOD records view-only unless an individual reuse permission is independently confirmed; credit/copyright fields are not treated as a licence.

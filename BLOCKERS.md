@@ -29,9 +29,9 @@
 
 ## Production release
 
-- Source version is `versionName` **0.1**, `versionCode` **3**. CI produced the debug APK from commit `815362c`, verified its signature with `apksigner`, and installed/launched it in the hosted emulator; this does not constitute production signing or a completed functional smoke run.
-- No production signing key or signed release APK has been verified, and no new tag or GitHub release is claimed. CI reported that production signing was not configured and did not publish a release APK. Never put signing material in Git or chat.
-- Release signing requires `AURORO_KEYSTORE_BASE64`, `AURORO_KEYSTORE_PASSWORD`, `AURORO_KEY_ALIAS`, and `AURORO_KEY_PASSWORD`. The tag workflow checks for an existing release and refuses to overwrite it.
+- Source version is `versionName` **1.2.0**, `versionCode` **4**. The published GitHub releases `v1.0.0` and `v1.1.0` (2026-10-09) predate this Compose rebuild and attached debug artifacts from the retired code line; `v1.2.0` continues the public version sequence instead of reusing the retired internal `0.1` plan.
+- The CI build job passes on this source line (unit tests, lint, debug + release assembly, `apksigner` debug-signature verification). The hosted emulator smoke most recently reached 167 checks and failed the post-process-recreation selection assertion; that assertion has since been hardened (scroll-into-view + polled selected state + per-label `restored_settings_selection` diagnostics) and awaits a fresh CI run for a verdict on whether an app-side persistence defect also exists.
+- No production signing key or signed release APK has been verified, and no new tag or GitHub release is claimed. CI reports that production signing is not configured. The agent token used for this work cannot read or write repository Actions secrets (`HTTP 403: Resource not accessible by integration`), so `AURORO_KEYSTORE_BASE64`, `AURORO_KEYSTORE_PASSWORD`, `AURORO_KEY_ALIAS`, and `AURORO_KEY_PASSWORD` must be added by a repository administrator before the tag workflow can publish a signed release APK. Never put signing material in Git or chat; the tag workflow checks for an existing release and refuses to overwrite it.
 
 ## Required follow-up
 

@@ -349,7 +349,6 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             onTab = { tab -> homeTab = tab; vm.openHome(tab) },
                             onMenu = { scope.launch { drawer.open() } },
                             onSearch = { startSearch() },
-                            onCategory = { startSearch(it) },
                             onRefresh = vm::manualRefreshHome,
                             onOpen = goWallpaper,
                             onLoadMore = vm::loadMore,

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
@@ -41,7 +40,6 @@ import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.model.Wallpaper
-import com.auroro.wallpapers.feature.categories.SEARCH_TOPICS
 
 @Composable
 fun HomeScreen(
@@ -52,7 +50,6 @@ fun HomeScreen(
     onTab: (HomeTab) -> Unit,
     onMenu: () -> Unit,
     onSearch: () -> Unit,
-    onCategory: (String) -> Unit,
     onRefresh: () -> Unit,
     onOpen: (Wallpaper) -> Unit,
     onLoadMore: () -> Unit,
@@ -94,13 +91,11 @@ fun HomeScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     HeaderBar(
                         title = "Auroro",
-                        subtitle = "Wallpaper discovery",
                         onMenu = onMenu,
                         trailing = {
                             if (selectedTab == HomeTab.FOR_YOU) {
                                 GlassIconButton(onClick = onRefresh, description = "Refresh For You", icon = Icons.Rounded.Refresh)
                             }
-                            GlassIconButton(onClick = onSearch, description = "Search wallpapers", icon = Icons.Rounded.Search)
                         },
                     )
 
@@ -111,8 +106,12 @@ fun HomeScreen(
                         ) {
                             Icon(Icons.Rounded.Search, null, tint = Aero.colors.accent, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(11.dp))
-                            Text("Search images, artists or places", style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textSecondary, modifier = Modifier.weight(1f))
-                            Text("Search", style = MaterialTheme.typography.labelLarge, color = Aero.colors.accent)
+                            Text(
+                                "Search images, artists or places",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Aero.colors.textSecondary,
+                                modifier = Modifier.weight(1f).semantics { contentDescription = "Search wallpapers" },
+                            )
                         }
                     }
 
@@ -127,40 +126,8 @@ fun HomeScreen(
                     }
 
                     if (selectedTab == HomeTab.FOR_YOU) {
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(18.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            SEARCH_TOPICS.take(5).forEach { topic ->
-                                Column(
-                                    Modifier.semantics { contentDescription = "Explore ${topic.title}" }
-                                        .clickable(role = Role.Button) { onCategory(topic.query) }
-                                        .padding(vertical = 3.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                                ) {
-                                    Surface(shape = CircleShape, color = topic.accent.copy(alpha = .13f)) {
-                                        Icon(topic.icon, null, tint = topic.accent, modifier = Modifier.padding(11.dp).size(21.dp))
-                                    }
-                                    Text(topic.title, style = MaterialTheme.typography.labelSmall, color = Aero.colors.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            val contributingCatalogues = feed.items.map { it.source }.distinct().size
-                            Text(
-                                when {
-                                    feed.discoveryValidatedRecipeCount > 0 ->
-                                        "$contributingCatalogues catalogues · ${feed.discoveryValidatedRecipeCount} validated source searches"
-                                    contributingCatalogues > 0 -> "$contributingCatalogues catalogues contributing to this mix"
-                                    else -> "Validated source-backed discovery"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Aero.colors.textSecondary,
-                                maxLines = 2,
-                            )
-                            feed.cacheNotice?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary, maxLines = 2) }
+                        feed.cacheNotice?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary, maxLines = 2)
                         }
                     }
 

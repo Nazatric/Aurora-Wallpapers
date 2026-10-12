@@ -25,7 +25,7 @@ Auroro Wallpapers is licensed under Apache License 2.0; third-party components r
 | Robolectric | 4.17 | <https://github.com/robolectric/robolectric> | MIT |
 | MockWebServer | 5.3.0 | <https://github.com/square/okhttp/tree/master/mockwebserver> | Apache-2.0 |
 | Turbine | 1.2.1 | <https://github.com/cashapp/turbine> | Apache-2.0 |
-| Material Icons `landscape` launcher/notification glyph | Current upstream source preserved at [`licenses/MaterialLandscape.svg`](licenses/MaterialLandscape.svg) | <https://github.com/google/material-design-icons/blob/master/src/image/landscape/materialicons/24px.svg> | Apache-2.0; Google Material Icons; path adapted to transparent Android adaptive-icon vectors |
+| Material Icons `wallpaper` launcher/notification glyph | Current upstream source preserved at [`licenses/MaterialWallpaper.svg`](licenses/MaterialWallpaper.svg) | <https://github.com/google/material-design-icons/blob/master/src/device/wallpaper/materialicons/24px.svg> | Apache-2.0; Google Material Icons; path adapted to transparent Android adaptive-icon vectors |
 | Open Sans typeface | 2020 Open Sans Project Authors | <https://github.com/google/fonts/tree/main/ofl/opensans> | SIL Open Font License 1.1; see [`licenses/OpenSans-OFL.txt`](licenses/OpenSans-OFL.txt) |
 
 Dependencies are used as software components only. Auroro does not redistribute wallpaper photographs. Source wallpapers are loaded at runtime from the upstream provider, and remain subject to their original owners' rights and provider terms.

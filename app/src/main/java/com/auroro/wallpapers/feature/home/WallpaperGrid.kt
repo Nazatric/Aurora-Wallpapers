@@ -67,6 +67,7 @@ fun WallpaperGrid(
     modifier: Modifier = Modifier,
     emptyTitle: String = "Nothing here yet",
     emptyMessage: String = "Wallpapers from the selected sources will appear here.",
+    emptyHint: String? = null,
     headerContent: (@Composable () -> Unit)? = null,
     footerContent: (@Composable () -> Unit)? = null,
 ) {
@@ -119,7 +120,9 @@ fun WallpaperGrid(
                         endReached -> emptyTitle
                         else -> "No matches on this page"
                     },
-                    message = pageError ?: if (endReached) emptyMessage else "Continue to the next provider page to look for more matches.",
+                    message = pageError
+                        ?: if (endReached) emptyMessage
+                        else emptyHint ?: "Load the next page from the selected sources to keep looking.",
                     action = if (pageError != null) {
                         { androidx.compose.material3.TextButton(onClick = onRetry) { Text("Try again") } }
                     } else if (!endReached) {

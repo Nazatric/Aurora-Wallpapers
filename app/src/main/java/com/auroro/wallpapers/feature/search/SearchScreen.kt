@@ -101,8 +101,13 @@ fun SearchScreen(
         emptyMessage = when {
             enabledSources.isEmpty() -> "Turn on an approved source in Settings → Sources."
             activeSources.isEmpty() -> "Choose an enabled source or switch it back on in Sources."
+            activeSources == setOf(WallpaperSource.NASA_APOD) ->
+                "Nothing in this batch of the APOD archive matches. APOD is NASA's daily astronomy archive, not a keyword catalogue; its images also stay view-only."
             else -> "Try a broader subject or adjust the source and dimension filters."
         },
+        emptyHint = if (activeSources == setOf(WallpaperSource.NASA_APOD)) {
+            "Look further browses older days of the APOD archive; it is not a keyword-search page."
+        } else null,
         headerContent = {
             Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
                 HeaderBar("Search", "Search approved catalogues", onMenu = onMenu)
