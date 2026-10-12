@@ -1070,12 +1070,15 @@ def main() -> None:
     if clear_query:
         tap_node(clear_query[0])
     recent = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Recent searches")) and bool(find_nodes(ui, text="ocean")),
+        lambda ui: bool(find_nodes(ui, text="Recent")) and bool(find_nodes(ui, text="ocean")),
         "real recent search restored from local preferences", timeout=45,
     )
     REPORT["checks"].append({"name": "recent search history persists across process recreation", "result": "passed"})
-    tap_text("Clear", timeout=20)
-    wait_until(lambda ui: not find_nodes(ui, text="Recent searches"), "recent search history cleared", timeout=30)
+    tap_text("Clear history", timeout=20)
+    wait_until(
+        lambda ui: not find_nodes(ui, text="Recent") and not find_nodes(ui, text="Clear history"),
+        "recent search history cleared", timeout=30,
+    )
     REPORT["checks"].append({"name": "recent search history can be cleared", "result": "passed"})
     tap_text("Home", prefer_bottom=True, timeout=20)
     home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro")), "Home after clearing recent searches", timeout=45)
