@@ -77,9 +77,11 @@ import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.UrlPolicy
 import com.auroro.wallpapers.feature.home.WallpaperTile
+import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
 
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun WallpaperDetailScreen(
     state: DetailUiState?,
@@ -115,9 +117,10 @@ fun WallpaperDetailScreen(
     val heroHazeState = rememberHazeState()
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
     var showApply by remember(wallpaper.key) { mutableStateOf(false) }
-    val initialPreview = localPreviewUri
-        ?: wallpaper.previewUrl.takeIf(String::isNotBlank)
-        ?: wallpaper.thumbUrl.takeIf(String::isNotBlank)
+    val remotePreview = if (wallpaper.source.isIntegrated) {
+        wallpaper.previewUrl.takeIf(String::isNotBlank) ?: wallpaper.thumbUrl.takeIf(String::isNotBlank)
+    } else null
+    val initialPreview = localPreviewUri ?: remotePreview
     var previewUrl by remember(wallpaper.key, localPreviewUri, wallpaper.previewUrl, wallpaper.thumbUrl) {
         mutableStateOf(initialPreview)
     }
@@ -127,10 +130,15 @@ fun WallpaperDetailScreen(
     }
     val isSaved = download?.status == DownloadStatus.COMPLETED.name && localPreviewUri != null
     val isDownloading = download?.status == DownloadStatus.RUNNING.name || download?.status == DownloadStatus.QUEUED.name
-    val hasOriginalForApply = wallpaper.downloadAllowed || localPreviewUri != null
+    val canDownloadFromProvider = wallpaper.source.isIntegrated && wallpaper.downloadAllowed
+    val hasOriginalForApply = localPreviewUri != null || (wallpaper.source.isIntegrated && wallpaper.downloadAllowed)
     val canApplyThisWallpaper = canSetWallpaper && wallpaper.setWallpaperAllowed && hasOriginalForApply
     val applyUnavailableReason = when {
+        !wallpaper.setWallpaperAllowed && wallpaper.source == WallpaperSource.NASA_APOD ->
+            "NASA APOD credit does not grant reuse permission. This item stays view-only until its rights are verified."
         !wallpaper.setWallpaperAllowed -> "The reported licence does not allow adapting this image for wallpaper setting."
+        !hasOriginalForApply && !wallpaper.source.isIntegrated ->
+            "This provider is retired. Only an existing local copy can be set as wallpaper."
         !hasOriginalForApply -> "A saved original is required before this wallpaper can be set."
         !canSetWallpaper -> setUnavailableReason ?: "Wallpaper setting is unavailable on this device."
         else -> null
@@ -139,6 +147,8 @@ fun WallpaperDetailScreen(
         WallpaperSource.OPENVERSE -> wallpaper.attribution?.takeIf(String::isNotBlank)
             ?: wallpaper.creatorName?.let { "Creator · $it" }
         WallpaperSource.WALLHAVEN -> wallpaper.creatorName?.let { "Uploader · $it" }
+        WallpaperSource.NASA_APOD, WallpaperSource.ART_INSTITUTE -> wallpaper.attribution
+        WallpaperSource.REDDIT -> wallpaper.attribution
         WallpaperSource.ARCHIVED -> null
     }
     val title = (wallpaper.title ?: wallpaper.category)?.takeIf(String::isNotBlank) ?: "Wallpaper"
@@ -313,13 +323,14 @@ fun WallpaperDetailScreen(
                             description = when {
                                 isSaved -> "Saved"
                                 isDownloading -> "Downloading"
-                                !wallpaper.downloadAllowed -> "Download unavailable"
+                                !canDownloadFromProvider && wallpaper.source == WallpaperSource.OPENVERSE -> "Provider retired; existing local files remain"
+                                !canDownloadFromProvider -> "Download unavailable"
                                 else -> "Download original"
                             },
                             icon = if (isSaved) Icons.Rounded.CheckCircle else Icons.Rounded.CloudDownload,
-                            tint = if (wallpaper.downloadAllowed) Aero.colors.accent else Aero.colors.textTertiary,
+                            tint = if (canDownloadFromProvider || isSaved) Aero.colors.accent else Aero.colors.textTertiary,
                             selected = isSaved,
-                            enabled = wallpaper.downloadAllowed && !isSaved && !isDownloading,
+                            enabled = canDownloadFromProvider && !isSaved && !isDownloading,
                             hazeState = heroHazeState,
                         )
                         GlassIconButton(
@@ -327,6 +338,7 @@ fun WallpaperDetailScreen(
                             description = "Set wallpaper",
                             icon = Icons.Rounded.Wallpaper,
                             tint = if (canApplyThisWallpaper) Aero.colors.accent else Aero.colors.textTertiary,
+                            enabled = canApplyThisWallpaper,
                             hazeState = heroHazeState,
                         )
                         GlassIconButton(
@@ -371,18 +383,22 @@ fun WallpaperDetailScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Aero.colors.error,
                             )
-                            TextButton(onClick = { onDownload(wallpaper) }) { Text("Retry download", color = Aero.colors.accent) }
+                            if (canDownloadFromProvider) {
+                                TextButton(onClick = { onDownload(wallpaper) }) { Text("Retry download", color = Aero.colors.accent) }
+                            }
                         }
                         download?.status == DownloadStatus.CANCELED.name -> {
                             Text("Download canceled. You can try again when ready.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
-                            TextButton(onClick = { onDownload(wallpaper) }) { Text("Retry download", color = Aero.colors.accent) }
+                            if (canDownloadFromProvider) {
+                                TextButton(onClick = { onDownload(wallpaper) }) { Text("Retry download", color = Aero.colors.accent) }
+                            }
                         }
                         isSaved -> Text("Original saved on this device", style = MaterialTheme.typography.bodySmall, color = Aero.colors.success)
-                        !wallpaper.downloadAllowed -> Text(
-                            if (wallpaper.source == WallpaperSource.ARCHIVED) {
-                                "This saved record is from a source Auroro no longer integrates with."
-                            } else {
-                                "Direct download is unavailable for this reported licence or file type."
+                        !canDownloadFromProvider -> Text(
+                            when (wallpaper.source) {
+                                WallpaperSource.ARCHIVED, WallpaperSource.OPENVERSE -> "This saved record is from a retired source. Auroro keeps any local copy but makes no new source request."
+                                WallpaperSource.NASA_APOD -> "NASA APOD credit does not grant reuse permission. This item stays view-only until its rights are verified."
+                                else -> "Direct download is unavailable for this reported licence or file type."
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = Aero.colors.warning,
@@ -391,6 +407,9 @@ fun WallpaperDetailScreen(
 
                     attributionLine?.let {
                         Text(it, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (wallpaper.source == WallpaperSource.ART_INSTITUTE) {
+                        Text("Open Access · CC0-1.0 · public-domain record", style = MaterialTheme.typography.labelSmall, color = Aero.colors.success)
                     }
                     if (wallpaper.source == WallpaperSource.OPENVERSE) {
                         wallpaper.licenseCode?.let { code ->
@@ -409,7 +428,7 @@ fun WallpaperDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Image details", style = MaterialTheme.typography.titleSmall, color = Aero.colors.textPrimary)
-                            Text("Creator, licence and source information", style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
+                            Text("Rights, creator and source information", style = MaterialTheme.typography.labelSmall, color = Aero.colors.textTertiary)
                         }
                         TextButton(onClick = { showInfo = !showInfo }) {
                             Text(if (showInfo) "Less" else "More", color = Aero.colors.accent)
@@ -430,7 +449,8 @@ fun WallpaperDetailScreen(
                                     when (wallpaper.source) {
                                         WallpaperSource.WALLHAVEN -> "Uploader · ${wallpaper.creatorName}"
                                         WallpaperSource.OPENVERSE -> "Creator · ${wallpaper.creatorName}"
-                                        WallpaperSource.ARCHIVED -> "Creator · ${wallpaper.creatorName}"
+                                        WallpaperSource.NASA_APOD, WallpaperSource.ART_INSTITUTE -> "Creator · ${wallpaper.creatorName}"
+                                        WallpaperSource.REDDIT, WallpaperSource.ARCHIVED -> "Creator · ${wallpaper.creatorName}"
                                     },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Aero.colors.textSecondary,
@@ -442,6 +462,21 @@ fun WallpaperDetailScreen(
                                     Spacer(Modifier.width(5.dp))
                                     Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent)
                                 }
+                            }
+                            if (wallpaper.source == WallpaperSource.ART_INSTITUTE) {
+                                Text(
+                                    "Included only when the Art Institute API reports the work as public domain; attribution and the original museum page are retained.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Aero.colors.textTertiary,
+                                )
+                                wallpaper.licenseUrl?.takeIf(UrlPolicy::isAllowedForBrowsing)?.let { licenseUrl ->
+                                    TextButton(onClick = { onOpenSource(licenseUrl) }) {
+                                        Text("Read CC0-1.0 terms", color = Aero.colors.accent)
+                                        Spacer(Modifier.width(5.dp))
+                                        Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(16.dp), tint = Aero.colors.accent)
+                                    }
+                                }
+                                wallpaper.catalogSource?.let { Text("Collection · $it", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary) }
                             }
                             if (wallpaper.source == WallpaperSource.OPENVERSE) {
                                 wallpaper.attribution?.let { attribution ->
@@ -469,6 +504,12 @@ fun WallpaperDetailScreen(
                                     "Openverse indexes third-party works; confirm the licence on the original page before reuse.",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Aero.colors.textTertiary,
+                                )
+                            } else if (wallpaper.source == WallpaperSource.NASA_APOD) {
+                                Text(
+                                    "Reuse rights are not confirmed by this APOD record. Credit and copyright fields identify provenance but are not permission; this item remains view-only until rights are verified with the owner.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Aero.colors.warning,
                                 )
                             } else if (wallpaper.source == WallpaperSource.WALLHAVEN) {
                                 Text(
@@ -588,6 +629,9 @@ fun shareWallpaper(context: android.content.Context, w: Wallpaper) {
             when (w.source) {
                 WallpaperSource.OPENVERSE -> append(w.creatorName?.let { "Creator: $it · Openverse" } ?: "Openverse image")
                 WallpaperSource.WALLHAVEN -> append(w.creatorName?.let { "Uploaded by $it · Wallhaven" } ?: "Wallhaven wallpaper")
+                WallpaperSource.NASA_APOD -> append(w.title?.let { "$it · NASA APOD" } ?: "NASA APOD image")
+                WallpaperSource.ART_INSTITUTE -> append(w.title?.let { "$it · Art Institute of Chicago" } ?: "Art Institute of Chicago artwork")
+                WallpaperSource.REDDIT -> append("Reddit wallpaper")
                 WallpaperSource.ARCHIVED -> append("Saved wallpaper")
             }
         }

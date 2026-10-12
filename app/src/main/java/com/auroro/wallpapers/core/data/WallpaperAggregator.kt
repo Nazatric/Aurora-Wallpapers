@@ -9,7 +9,7 @@ class WallpaperAggregator(val providers: List<WallpaperProvider>) {
 
     fun provider(source: WallpaperSource): WallpaperProvider? = providers.firstOrNull { it.source == source }
 
-    /** Providers selected by the filter (empty selection means both integrated sources). */
+    /** Providers selected by the filter (empty selection means all integrated sources). */
     fun selected(request: FeedRequest): List<WallpaperProvider> {
         val filter = request.filter
         if (filter.hasConflictingSourceFilters) return emptyList()

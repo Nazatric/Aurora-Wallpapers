@@ -1,6 +1,8 @@
 package com.auroro.wallpapers.core.model
 
 import com.auroro.wallpapers.wallpaper
+import com.auroro.wallpapers.core.model.WallpaperSource
+import com.auroro.wallpapers.core.model.WallpaperTag
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -112,6 +114,25 @@ class AspectAndFilterTest {
         listOf(Orientation.PORTRAIT, Orientation.LANDSCAPE, Orientation.SQUARE).forEach { orientation ->
             assertFalse(LocalFilter.matches(unknown, WallpaperFilter(orientation = orientation)))
         }
+    }
+
+    @Test fun ordinaryWallpaperMetadataIsNotDiscardedByAHiddenContentKeywordFilter() {
+        val ordinary = wallpaper(
+            source = WallpaperSource.ART_INSTITUTE,
+            id = "ordinary-art",
+            width = 1200,
+            height = 1800,
+            tags = listOf(
+                WallpaperTag(null, "nature"),
+                WallpaperTag(null, "portrait"),
+                WallpaperTag(null, "swimwear"),
+                WallpaperTag(null, "classical figure art"),
+            ),
+        )
+        val filter = WallpaperFilter(orientation = Orientation.PORTRAIT)
+
+        assertTrue(LocalFilter.matches(ordinary, filter))
+        assertEquals(listOf(ordinary), LocalFilter.apply(listOf(ordinary), filter))
     }
 
     @Test fun sourceSelectionAndActiveFilterCountAreExplicit() {

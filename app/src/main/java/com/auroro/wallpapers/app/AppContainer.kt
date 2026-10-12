@@ -19,11 +19,13 @@ import com.auroro.wallpapers.core.data.SettingsDiscoveryPoolStore
 import com.auroro.wallpapers.core.data.FavoritesRepository
 import com.auroro.wallpapers.core.data.HistoryRepository
 import com.auroro.wallpapers.core.data.LegacyDataCleanup
-import com.auroro.wallpapers.core.data.OpenverseProvider
 import com.auroro.wallpapers.core.data.PreferenceSignals
 import com.auroro.wallpapers.core.data.SettingsRepository
 import com.auroro.wallpapers.core.data.WallpaperAggregator
 import com.auroro.wallpapers.core.data.WallpaperStore
+import com.auroro.wallpapers.core.data.ProviderPageCache
+import com.auroro.wallpapers.core.data.NasaApodProvider
+import com.auroro.wallpapers.core.data.ArtInstituteProvider
 import com.auroro.wallpapers.core.data.WallhavenProvider
 import com.auroro.wallpapers.core.data.download.AppStorageSaver
 import com.auroro.wallpapers.core.data.download.DownloadExecutor
@@ -37,11 +39,14 @@ import com.auroro.wallpapers.core.database.AppDatabase
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.HttpClients
 import com.auroro.wallpapers.core.network.SlidingWindowLimiter
-import com.auroro.wallpapers.core.network.openverse.OpenverseApi
+import com.auroro.wallpapers.core.network.nasa.NasaApodApi
+import com.auroro.wallpapers.core.network.artic.ArtInstituteApi
+import com.auroro.wallpapers.core.network.artic.ArtInstituteIiifApi
 import com.auroro.wallpapers.core.network.wallhaven.WallhavenApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import okhttp3.Cache
 import okhttp3.MediaType.Companion.toMediaType
@@ -52,12 +57,12 @@ import java.io.File
 /** Application-scoped dependencies. Provider endpoints are public; no API credentials are bundled or requested. */
 class AppContainer(context: Context) {
     val appContext = context.applicationContext
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        LegacyDataCleanup.run(appContext)
+        // Retired credentials are unrelated to first-frame UI; remove them off the main thread.
+        applicationScope.launch { LegacyDataCleanup.run(appContext) }
     }
-
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val bootPrefs = appContext.getSharedPreferences("auroro_boot", Context.MODE_PRIVATE)
     private val dataStore = PreferenceDataStoreFactory.create(
         scope = applicationScope,
@@ -78,7 +83,8 @@ class AppContainer(context: Context) {
     val httpClient = HttpClients.base().newBuilder().cache(apiCache).build()
     private val imageHttpClient = HttpClients.images(HttpClients.base())
     private val wallhavenDownloadClient = HttpClients.downloads(HttpClients.base())
-    private val openverseDownloadClient = HttpClients.downloads(HttpClients.base(), allowPublicHttpsAssets = true)
+    private val officialMediaDownloadClient = HttpClients.downloads(HttpClients.base())
+    private val providerPagePrefs = appContext.getSharedPreferences("auroro_provider_pages", Context.MODE_PRIVATE)
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -95,7 +101,9 @@ class AppContainer(context: Context) {
         .build()
 
     private val wallhavenApi: WallhavenApi = retrofit(WallhavenApi.BASE_URL).create(WallhavenApi::class.java)
-    private val openverseApi: OpenverseApi = retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java)
+    private val nasaApodApi: NasaApodApi = retrofit(NasaApodApi.BASE_URL).create(NasaApodApi::class.java)
+    private val artInstituteApi: ArtInstituteApi = retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java)
+    private val artInstituteIiifApi: ArtInstituteIiifApi = retrofit(ArtInstituteApi.IMAGE_BASE_URL).create(ArtInstituteIiifApi::class.java)
 
     val wallhaven = WallhavenProvider(
         api = wallhavenApi,
@@ -108,24 +116,47 @@ class AppContainer(context: Context) {
         isEnabled = { settings.current().wallhavenEnabled },
     )
 
-    val openverse = OpenverseProvider(
-        api = openverseApi,
+    val nasaApod = NasaApodProvider(
+        api = nasaApodApi,
         limiter = SlidingWindowLimiter(
-            maxEvents = 20,
+            maxEvents = 12,
             windowMs = 60_000,
             preferences = bootPrefs,
-            storageKey = "openverse_search_events",
+            storageKey = "nasa_apod_api_events",
         ),
-        isEnabled = { settings.current().openverseEnabled },
+        isEnabled = { settings.current().nasaApodEnabled },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.NASA_APOD,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 6L * 60 * 60 * 1_000,
+        ),
     )
 
-    val aggregator = WallpaperAggregator(listOf(wallhaven, openverse))
+    val artInstitute = ArtInstituteProvider(
+        api = artInstituteApi,
+        iiifApi = artInstituteIiifApi,
+        limiter = SlidingWindowLimiter(
+            maxEvents = 24,
+            windowMs = 60_000,
+            preferences = bootPrefs,
+            storageKey = "art_institute_api_events",
+        ),
+        isEnabled = { settings.current().artInstituteEnabled },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.ART_INSTITUTE,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 24L * 60 * 60 * 1_000,
+        ),
+    )
+
+    val aggregator = WallpaperAggregator(listOf(wallhaven, nasaApod, artInstitute))
     val discoveryEngine = DiscoveryEngine(wallhaven, discoveryPools)
 
     val notifier = DownloadNotifier(appContext, settings)
     val wallpaperApplier = WallpaperApplier(appContext)
     val wallpaperApplyRepository = WallpaperApplyRepository(appContext, ::downloadClient)
-    private val workManager = WorkManager.getInstance(appContext)
 
     private val tempDir = File(appContext.cacheDir, "wallpaper-downloads")
     private val appWallpaperDir = File(appContext.filesDir, "wallpapers")
@@ -137,8 +168,9 @@ class AppContainer(context: Context) {
 
     private fun downloadClient(source: WallpaperSource) = when (source) {
         WallpaperSource.WALLHAVEN -> wallhavenDownloadClient
-        WallpaperSource.OPENVERSE -> openverseDownloadClient
-        WallpaperSource.ARCHIVED -> wallhavenDownloadClient
+        WallpaperSource.OPENVERSE -> officialMediaDownloadClient // Legacy rows have no allowed network URL.
+        WallpaperSource.NASA_APOD, WallpaperSource.ART_INSTITUTE -> officialMediaDownloadClient
+        WallpaperSource.REDDIT, WallpaperSource.ARCHIVED -> officialMediaDownloadClient
     }
 
     val downloadExecutor = DownloadExecutor(
@@ -151,7 +183,12 @@ class AppContainer(context: Context) {
         notifier = notifier,
     )
 
-    val downloads = DownloadRepository(appContext, database, wallpaperStore, workManager)
+    val downloads = DownloadRepository(
+        context = appContext,
+        db = database,
+        store = wallpaperStore,
+        workManagerProvider = { WorkManager.getInstance(appContext) },
+    )
 
     /** One Coil loader per process. Source-validated public HTTPS image URLs are decoded only as displayed. */
     val imageLoader: ImageLoader by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {

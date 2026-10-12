@@ -1,102 +1,88 @@
 # Auroro Wallpapers
 
-A native Android wallpaper browser built with Kotlin and Jetpack Compose. The interface uses deep-ocean glass surfaces, restrained aqua/emerald accents and images loaded from real provider catalogues. Auroro has no bundled wallpaper gallery, account, advertising, analytics or in-app purchase SDK.
+Auroro is a native Android wallpaper browser built with Kotlin and Jetpack Compose. It uses real provider results, keeps image proportions intact, and separates viewing, favoriting, downloading, and setting a wallpaper. The app is free and ad-free, with no account, ads, telemetry, or bundled wallpaper gallery.
 
-## Integrated sources
+## Sources and rights
 
-Only **Wallhaven** and **Openverse** are searched in the app.
+Only the sources below are queried by the app. A source can be disabled in **Settings → Wallpaper sources**. Provider availability in this build does not imply that a live endpoint was reachable during this checkout; see [`BLOCKERS.md`](BLOCKERS.md) for verification status.
 
-### Wallhaven
+| Source | App behavior | Rights and restrictions |
+| --- | --- | --- |
+| **Wallhaven** | Official public API search; used by Search and For You. | Requests use the provider's `purity=100` parameter. This is Wallhaven's source-side policy, not a global Auroro keyword or sensitivity filter. Original image rights remain with their rights holders; the source page is authoritative. |
+| **NASA APOD** | Current APOD Basic archive, newest first; no keyword search. | APOD credit/copyright metadata identifies provenance but is not a reuse grant. Items are **view-only** in Auroro until item-specific reuse rights have been verified with the rights holder. Download and wallpaper-setting actions stay disabled. |
+| **Art Institute of Chicago** | Official artwork search and IIIF image metadata. | Both the API query and mapper require `is_public_domain=true` and an image ID. Qualifying Open Access works are attributed and marked CC0; exact IIIF dimensions are used for geometry filters. |
+| **Reddit (`r/Amoledbackgrounds`, `r/wallpaper`)** | **Paused / not integrated.** | No authorized OAuth application is configured. The app will not scrape Reddit HTML, impersonate a client, or bypass API limits. |
 
-Auroro uses the public Wallhaven API v1 over HTTPS; a key is not required for public search. Requests always specify SFW purity. Search results include provider-reported dimensions, tags, colours, uploader and source-page details where available. Relevance, newest, popular and random ordering use Wallhaven's own API for supported query combinations. A blank-query relevance request was observed to return no rows while reporting a nonzero total, so blank Wallhaven searches use `date_added` (including when the default relevance setting reaches the query builder); keyword relevance remains unchanged. Categories, its colour palette, supported ratio tokens and minimum-size hints are provider filters; exact ratio and edge thresholds are checked locally against returned pixel dimensions. Results link to their Wallhaven page. Its API does not report an image licence; images remain the responsibility of their original rights holders.
+**Not integrated:** Pixabay remains out until explicit permission and current terms for wallpaper-file use are confirmed. Lorem Picsum is omitted because random placeholders do not add curated value. Openverse is retired from the catalogue. Legacy Openverse records, attribution, favorites, and existing local files remain readable, but the app makes no new Openverse requests, previews, downloads, or wallpaper preparations.
 
-Official API reference: <https://wallhaven.cc/help/api>
+### Provider implementation details
 
-### Openverse
+- Wallhaven queries are built from documented API parameters; local orientation, exact aspect, and edge-size checks use the API's original pixel dimensions. Search/filter combinations that a provider does not support are reported instead of silently rewritten.
+- NASA APOD results require a valid date, image media type, and NASA-hosted media URL. Optional title, credit, copyright, and dimensions are preserved when supplied; unknown facts are not inferred. Because the API's attribution fields do not grant reuse permission, every APOD item remains view-only.
+- Art Institute API search is constrained to public-domain records with images. The official IIIF `info.json` response supplies original dimensions; if that lookup fails, dimensions remain unknown and geometry filters may exclude the item rather than guessing from a thumbnail.
+- Search retains source-specific ordering and pagination. One provider's error or unsupported filter does not turn another provider's result into a failure. Loading, partial, empty, unavailable, timeout, and rate-limit states are distinct.
 
-Auroro searches the documented Images API at `https://api.openverse.org/v1/images/`. The current API reference says anonymous access is supported and anonymous requests are sufficient for most users; registering for OAuth credentials gives higher limits. Auroro therefore sends **no API key, client secret or bearer token**. It persists a local 20-request/minute burst ceiling based on the current public response header and observes Openverse's `anon_burst` and `anon_sustained` search quotas; provider limits may change. A rate-limit response is shown rather than repeatedly retried. Search pages are fetched incrementally and capped to avoid treating the API as a bulk-download service.
+## For You and search
 
-Search uses documented query, tag, category, licence, format-extension, aspect-bucket, size-band and dead-link filters where applicable. Openverse's general `q` search and tag-field search are alternatives: its API ignores tag-field search when `q` is present, so Auroro prevents that combination. The content-sensitivity preference sends the documented `mature=false` safety filter by default; opting out sends `mature=true` and permits unknown sensitivity metadata. The local metadata check remains a limited second filter, not a pixel classifier or safety guarantee. Openverse remains relevance-ranked. Its aspect bucket is orientation-only (`tall`, `wide`, or exact `square`), not an exact ratio; Auroro sends it only when the full local tolerance interval fits that orientation (or the user explicitly selects one). Its size filter uses coarse pixel-area bands. Both are safe prefilters, and actual provider-reported dimensions remain authoritative on-device. Creator, attribution text, originating page, provider, tags and licence details are retained and shown when supplied. Openverse indexes third-party works and does not verify every licence claim; check the original page and licence terms before reuse. Direct downloads are enabled only for recognized licences and supported image formats. No-derivatives licences can be saved as originals but are not offered for wallpaper-setting/cropping; deprecated sampling licences are browse-only in Auroro.
+- For You is built from validated Wallhaven results only. Its internal visual-query catalogue contains 88 recipes, each mapped to real Wallhaven text queries; a heading appears only when returned provider metadata supports that recipe. Results are deduplicated, dimension-checked, filtered to portrait 1080p-or-larger originals, and bounded by per-session request, page, concurrency, and timeout limits. Recipe metadata matching is for discovery relevance only.
+- **There is no app-wide SFW/NSFW setting or hidden tag/keyword rejection.** The retired preference is removed during migration. For You does not exclude a result merely because of its category or tag; users can apply explicit category or geometry filters, and Wallhaven's own `purity=100` request remains a Wallhaven-specific source policy.
+- A cached validated mix is shown before refresh when available. Requests are cancellable, obsolete generations are ignored, partial successes survive provider errors, and recent recipes/wallpaper IDs are stored locally in bounded form. Search sessions keep their own query and page cursor while navigating.
+- Orientation and aspect-ratio filters use original provider dimensions, never tile shape or thumbnail estimates. Missing dimensions remain unknown and cannot satisfy a geometry filter.
 
-Official API reference: <https://api.openverse.org/v1/>; API documentation: <https://docs.openverse.org/>; search behavior: <https://docs.openverse.org/api/reference/search_algorithm.html>
+## Image, cache, and local data
 
-## Evaluated public collections (not currently integrated)
+- Gallery tiles use provider previews and `ContentScale.Fit`; they do not force-crop the underlying wallpaper. Provider attribution, rights, original dimensions, and source-page links live in detail views rather than on top of browse images.
+- Coil owns a bounded memory cache (14% of the app's available memory) and a disk cache controlled by Settings. A small HTTP response cache is separate. Room stores wallpaper metadata and local user references—not wallpaper bytes. NASA APOD and Art Institute page metadata have bounded time-to-live caches.
+- Favorites, collections, recent history, search terms, filters, and appearance choices stay on-device. Recent search history is bounded and clearable. There is no sign-in or sync service.
+- **Download** streams and validates supported JPEG, PNG, or WebP originals into Android MediaStore or app-private storage. Queue state, progress, retry, cancellation, storage checks, and deletion are separate from the disposable image cache.
+- **Set Wallpaper** is a separate action. It uses an existing saved original or a disposable app-cache copy, then opens target selection and a proportion-preserving crop flow. It does not enqueue work or create/change a Download record or persistent download file. Rights-disabled APOD records cannot enter this flow.
 
-These official sources were reviewed as possible additions; they are intentionally not presented as working sources in the app.
+## Interface and accessibility
 
-- **Art Institute of Chicago:** its [official data-aggregator README](https://github.com/art-institute-of-chicago/data-aggregator) documents a public JSON API and links to the Open Access programme. It is promising for a clearly labelled museum-art collection, but this environment could not make a live request to verify public-domain filtering, record-level image availability, IIIF rendition behavior, rate limits and attribution fields. The repository is AGPL-3.0; Auroro has not copied its server code.
-- **The Met:** the [official Open Access dataset README](https://github.com/metmuseum/openaccess) confirms CC0 applies to the metadata dataset, not bundled images, and says images are not included. The separate Collection API and each work's image/rights fields still need live validation before an image provider can be claimed.
-- **NASA Image and Video Library:** NASA's search API is a possible source for an explicitly labelled space lane, not a general wallpaper catalogue. Individual records can include third-party material or restrictions, and image dimensions/credits and rights would need to be checked per result. Auroro has not verified those runtime responses here.
-- **Smithsonian Open Access:** the [Smithsonian-maintained client](https://github.com/Smithsonian/smithsonian-openaccess) requires an API key obtained through registration. A key is not bundled, so this would add credential setup that does not fit the current no-account/no-secret app.
+The app uses a shared image-led Compose design across Home, Search, filters, source status, detail/crop, favorites, collections, downloads, settings, menus, and dialogs. Cards preserve image geometry; provider facts stay in detail. System font scaling is respected, controls have accessible labels and touch targets, and source/query errors are visible instead of represented as successful empty feeds.
 
-No additional source is silently mixed into For You. AIC/Met/NASA can be reconsidered after real endpoint, licensing and high-resolution checks; sources with unverified image rights or mandatory private credentials stay out.
+Haze 2.0.1 Glass is used only where backdrop glass is appropriate. The regular material samples an earlier Compose backdrop with size-aware blur/refraction and a directional specular highlight; when a simplified renderer cannot provide those optics, Haze preserves tint/shape and approximates lighting rather than making meaning depend on blur. The app's reduced-transparency mode skips backdrop rendering for an opaque, legible fallback. Image tiles themselves are not blurred. Overdraw and battery impact still need measurement on supported physical devices. Haze 2.0.1 is pinned; its 2.0 line is beta and Glass APIs are experimental. The separately evaluated, Apache-2.0 [Kyant0 AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass) project was not added: its README documents a lower-level backdrop effect without high-level app components, duplicating the selected Haze capture/render path.
 
-## Search, filters and local data
+The adaptive launcher foreground uses Google's Apache-2.0 Material Icons `landscape` glyph on a transparent foreground layer, with adaptive and monochrome icon resources. Asset provenance and font licences are recorded in [`ASSET_LICENSES.md`](ASSET_LICENSES.md); third-party software licences are in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
-- Home topics run real searches. For You has an internal catalogue of 88 distinct visual-query recipes, each mapped to plain-language Wallhaven and Openverse queries plus local metadata evidence; those phrases are not represented as provider tags. The app randomly selects a diverse, repeat-aware session mix internally. There is no fixed aesthetic-selector row on For You. Curated discovery uses Wallhaven only because it has a documented SFW purity filter; Openverse remains an explicitly labelled archive/search source rather than being presented as a curated SFW feed.
-- A recipe contributes to the mix only after Wallhaven returns at least two distinct, dimension-valid, portrait 1080p+ SFW results whose provider title/tags support that recipe. Empty or mislabeled candidates are discarded; the engine tries bounded alternatives and never ranks by popularity. Wallhaven receives its supported random-search, category, purity and minimum-size parameters; returned dimensions and sensitivity metadata are also checked locally. Metadata cannot certify the pixels or guarantee perfect style matches.
-- A randomized mix is stable while navigating tabs, Search, Settings and detail, and a new process/session or controlled hourly bucket can choose a fresh mix. Identifier-only, validated per-recipe pools and recent-recipe/wallpaper history are bounded on-device; Coil keeps disposable image bytes separate. Provider requests have bounded concurrency, per-query timeouts, cancellation, stale-generation rejection and cooldown/backoff. A cache or partial result is kept when a refresh fails; empty, unavailable and failed states are reported separately. Manual refresh is explicit and cooldown-limited; the hourly timer runs only while the app is resumed and requests one new mix at a crossed bucket, not a background poll.
-- Search combines enabled providers without inventing a cross-provider popularity score. Each provider keeps its own pagination and ordering; failures are reported alongside results from another source. Home tabs and Search retain independent in-memory requests, results and pager cursors while navigating; an interrupted combined page is rolled back and safely retried.
-- Aspect ratio is `width / height` from provider dimensions. A match uses a relative tolerance (3% by default; adjustable in Settings). Presets include 9:16, 16:9, 4:3, 1:1, 21:9 and 9:19.5, plus custom ratios. Minimum-size filters use the short and long edges so portrait and landscape images are treated consistently. Openverse's coarse server filters never replace local checks. Some provider/filter combinations are unavailable and are not presented as supported.
-- Wallpaper cards preserve each image's own aspect ratio in a staggered grid. They use provider-supplied previews when safe; detail views and downloads retain the media URL, and the full composition is fit rather than forced into a crop.
-- Favorites, collections, viewing history and wallpaper metadata are stored locally with Room. Up to eight recent search terms are stored in DataStore and can be cleared from Search. Collections support creation, rename, deletion and membership changes. Favoriting does not download an image. The database migration keeps existing records and download URIs; retired-provider records cannot be downloaded again, but an existing local file can still be applied.
-- Downloads stream and validate the original JPEG, PNG or WebP file, expose progress and cancellation, check storage capacity (including periodic checks when the server omits its content length), and save through MediaStore or private app storage. Downloads, active/failed queue entries and viewing history are separate views; saved files are never confused with the disposable image cache.
-- **Set Wallpaper and Download are separate actions.** Setting opens a compact Home/Lock/Both target and proportion-preserving crop screen. The original is reused from a completed saved download when available, otherwise prepared in a disposable app-cache file, then applied through Android's `WallpaperManager`. This path does not enqueue, create or change a Download row or persistent download file. Only Download creates a persistent queue/record. A completed saved original can still be reused without changing its row.
-- Settings cover complete appearance presets, Aqua/Emerald/Sky accent choices, accessible typeface/size preview, Haze glass quality and reduced-transparency mode, aspect tolerance, cache size, download location, notifications, source availability, hourly discovery, preferred/excluded recipe families, repeat avoidance and content sensitivity. Preference chips live in Settings only; they bias or block internal recipes without making a fixed For You selector. Favorites are never automatically downloaded.
+### Implementation references considered
 
-## Version and installation
+- [AndroidX Compose samples](https://github.com/android/compose-samples) and AndroidX guidance informed native Compose navigation, system insets, semantics, and image layout; Auroro does not embed a WebView.
+- [Android Compose performance guidance](https://developer.android.com/develop/ui/compose/performance) and [graphics guidance](https://developer.android.com/develop/ui/compose/graphics/draw/overview) informed stable list keys, bounded lazy grids, image sizing, and restrained effects. These are implementation choices, not measured performance results.
+- [Coil](https://github.com/coil-kt/coil) is used for lifecycle-aware image requests with explicit memory/disk bounds. AndroidX Macrobenchmark/Baseline Profile remains a candidate for follow-up; no benchmark module or physical-device result is claimed.
+- [Muzei](https://github.com/muzei/muzei) and [Aves](https://github.com/deckerst/aves) were considered as open-source wallpaper/gallery references, not dependencies; no application code or wallpaper assets were copied.
+- [Google Material Icons](https://github.com/google/material-design-icons) supplied the licensed launcher/notification glyph. Haze and AndroidLiquidGlass were evaluated above; Haze remains the single backdrop-capture/render dependency to avoid duplicate blur/overdraw systems.
+- Web/CSS-oriented UI repositories and skills that require a separately configured design server were not used as app runtime dependencies. No icon/image source with unclear or incompatible licensing was copied.
 
-See [CHANGELOG.md](CHANGELOG.md) for the prepared v0.1 release notes. The version name is **0.1** with Android `versionCode` **3**. The code is higher than the checkout's prior code (2) so Android update ordering remains monotonic. The repository already has public v1.0.0/v1.1.0 debug-only history; there is no existing v0.1 release/tag. Those old debug APKs are not production releases. A v0.1 production APK/tag must wait until a durable release keystore is safely configured and its signature is verified.
+## Build and verification
 
-For local development, use the debug variant (debug signature only):
-
-```bash
-./gradlew installDebug
-# or, with a connected Android device:
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-Never distribute a debug-signed APK as a production release. Release signing reads a private keystore and passwords from environment variables or the repository Actions secrets `AURORO_KEYSTORE_BASE64`, `AURORO_KEYSTORE_PASSWORD`, `AURORO_KEY_ALIAS` and `AURORO_KEY_PASSWORD`. Do not commit keystores or send signing material in chat. CI publishes a production APK only when a configured key is present and `apksigner` verifies the artifact; it includes a `.sha256` sidecar. Without signing configuration, the workflow's APK artifact and checksum are debug-only.
-
-## Build and test
-
-Requires JDK 17, Android SDK Platform 37 and Build Tools 37.0.0.
+Requirements: JDK 17, Android SDK Platform 37, and Android Gradle Plugin-compatible Build Tools.
 
 ```bash
 ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
-Unit tests use local fixtures and a mock HTTP server; they do not require provider credentials or call live catalogues. GitHub Actions installs the built APK on an Android 15 emulator and exercises the current discovery screen, real Wallhaven/Openverse search, orientation filtering, detail/favorite/download flows, the temporary-original Set Wallpaper path (including an explicit no-Download-record check), the separate persistent Download path, saved download records, Home/Lock wallpaper targets, settings/provider configuration and navigation. When a release keystore is configured, the smoke test prefers that signed release APK; otherwise it installs the debug build. Emulator screenshots and a JSON report are uploaded as a CI artifact. Live provider availability is reported as such and is not converted into successful empty results. An optional manual API smoke check calls only the two official public APIs:
+Install a local debug build with `./gradlew installDebug`. A debug-signed APK is for development/testing only and is **not** a production release. Release builds use R8 and resource shrinking. Production signing reads a private keystore path/password and alias from environment variables; CI expects the four `AURORO_*` signing secrets. Never commit or share signing keys or passwords.
 
-```bash
-./scripts/live_source_smoke.sh
-```
+The emulator smoke script installs the produced APK and exercises live provider-backed flows, navigation, filter controls, favorites/collections, settings, a set-only wallpaper path, and the separate Download queue where the emulator can reach the providers. Emulator screenshots are machine-collected artifacts; they are not a substitute for manual visual review or physical-device testing. No FPS, frame-time, memory, startup-latency, battery, or APK-size claim is made without a recorded measurement. Macrobenchmark/Baseline Profile and representative-device performance validation remain follow-up work.
 
-See [BLOCKERS.md](BLOCKERS.md) for verification that could not be run in the current environment, and [PRIVACY.md](PRIVACY.md) for network and on-device data details.
+**Current local verification:** this checkout's Android build/runtime has not yet been validated in the present environment. See [`BLOCKERS.md`](BLOCKERS.md). Do not infer a successful APK, install, screenshot review, live provider response, or production release from source code alone.
 
-## Design and implementation references
-
-The design follows the supplied wallpaper-app screen reference: deep teal image-led surfaces, cyan selected chips, rounded translucent controls and a compact Home/Search/Collections/Downloads bar. It combines Frutiger Aero's nature-and-technology palette with aspect-preserving provider images; there is no bundled wallpaper artwork. The ambient backdrop uses the current real provider thumbnail over a contrast-safe palette fallback, and the immersive detail screen fits the full wallpaper over a dimmed crop of that same image. **Haze 2.0.1 Glass** (Apache-2.0) samples those rendered pixels as a Haze source and applies size-aware blur, refraction, tint, specular light and a shaped rim; glass is not just a translucent gradient. The 2.0.1 GitHub release is non-prerelease, but Haze describes its 2.0 line as beta and Glass APIs remain experimental; this integration stays pinned and should be re-evaluated as upstream stabilizes. Haze's built-in Balanced renderer and platform fallbacks avoid enabling its experimental Android window-backdrop path. Older/simplified renderers keep a tinted, highlighted surface when advanced optics are unavailable. The Settings "Reduce transparency" preference lowers Haze's blur radius, increases material tint and strengthens edges; "Reduced effects" bypasses Haze glass/source capture in favor of an opaque fallback. As with any custom visual effect, performance and contrast still need measurement on representative Android devices.
-
-The duplicate app-name bar was caused by declaring `Theme.Auroro.Splash` in the manifest without calling AndroidX `installSplashScreen()`: the splash theme's `postSplashScreenTheme` was therefore never installed. `MainActivity` now installs the splash screen before `super.onCreate`; the app uses the no-action-bar theme, draws edge-to-edge and applies route-aware safe-drawing insets while retaining Android's status/navigation controls. The CI smoke checks the home brand is shown once, not duplicated by a native title bar; see [BLOCKERS.md](BLOCKERS.md) for the latest run and the remaining physical-device limitations.
-
-The user-provided reference repositories were reviewed for compatible, licensed guidance. The [Kyant0 AndroidLiquidGlass/Backdrop library](https://github.com/Kyant0/AndroidLiquidGlass) is Apache-2.0 and published on Maven Central as a Compose Multiplatform backdrop toolkit, but its README supplies no high-level app components. The existing Haze integration already provides source-backed glass, explicit performance modes and reduced-transparency/accessibility settings, so a second competing capture/render dependency was not added. [Android Compose Samples](https://github.com/android/compose-samples) is Apache-2.0 and remains a native Compose reference; no web view or browser UI was introduced. [pacifio/ui](https://github.com/pacifio/ui) is MIT-licensed but web/CSS-oriented, and [Stitch skills](https://github.com/google-labs-code/stitch-skills) require a Stitch MCP server that is not configured here; neither supplied app code or assets. The [frontend-design skill](https://github.com/anthropics/skills/tree/main/skills/frontend-design) (Apache-2.0) informed the subject-led palette, hierarchy and restraint; no source was copied. Unicons' GitHub licence metadata is not asserted (its README points to IconScout's Simple License), while [YouXianMing/Animations](https://github.com/YouXianMing/Animations) is an iOS/Swift collection without a declared licence; no icons, images or animation code were taken from either. No directory tools or external galleries are embedded in Auroro. No gallery or wallpaper application code is copied into the app.
-
-References: [Frutiger Aero overview](https://frutiger-aero.org/frutiger-aero) · [Waterloo Computer Museum](https://uwaterloo.ca/computer-museum/exhibits/frutiger-aero-future-2000s) · [Haze 2.0.1 release and license](https://github.com/chrisbanes/haze/releases/tag/2.0.1) · [Haze Glass guide](https://github.com/chrisbanes/haze/blob/2.0.1/docs/effects/glass.md) · [Haze performance guide](https://github.com/chrisbanes/haze/blob/2.0.1/docs/performance.md) · [Android Compose insets](https://developer.android.com/develop/ui/compose/system/insets) · [Android Compose graphics](https://developer.android.com/develop/ui/compose/graphics/draw/overview) · [Apple materials (visual reference only)](https://developer.apple.com/design/human-interface-guidelines/materials) · [NoSignups.net](https://nosignups.net/) · [Compose performance guidance](https://developer.android.com/develop/ui/compose/performance) · [Coil](https://github.com/coil-kt/coil) · [Muzei (Apache-2.0)](https://github.com/muzei/muzei) · [Aves (BSD-3-Clause)](https://github.com/deckerst/aves).
+`versionName` is **0.1** and `versionCode` is **3**. No production APK or release is produced without a configured signing key; see [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Project layout
 
 ```text
 app/src/main/java/com/auroro/wallpapers/
-  app/                 Application container, navigation and state
-  core/model/          Wallpaper metadata, geometry, filters and deduplication
-  core/network/        HTTPS clients, URL policy, pacing and error mapping
-  core/data/           Wallhaven/Openverse providers, paging and repositories
-  core/database/       Room entities, DAOs and migrations
-  core/data/download/  Streaming downloads, file storage, crop and WallpaperManager
-  core/design/         Aero palette, glass surfaces and reusable components
-  feature/             Home, search, filters, detail, collections, downloads and settings
-app/src/test/           Model, provider, paging, migration, persistence and download tests
+  app/                 Application container, navigation, state and Compose root
+  core/model/          Provider-neutral metadata, geometry, filters and discovery
+  core/network/        HTTPS allow-lists, HTTP clients, pacing and error mapping
+  core/data/           Wallhaven, NASA APOD, Art Institute, paging and repositories
+  core/database/       Room entities, DAOs and data-preserving migrations
+  core/data/download/  Download pipeline, disposable apply cache and WallpaperManager
+  core/design/         Shared palette, Haze surfaces, typography and components
+  feature/             Home, Search, detail, offline, filters, collections and settings
+app/src/test/           Provider, policy, discovery, migration, persistence and download tests
 ```
 
-The app targets Android 36 (minimum Android 10 / API 29) and uses Material 3, Room, DataStore, WorkManager, Coil, Retrofit and OkHttp. Third-party software licences are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Artwork and font notices are in [ASSET_LICENSES.md](ASSET_LICENSES.md).
+The app uses Kotlin, Compose, Room, DataStore, WorkManager, Coil, Retrofit, OkHttp, and Haze. It targets Android 36 (minimum Android 10 / API 29) and compiles against SDK 37. See [`PRIVACY.md`](PRIVACY.md) for network/on-device data handling and [`BLOCKERS.md`](BLOCKERS.md) for outstanding checks.

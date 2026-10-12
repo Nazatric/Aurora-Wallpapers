@@ -2,7 +2,6 @@ package com.auroro.wallpapers.core.data
 
 import android.util.Log
 import com.auroro.wallpapers.core.model.DiscoveryQuality
-import com.auroro.wallpapers.core.model.ContentSensitivity
 import com.auroro.wallpapers.core.model.DiscoveryRecipe
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.FeedRequest
@@ -14,7 +13,6 @@ import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.model.WallpaperSource
-import com.auroro.wallpapers.core.model.WallhavenCategory
 import com.auroro.wallpapers.core.network.ProviderErrorKind
 import com.auroro.wallpapers.core.network.ProviderException
 import com.auroro.wallpapers.core.network.toProviderException
@@ -116,7 +114,7 @@ data class DiscoveryBuildResult(
             providerItemsReceived == 0 -> "No usable wallpaper rows were returned"
             sourceUsableItems == 0 -> "The returned rows did not pass the basic image-quality checks"
             recipeRelevantItems == 0 -> "No usable row had metadata matching the selected recipes"
-            locallyValidatedItems == 0 -> "Recipe matches did not pass the active SFW, portrait, or 1080p+ filters"
+            locallyValidatedItems == 0 -> "Recipe matches did not pass the active portrait or 1080p+ image-quality filters"
             else -> "No recipe produced an accepted result"
         }
         return "Wallhaven page rows: $providerItemsReceived mapped, $sourceUsableItems image-usable, " +
@@ -136,11 +134,9 @@ internal class DiscoveryRequestBudget(private val maximum: Int) {
 }
 
 /**
- * Builds a quality-checked, varied feed from provider-backed recipes. Each candidate is independently
- * validated; empty or mislabeled queries never become visible sections. Wallhaven remains the source
- * for curated discovery because its API has a documented SFW purity filter. Openverse remains available
- * through explicit source-labelled search and carries source-specific recipe query mappings, but is not
- * mixed into this feed where safety and query relevance cannot be asserted as strongly.
+ * Builds a quality-checked, varied feed from provider-backed queries. Each candidate is independently
+ * validated; empty or mismatched queries never become visible sections. Curated discovery currently
+ * uses Wallhaven's official source-side purity parameter; the app adds no cross-provider content filter.
  */
 class DiscoveryEngine(
     private val provider: WallpaperProvider,
@@ -201,7 +197,7 @@ class DiscoveryEngine(
         val sections = linkedMapOf<String, ValidatedDiscoverySection>()
         val stalePools = mutableMapOf<String, CachedDiscoveryPool>()
         val freshCacheIds = mutableSetOf<String>()
-        val filter = discoveryFilter(preferences)
+        val filter = discoveryFilter()
         val now = clock()
 
         for (recipe in recipes) {
@@ -447,7 +443,7 @@ class DiscoveryEngine(
                             .take(8)
                             .joinToString(",")
                         val sampleGeometry = enrichedItems.take(3).joinToString(",") {
-                            "${it.width}x${it.height}/${it.category}/explicit=${ContentSensitivity.isPotentiallyExplicit(it)}"
+                            "${it.width}x${it.height}/${it.category}"
                         }
                         Log.d(
                             DISCOVERY_LOG_TAG,
@@ -510,16 +506,12 @@ class DiscoveryEngine(
         aspectTolerance = tolerance,
     )
 
-    private fun discoveryFilter(preferences: AppSettings) = WallpaperFilter(
+    private fun discoveryFilter() = WallpaperFilter(
         sources = setOf(provider.source),
         orientation = Orientation.PORTRAIT,
         resolution = ResolutionFilter.Preset(ResolutionPreset.P1080),
         // Session/query selection carries variety; the provider relevance order prioritizes usable matches.
         sort = SortOption.RELEVANCE,
-        wallhavenCategories = if (provider.source == WallpaperSource.WALLHAVEN) {
-            setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE)
-        } else emptySet(),
-        reducePotentiallyExplicitContent = preferences.reducePotentiallyExplicitContent,
     )
 
     private fun validate(

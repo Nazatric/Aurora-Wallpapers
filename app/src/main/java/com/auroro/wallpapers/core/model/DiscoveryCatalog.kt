@@ -23,7 +23,6 @@ enum class DiscoveryFamily {
 data class DiscoverySourceQuery(
     val phrases: List<String>,
     val evidenceTerms: Set<String>,
-    val category: OpenverseCategory? = null,
 ) {
     fun phraseAt(index: Int): String = phrases[Math.floorMod(index, phrases.size)]
 }
@@ -38,7 +37,6 @@ data class DiscoveryRecipe(
     init {
         require(id.matches(Regex("[a-z0-9][a-z0-9-]*")))
         require(sourceQueries[WallpaperSource.WALLHAVEN]?.phrases?.isNotEmpty() == true)
-        require(sourceQueries[WallpaperSource.OPENVERSE]?.phrases?.isNotEmpty() == true)
     }
 
     fun query(source: WallpaperSource, phraseIndex: Int = 0): String? =
@@ -188,28 +186,14 @@ object DiscoveryCatalog {
         family: DiscoveryFamily,
         wallhavenPhrases: List<String>,
         evidence: String,
-        openverseCategory: OpenverseCategory? = when (family) {
-            DiscoveryFamily.PHOTOGRAPHY, DiscoveryFamily.NATURE -> OpenverseCategory.PHOTOGRAPH
-            DiscoveryFamily.ILLUSTRATION, DiscoveryFamily.SCIENTIFIC -> OpenverseCategory.ILLUSTRATION
-            else -> null
-        },
     ): DiscoveryRecipe {
         val evidenceTerms = evidence.split('|').map(String::trim).filter(String::isNotEmpty).toSet()
-        val openversePhrases = wallhavenPhrases.map { query ->
-            when (openverseCategory) {
-                OpenverseCategory.PHOTOGRAPH -> "$query photograph"
-                OpenverseCategory.ILLUSTRATION -> "$query illustration"
-                OpenverseCategory.DIGITIZED_ARTWORK -> "$query artwork"
-                null -> "$query artwork"
-            }
-        }
         return DiscoveryRecipe(
             id = id,
             label = label,
             family = family,
             sourceQueries = mapOf(
                 WallpaperSource.WALLHAVEN to DiscoverySourceQuery(wallhavenPhrases, evidenceTerms),
-                WallpaperSource.OPENVERSE to DiscoverySourceQuery(openversePhrases, evidenceTerms, openverseCategory),
             ),
         )
     }
@@ -275,32 +259,32 @@ object DiscoveryCatalog {
         recipe("datamoshing", "Datamoshing", DiscoveryFamily.EXPERIMENTAL, listOf("datamoshing art", "datamosh digital"), "datamosh|datamoshing"),
         recipe("digital-noise", "Digital noise art", DiscoveryFamily.EXPERIMENTAL, listOf("digital noise art", "digital static abstract"), "digital noise|digital static"),
         recipe("scanography", "Scanography", DiscoveryFamily.EXPERIMENTAL, listOf("scanography art", "scanner photography art"), "scanography|scanner photography"),
-        recipe("mixed-media-collage", "Mixed-media collage", DiscoveryFamily.ILLUSTRATION, listOf("mixed media collage art", "experimental collage"), "mixed media|collage", OpenverseCategory.DIGITIZED_ARTWORK),
+        recipe("mixed-media-collage", "Mixed-media collage", DiscoveryFamily.ILLUSTRATION, listOf("mixed media collage art", "experimental collage"), "mixed media|collage"),
         recipe("maximalist-compositions", "Maximalist compositions", DiscoveryFamily.ILLUSTRATION, listOf("maximalist art composition", "maximalist illustration"), "maximalist composition|maximalist illustration"),
-        recipe("botanical-illustration", "Botanical illustration", DiscoveryFamily.ILLUSTRATION, listOf("botanical illustration", "vintage botanical drawing"), "botanical|botany", OpenverseCategory.DIGITIZED_ARTWORK),
+        recipe("botanical-illustration", "Botanical illustration", DiscoveryFamily.ILLUSTRATION, listOf("botanical illustration", "vintage botanical drawing"), "botanical|botany"),
         recipe("surreal-flowers", "Surreal flowers", DiscoveryFamily.ILLUSTRATION, listOf("surreal flower art", "surreal floral illustration"), "surreal flower|surreal floral"),
-        recipe("unusual-plant-photography", "Unusual plant photography", DiscoveryFamily.PHOTOGRAPHY, listOf("unusual plant macro photography", "rare plant photography"), "plant|botanical|macro", OpenverseCategory.PHOTOGRAPH),
-        recipe("macro-textures", "Macro textures", DiscoveryFamily.PHOTOGRAPHY, listOf("macro texture photography", "abstract macro texture"), "macro texture|texture photography", OpenverseCategory.PHOTOGRAPH),
-        recipe("microscopic-imagery", "Microscopic imagery", DiscoveryFamily.SCIENTIFIC, listOf("microscopic imagery", "microscope photography"), "microscopic|microscope", OpenverseCategory.PHOTOGRAPH),
-        recipe("ink-in-water", "Ink in water", DiscoveryFamily.PHOTOGRAPHY, listOf("ink in water photography", "ink diffusion abstract"), "ink in water|ink diffusion", OpenverseCategory.PHOTOGRAPH),
-        recipe("stained-glass-art", "Stained glass", DiscoveryFamily.ILLUSTRATION, listOf("stained glass art", "stained glass window"), "stained glass", OpenverseCategory.DIGITIZED_ARTWORK),
-        recipe("paper-craft", "Paper craft", DiscoveryFamily.ILLUSTRATION, listOf("paper craft art", "paper sculpture"), "paper craft|paper sculpture", OpenverseCategory.DIGITIZED_ARTWORK),
-        recipe("papercut-art", "Papercut art", DiscoveryFamily.ILLUSTRATION, listOf("papercut art", "paper cut illustration"), "papercut|paper cut", OpenverseCategory.DIGITIZED_ARTWORK),
-        recipe("scientific-illustration", "Scientific illustration", DiscoveryFamily.SCIENTIFIC, listOf("scientific illustration", "natural history illustration"), "scientific illustration|natural history", OpenverseCategory.DIGITIZED_ARTWORK),
+        recipe("unusual-plant-photography", "Unusual plant photography", DiscoveryFamily.PHOTOGRAPHY, listOf("unusual plant macro photography", "rare plant photography"), "plant|botanical|macro"),
+        recipe("macro-textures", "Macro textures", DiscoveryFamily.PHOTOGRAPHY, listOf("macro texture photography", "abstract macro texture"), "macro texture|texture photography"),
+        recipe("microscopic-imagery", "Microscopic imagery", DiscoveryFamily.SCIENTIFIC, listOf("microscopic imagery", "microscope photography"), "microscopic|microscope"),
+        recipe("ink-in-water", "Ink in water", DiscoveryFamily.PHOTOGRAPHY, listOf("ink in water photography", "ink diffusion abstract"), "ink in water|ink diffusion"),
+        recipe("stained-glass-art", "Stained glass", DiscoveryFamily.ILLUSTRATION, listOf("stained glass art", "stained glass window"), "stained glass"),
+        recipe("paper-craft", "Paper craft", DiscoveryFamily.ILLUSTRATION, listOf("paper craft art", "paper sculpture"), "paper craft|paper sculpture"),
+        recipe("papercut-art", "Papercut art", DiscoveryFamily.ILLUSTRATION, listOf("papercut art", "paper cut illustration"), "papercut|paper cut"),
+        recipe("scientific-illustration", "Scientific illustration", DiscoveryFamily.SCIENTIFIC, listOf("scientific illustration", "natural history illustration"), "scientific illustration|natural history"),
         recipe("celestial-art", "Celestial art", DiscoveryFamily.DIGITAL_WORLDS, listOf("space art planetary landscape", "space stars nebula"), "space|planet|astronomy|cosmic|nebula|stars"),
         recipe("sci-fi-environments", "Sci-fi environments", DiscoveryFamily.DIGITAL_WORLDS, listOf("science fiction environment art", "sci fi landscape"), "science fiction|sci fi|scifi|futuristic"),
         recipe("experimental-typography", "Experimental typography", DiscoveryFamily.EXPERIMENTAL, listOf("experimental typography", "typographic art"), "typography|typographic"),
-        recipe("unusual-texture-studies", "Unusual texture studies", DiscoveryFamily.PHOTOGRAPHY, listOf("abstract texture study", "unusual surface texture"), "texture study|surface texture", OpenverseCategory.PHOTOGRAPH),
+        recipe("unusual-texture-studies", "Unusual texture studies", DiscoveryFamily.PHOTOGRAPHY, listOf("abstract texture study", "unusual surface texture"), "texture study|surface texture"),
         recipe("frutiger-aero", "Frutiger Aero", DiscoveryFamily.AERO, listOf("frutiger aero", "aqua glass architecture"), "frutiger aero|aqua glass"),
         recipe("frutiger-flower", "Frutiger Flower", DiscoveryFamily.AERO, listOf("frutiger flower", "luminous translucent flowers"), "frutiger flower|translucent flower"),
         recipe("frutiger-zen", "Frutiger Zen", DiscoveryFamily.AERO, listOf("frutiger zen", "serene water architecture"), "frutiger zen|serene water"),
         recipe("dark-aero", "Dark Aero", DiscoveryFamily.AERO, listOf("dark aero", "dark reflective glass cyan"), "dark aero|dark reflective glass"),
-        recipe("art-nouveau-botanical", "Art Nouveau botanicals", DiscoveryFamily.ILLUSTRATION, listOf("art nouveau botanical illustration", "art nouveau flowers"), "art nouveau|botanical", OpenverseCategory.DIGITIZED_ARTWORK),
-        recipe("woodcut-landscapes", "Woodcut landscapes", DiscoveryFamily.ILLUSTRATION, listOf("woodcut landscape art", "woodblock landscape print"), "woodcut|woodblock", OpenverseCategory.DIGITIZED_ARTWORK),
+        recipe("art-nouveau-botanical", "Art Nouveau botanicals", DiscoveryFamily.ILLUSTRATION, listOf("art nouveau botanical illustration", "art nouveau flowers"), "art nouveau|botanical"),
+        recipe("woodcut-landscapes", "Woodcut landscapes", DiscoveryFamily.ILLUSTRATION, listOf("woodcut landscape art", "woodblock landscape print"), "woodcut|woodblock"),
         recipe("pixel-art-environments", "Pixel-art environments", DiscoveryFamily.DIGITAL_WORLDS, listOf("pixel art landscape", "pixel art environment"), "pixel art|pixelated"),
         recipe("color-inversion-art", "Colour inversion art", DiscoveryFamily.EXPERIMENTAL, listOf("color inversion art", "negative color photography art"), "color inversion|negative color"),
         recipe("silhouette-compositions", "Silhouette compositions", DiscoveryFamily.ILLUSTRATION, listOf("silhouette art composition", "graphic silhouette landscape"), "silhouette"),
-        recipe("cyanotype-botanical", "Cyanotype botanicals", DiscoveryFamily.PHOTOGRAPHY, listOf("cyanotype botanical art", "cyanotype plant print"), "cyanotype", OpenverseCategory.DIGITIZED_ARTWORK),
+        recipe("cyanotype-botanical", "Cyanotype botanicals", DiscoveryFamily.PHOTOGRAPHY, listOf("cyanotype botanical art", "cyanotype plant print"), "cyanotype"),
         recipe("miniature-architecture", "Miniature architecture", DiscoveryFamily.ARCHITECTURE, listOf("miniature architecture model", "architectural miniature"), "miniature architecture|architectural model"),
         recipe("environmental-concept-art", "Environmental concept art", DiscoveryFamily.DIGITAL_WORLDS, listOf("environmental concept art", "fantasy environment concept"), "environment concept|concept art"),
     )

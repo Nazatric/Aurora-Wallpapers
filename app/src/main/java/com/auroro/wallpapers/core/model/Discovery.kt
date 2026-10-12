@@ -137,19 +137,12 @@ object DiscoveryRotation {
 
 /** Small, explainable local ranking: relevance and usable detail win; popularity is never used. */
 object DiscoveryQuality {
-    private val obviousNonWallpaperTags = setOf(
-        "map", "maps", "diagram", "chart", "infographic", "screenshot", "contact sheet",
-        "document", "model sheet", "meme", "logo sheet",
-    )
-
     fun isUsable(wallpaper: Wallpaper): Boolean {
         if (wallpaper.source != WallpaperSource.WALLHAVEN || !wallpaper.hasKnownDimensions) return false
         if (wallpaper.width > 32_000 || wallpaper.height > 32_000) return false
         if (wallpaper.width < 720 || wallpaper.height < 720) return false
-        if (wallpaper.category.equals("anime", ignoreCase = true)) return false
-        val tags = wallpaper.tags.map { it.name.trim().lowercase() }
-        if (tags.any { tag -> tag in obviousNonWallpaperTags }) return false
-        // Do not blanket-exclude nature photography, animals, people in artwork, or landscapes.
+        // Content labels are not a global acceptance rule; recipe matching and user-selected filters
+        // are the only metadata-based selection steps.
         return true
     }
 

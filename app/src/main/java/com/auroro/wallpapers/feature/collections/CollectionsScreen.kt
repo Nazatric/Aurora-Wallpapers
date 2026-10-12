@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -39,6 +40,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,7 +62,6 @@ import com.auroro.wallpapers.core.database.CollectionSummary
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.EmptyState
 import com.auroro.wallpapers.core.design.GlassIconButton
-import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -116,7 +117,13 @@ private fun CollectionCard(collection: CollectionSummary, onOpen: () -> Unit, on
     val createdDate = remember(collection.createdAt, locale) {
         java.text.SimpleDateFormat("MMM d, yyyy", locale).format(java.util.Date(collection.createdAt))
     }
-    GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(23.dp), onClick = onOpen) {
+    Surface(
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(23.dp),
+        color = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .93f else .98f),
+        border = BorderStroke(1.dp, Aero.colors.glassRimDark.copy(alpha = .12f)),
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier.size(86.dp).clip(RoundedCornerShape(17.dp))

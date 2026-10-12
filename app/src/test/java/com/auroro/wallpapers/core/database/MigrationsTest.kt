@@ -42,6 +42,14 @@ class MigrationsTest {
                             "INSERT INTO `wallpaper` (`key`, `source`, `sourceId`, `originalUrl`, `thumbUrl`, `previewUrl`) " +
                                 "VALUES ('wallhaven:abc123', 'wallhaven', 'abc123', 'https://w.wallhaven.cc/abc123.jpg', 'old-thumb', 'old-preview')",
                         )
+                        db.execSQL(
+                            "INSERT INTO `wallpaper` (`key`, `source`, `sourceId`, `originalUrl`, `thumbUrl`, `previewUrl`) " +
+                                "VALUES ('nasa-apod:2026-09-12', 'nasa-apod', '2026-09-12', 'https://images.nasa.gov/apod/2026-09-12.jpg', 'nasa-thumb', 'nasa-preview')",
+                        )
+                        db.execSQL(
+                            "INSERT INTO `wallpaper` (`key`, `source`, `sourceId`, `originalUrl`, `thumbUrl`, `previewUrl`) " +
+                                "VALUES ('art-institute:1234', 'art-institute', '1234', 'https://www.artic.edu/iiif/2/1234/full/max,/0/default.jpg', 'art-thumb', 'art-preview')",
+                        )
                         db.execSQL("INSERT INTO `favorite` (`wallpaperKey`, `addedAt`) VALUES ('abyss:42', 10)")
                         db.execSQL("INSERT INTO `collection_item` (`collectionId`, `wallpaperKey`, `addedAt`) VALUES (7, 'abyss:42', 11)")
                         db.execSQL("INSERT INTO `history` (`wallpaperKey`, `viewedAt`) VALUES ('abyss:42', 12)")
@@ -73,6 +81,14 @@ class MigrationsTest {
             assertEquals("", scalarText(db, "SELECT `previewUrl` FROM `wallpaper` WHERE `key` = 'archived:abyss:42'"))
             assertEquals("old-thumb", scalarText(db, "SELECT `thumbUrl` FROM `wallpaper` WHERE `key` = 'wallhaven:abc123'"))
             assertEquals("old-preview", scalarText(db, "SELECT `previewUrl` FROM `wallpaper` WHERE `key` = 'wallhaven:abc123'"))
+            assertEquals("nasa-apod:2026-09-12", scalarText(db, "SELECT `key` FROM `wallpaper` WHERE `source` = 'nasa-apod'"))
+            assertEquals("nasa-preview", scalarText(db, "SELECT `previewUrl` FROM `wallpaper` WHERE `source` = 'nasa-apod'"))
+            assertEquals(0, scalarInt(db, "SELECT `downloadAllowed` FROM `wallpaper` WHERE `source` = 'nasa-apod'"))
+            assertEquals(0, scalarInt(db, "SELECT `setWallpaperAllowed` FROM `wallpaper` WHERE `source` = 'nasa-apod'"))
+            assertEquals("art-institute:1234", scalarText(db, "SELECT `key` FROM `wallpaper` WHERE `source` = 'art-institute'"))
+            assertEquals("art-preview", scalarText(db, "SELECT `previewUrl` FROM `wallpaper` WHERE `source` = 'art-institute'"))
+            assertEquals(0, scalarInt(db, "SELECT `downloadAllowed` FROM `wallpaper` WHERE `source` = 'art-institute'"))
+            assertEquals(0, scalarInt(db, "SELECT `setWallpaperAllowed` FROM `wallpaper` WHERE `source` = 'art-institute'"))
             assertEquals("archived:abyss:42", scalarText(db, "SELECT `wallpaperKey` FROM `favorite`"))
             assertEquals("archived:abyss:42", scalarText(db, "SELECT `wallpaperKey` FROM `collection_item`"))
             assertEquals("archived:abyss:42", scalarText(db, "SELECT `wallpaperKey` FROM `history`"))
@@ -90,5 +106,11 @@ class MigrationsTest {
         db.query(sql).use { cursor ->
             check(cursor.moveToFirst()) { "No row for query: $sql" }
             cursor.getString(0)
+        }
+
+    private fun scalarInt(db: SupportSQLiteDatabase, sql: String): Int =
+        db.query(sql).use { cursor ->
+            check(cursor.moveToFirst()) { "No row for query: $sql" }
+            cursor.getInt(0)
         }
 }

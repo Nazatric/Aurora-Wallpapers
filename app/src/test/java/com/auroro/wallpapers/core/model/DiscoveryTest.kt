@@ -66,18 +66,25 @@ class DiscoveryTest {
         assertTrue(repeatRanked.first().key != relevant.key)
     }
 
-    @Test fun onlySfwWallhavenWallpaperSizedKnownDimensionResultsAreKept() {
+    @Test fun discoveryQualityKeepsOnlyWallhavenImagesWithUsableDimensions() {
         val goodNature = wallpaper(id = "nature")
-        val openverse = wallpaper(source = WallpaperSource.OPENVERSE, id = "archive")
+        val otherCatalogue = wallpaper(source = WallpaperSource.NASA_APOD, id = "apod")
         val missingDimensions = wallpaper(id = "unknown", width = 0, height = 0)
         val tooSmall = wallpaper(id = "small", width = 400, height = 700)
-        val excludedCategory = wallpaper(id = "anime").copy(category = "Anime")
-        val map = wallpaper(id = "map", tags = listOf(WallpaperTag(1, "map")))
         val selection = DiscoveryRotation.select(0L)
         assertEquals(listOf(goodNature), DiscoveryQuality.rank(
-            listOf(openverse, missingDimensions, tooSmall, excludedCategory, map, goodNature),
+            listOf(otherCatalogue, missingDimensions, tooSmall, goodNature),
             selection,
         ))
+    }
+
+    @Test fun discoveryQualityDoesNotSilentlyRejectProviderTagsOrCategories() {
+        val tagged = wallpaper(id = "labelled")
+            .copy(category = "Anime", tags = listOf(WallpaperTag(1, "map"), WallpaperTag(2, "nsfw")))
+        val selection = DiscoveryRotation.select(0L)
+
+        assertTrue(DiscoveryQuality.isUsable(tagged))
+        assertEquals(listOf(tagged), DiscoveryQuality.rank(listOf(tagged), selection))
     }
 
     @Test fun qualityFilterKeepsPeopleCategoryPortraitArt() {
@@ -86,14 +93,12 @@ class DiscoveryTest {
         assertEquals(listOf(portrait), DiscoveryQuality.rank(listOf(portrait), selection))
     }
 
-    @Test fun sensitivityFilterDoesNotHideOrdinaryPeopleOrClassicalFigureArt() {
+    @Test fun ordinaryPeopleAndClassicalFigureMetadataPassSourceNeutralFilters() {
         val normal = wallpaper(id = "swim", tags = listOf(WallpaperTag(1, "swimwear"), WallpaperTag(2, "person")))
         val classical = wallpaper(id = "classical", tags = listOf(WallpaperTag(1, "classical art"), WallpaperTag(2, "figure study")))
-        val marked = wallpaper(id = "marked", tags = listOf(WallpaperTag(1, "nsfw")))
-        assertFalse(ContentSensitivity.isPotentiallyExplicit(normal))
-        assertFalse(ContentSensitivity.isPotentiallyExplicit(classical))
-        assertTrue(ContentSensitivity.isPotentiallyExplicit(marked))
-        assertEquals(listOf(normal, classical), LocalFilter.apply(listOf(normal, classical, marked), WallpaperFilter.Default))
+        val filter = WallpaperFilter(orientation = Orientation.PORTRAIT)
+
+        assertEquals(listOf(normal, classical), LocalFilter.apply(listOf(normal, classical), filter))
     }
 
     @Test fun feedOrientationContinuesToUseActualDimensions() {

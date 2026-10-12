@@ -114,6 +114,23 @@ class DownloadPipelineTest {
         assertEquals(null, row.localUri)
     }
 
+    @Test fun retiredLegacyProviderCannotStartANewNetworkDownload() = runBlocking {
+        val store = WallpaperStore(db.wallpapers())
+        val legacy = com.auroro.wallpapers.wallpaper(
+            source = WallpaperSource.OPENVERSE,
+            id = "retired",
+            original = server.url("/legacy-original.jpg").toString(),
+        ).copy(downloadAllowed = true, setWallpaperAllowed = true)
+        store.persist(legacy)
+
+        assertFalse(executor(store).execute(legacy.key))
+        assertEquals(0, server.requestCount)
+        val row = db.downloads().get(legacy.key)!!
+        assertEquals(DownloadStatus.FAILED.name, row.status)
+        assertEquals(DownloadErrorKind.LICENSE_RESTRICTED.name, row.errorKind)
+        assertTrue(row.errorMessage.orEmpty().contains("retired"))
+    }
+
     @Test fun rateLimitIsNotRetriedAndFailureCanBeExplained() = runBlocking {
         server.enqueue(MockResponse(code = 429, body = "slow down"))
         val w = com.auroro.wallpapers.wallpaper(id = "limited", original = server.url("/rate-limited").toString())

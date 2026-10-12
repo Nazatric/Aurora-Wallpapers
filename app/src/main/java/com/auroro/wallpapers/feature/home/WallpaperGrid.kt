@@ -165,49 +165,58 @@ fun WallpaperTile(wallpaper: Wallpaper, onClick: () -> Unit, modifier: Modifier 
     val metadataRatio = wallpaper.takeIf { it.hasKnownDimensions }
         ?.aspectRatio?.takeIf { it.isFinite() && it > 0f }
     var ratio by remember(wallpaper.key, wallpaper.width, wallpaper.height) { mutableFloatStateOf(metadataRatio ?: 1f) }
-    var imageUrl by remember(wallpaper.key, wallpaper.thumbUrl, wallpaper.previewUrl) { mutableStateOf(wallpaper.thumbUrl) }
+    val mayFetchPreview = wallpaper.source.isIntegrated
+    var imageUrl by remember(wallpaper.key, wallpaper.thumbUrl, wallpaper.previewUrl, mayFetchPreview) {
+        mutableStateOf(wallpaper.thumbUrl.takeIf { mayFetchPreview })
+    }
     var imageLoaded by remember(wallpaper.key, wallpaper.thumbUrl, wallpaper.previewUrl) { mutableStateOf(false) }
-    var imageFailed by remember(wallpaper.key, wallpaper.thumbUrl, wallpaper.previewUrl) { mutableStateOf(false) }
+    var imageFailed by remember(wallpaper.key, wallpaper.thumbUrl, wallpaper.previewUrl, mayFetchPreview) { mutableStateOf(!mayFetchPreview) }
     val description = buildString {
         append("Wallpaper")
         if (wallpaper.hasKnownDimensions) append(", ${wallpaper.width} by ${wallpaper.height}")
         wallpaper.title?.takeIf(String::isNotBlank)?.let { append(", ").append(it) }
     }
-    val shape = RoundedCornerShape(15.dp)
+    val shape = RoundedCornerShape(11.dp)
 
     Box(
         modifier.fillMaxWidth()
-            .aspectRatio(ratio)
+            .aspectRatio(ratio.coerceIn(0.27f, 3.7f))
             .clip(shape)
-            .background(Aero.colors.surfaceSolid)
-            .border(0.8.dp, Aero.colors.glassRimLight.copy(alpha = if (Aero.colors.isDark) 0.28f else 0.64f), shape)
+            .background(Aero.colors.surfaceSolid.copy(alpha = .72f))
             .clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = description },
         contentAlignment = Alignment.Center,
     ) {
         if (!imageLoaded && !imageFailed) SkeletonBlock(Modifier.fillMaxSize())
-        AsyncImage(
-            model = ImageRequest.Builder(context)
-                .data(imageUrl)
-                .memoryCacheKey(imageUrl)
-                .diskCacheKey(imageUrl)
-                .crossfade(140)
-                .build(),
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize(),
-            onSuccess = { state ->
-                imageLoaded = true
-                if (metadataRatio == null) {
-                    val image = state.result.image
-                    if (image.width > 0 && image.height > 0) ratio = image.width.toFloat() / image.height
-                }
-            },
-            onError = {
-                imageLoaded = false
-                if (imageUrl != wallpaper.previewUrl) imageUrl = wallpaper.previewUrl else imageFailed = true
-            },
-        )
+        val currentImageUrl = imageUrl
+        if (currentImageUrl != null) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(currentImageUrl)
+                    .memoryCacheKey(currentImageUrl)
+                    .diskCacheKey(currentImageUrl)
+                    .crossfade(140)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+                onSuccess = { state ->
+                    imageLoaded = true
+                    if (metadataRatio == null) {
+                        val image = state.result.image
+                        if (image.width > 0 && image.height > 0) ratio = image.width.toFloat() / image.height
+                    }
+                },
+                onError = {
+                    imageLoaded = false
+                    if (mayFetchPreview && currentImageUrl != wallpaper.previewUrl && wallpaper.previewUrl != wallpaper.originalUrl) {
+                        imageUrl = wallpaper.previewUrl
+                    } else {
+                        imageFailed = true
+                    }
+                },
+            )
+        }
         if (imageFailed) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -236,8 +245,9 @@ fun OfflineTile(
     var ratio by remember(localUri, wallpaper?.key, wallpaper?.width, wallpaper?.height, respectAspectRatio) {
         mutableFloatStateOf(metadataRatio ?: 1f)
     }
-    var imageData by remember(localUri, wallpaper?.key, wallpaper?.thumbUrl, wallpaper?.previewUrl) {
-        mutableStateOf(localUri ?: wallpaper?.thumbUrl)
+    val canFetchPreview = wallpaper?.source?.isIntegrated == true
+    var imageData by remember(localUri, wallpaper?.key, wallpaper?.thumbUrl, wallpaper?.previewUrl, canFetchPreview) {
+        mutableStateOf(localUri ?: wallpaper?.thumbUrl?.takeIf { canFetchPreview })
     }
     var imageLoaded by remember(localUri, wallpaper?.key, wallpaper?.thumbUrl, wallpaper?.previewUrl) { mutableStateOf(false) }
     var imageFailed by remember(localUri, wallpaper?.key, wallpaper?.thumbUrl, wallpaper?.previewUrl) { mutableStateOf(false) }
@@ -276,7 +286,7 @@ fun OfflineTile(
                 },
                 onError = {
                     imageLoaded = false
-                    val fallback = wallpaper?.previewUrl
+                    val fallback = wallpaper?.previewUrl?.takeIf { canFetchPreview && it != wallpaper.originalUrl }
                     if (localUri == null && fallback != null && imageData != fallback) imageData = fallback else imageFailed = true
                 },
             )

@@ -8,6 +8,10 @@ import java.io.InterruptedIOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 
 enum class ProviderErrorKind(val title: String) {
     NO_NETWORK("No connection"),
@@ -36,13 +40,22 @@ class ProviderException(
 /** Thrown by [HostAllowlistInterceptor] when a request would leave the provider allowlist. */
 class BlockedUrlException(url: String) : IOException("Blocked request to a non-allowlisted destination: $url")
 
+private fun HttpException.retryAfterSeconds(now: Instant = Instant.now()): Long? {
+    val value = response()?.headers()?.get("Retry-After")?.trim()?.takeIf(String::isNotEmpty) ?: return null
+    value.toLongOrNull()?.let { return it.takeIf { seconds -> seconds > 0 } }
+    val retryAt = runCatching { ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).withZoneSameInstant(ZoneOffset.UTC).toInstant() }
+        .getOrNull() ?: return null
+    val millis = retryAt.toEpochMilli() - now.toEpochMilli()
+    return millis.takeIf { it > 0 }?.let { (it + 999) / 1_000 }
+}
+
 /** Converts any failure from a provider call into a [ProviderException]. Cancellation is re-thrown untouched. */
 fun Throwable.toProviderException(providerName: String): ProviderException {
     if (this is CancellationException) throw this
     return when (this) {
         is ProviderException -> this
         is HttpException -> {
-            val retryAfter = response()?.headers()?.get("Retry-After")?.trim()?.toLongOrNull()
+            val retryAfter = retryAfterSeconds()
             when (val c = code()) {
                 401, 403 -> ProviderException(
                     ProviderErrorKind.AUTH_FAILED,

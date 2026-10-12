@@ -25,7 +25,7 @@ object HttpClients {
             .followRedirects(true)
             .followSslRedirects(false) // never follow an https -> http downgrade
             .addInterceptor(UserAgentInterceptor(USER_AGENT))
-            .addInterceptor(RetryInterceptor(noRetryHosts = setOf("api.openverse.org")))
+            .addInterceptor(RetryInterceptor(noRetryHosts = setOf("api.artic.edu")))
             .addNetworkInterceptor(HostAllowlistInterceptor())
             .build()
     }

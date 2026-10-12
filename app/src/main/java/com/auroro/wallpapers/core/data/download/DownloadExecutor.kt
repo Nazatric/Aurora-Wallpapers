@@ -75,6 +75,10 @@ class DownloadExecutor(
             return false
         }
         val title = wallpaper.title?.takeIf(String::isNotBlank) ?: "${wallpaper.source.displayName} #${wallpaper.sourceId}"
+        if (wallpaper.source !in WallpaperSource.integrated) {
+            fail(key, title, DownloadFailure(DownloadErrorKind.LICENSE_RESTRICTED, "This provider is retired; existing local files are still available."))
+            return false
+        }
         if (!wallpaper.downloadAllowed) {
             fail(key, title, DownloadFailure(DownloadErrorKind.LICENSE_RESTRICTED, "This image's licence or original URL doesn't permit a direct download in Auroro."))
             return false
@@ -116,6 +120,9 @@ class DownloadExecutor(
                     val contributor = when (wallpaper.source) {
                         WallpaperSource.OPENVERSE -> wallpaper.creatorName?.let { "Creator: $it" }
                         WallpaperSource.WALLHAVEN -> wallpaper.creatorName?.let { "Uploader: $it" }
+                        WallpaperSource.NASA_APOD -> "NASA Astronomy Picture of the Day"
+                        WallpaperSource.ART_INSTITUTE -> wallpaper.creatorName?.let { "Creator: $it · Art Institute of Chicago" }
+                        WallpaperSource.REDDIT -> "Reddit wallpaper"
                         WallpaperSource.ARCHIVED -> null
                     }
                     listOfNotNull(wallpaper.title, contributor)

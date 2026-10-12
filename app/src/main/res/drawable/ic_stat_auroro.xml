@@ -4,11 +4,8 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- The same Material Icons landscape mark in a status-bar-friendly single color. -->
     <path
-        android:pathData="M12,12m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0"
-        android:strokeWidth="2"
-        android:strokeColor="#FFFFFFFF"
-        android:fillColor="#00000000" />
-    <path android:pathData="M12,7.5m-4.5,0a4.5,2.4 0,1 1,9 0a4.5,2.4 0,1 1,-9 0" android:fillColor="#FFFFFFFF" />
-    <path android:pathData="M19,17m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" android:fillColor="#FFFFFFFF" />
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M14,6l-3.75,5 2.85,3.8-1.6,1.2C9.81,13.75 7,10 7,10l-6,8h22L14,6z" />
 </vector>

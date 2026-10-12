@@ -69,6 +69,9 @@ fun HeaderBar(
 fun SourceGlyph(source: WallpaperSource, modifier: Modifier = Modifier, small: Boolean = false) {
     val (top, bottom, letter) = when (source) {
         WallpaperSource.WALLHAVEN -> Triple(Color(0xFFBFE8ED), Color(0xFF6CAAB4), "W")
+        WallpaperSource.NASA_APOD -> Triple(Color(0xFFC6D9EF), Color(0xFF6690BA), "N")
+        WallpaperSource.ART_INSTITUTE -> Triple(Color(0xFFE8D5BC), Color(0xFFAD8663), "A")
+        WallpaperSource.REDDIT -> Triple(Color(0xFFFFD4B5), Color(0xFFE9864F), "R")
         WallpaperSource.OPENVERSE -> Triple(Color(0xFFC7EAD5), Color(0xFF79B99B), "O")
         WallpaperSource.ARCHIVED -> Triple(Color(0xFFD5E0E3), Color(0xFF8CA3A7), "S")
     }

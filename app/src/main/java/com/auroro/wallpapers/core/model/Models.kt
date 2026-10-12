@@ -5,14 +5,19 @@ import androidx.compose.runtime.Immutable
 /** The only catalogues queried by the app, plus an internal value for records saved by older versions. */
 enum class WallpaperSource(val id: String, val displayName: String, val siteUrl: String) {
     WALLHAVEN("wallhaven", "Wallhaven", "https://wallhaven.cc"),
-    OPENVERSE("openverse", "Openverse", "https://openverse.org"),
-    /** Keeps old Room records and downloads readable without treating their former provider as integrated. */
+    NASA_APOD("nasa-apod", "NASA APOD", "https://science.nasa.gov/apod/"),
+    ART_INSTITUTE("art-institute", "Art Institute of Chicago", "https://www.artic.edu/"),
+    /** Approved in principle; hidden until official Reddit API authorization is available. */
+    REDDIT("reddit", "Reddit", "https://www.reddit.com/"),
+    /** Legacy source retained only so older Room records and downloads stay readable. */
+    OPENVERSE("openverse", "Openverse (saved)", "https://openverse.org"),
+    /** Keeps older Room records and downloads readable without treating the provider as integrated. */
     ARCHIVED("archived", "Saved item", "");
 
-    val isIntegrated: Boolean get() = this == WALLHAVEN || this == OPENVERSE
+    val isIntegrated: Boolean get() = this in integrated
 
     companion object {
-        val integrated: List<WallpaperSource> = listOf(WALLHAVEN, OPENVERSE)
+        val integrated: List<WallpaperSource> = listOf(WALLHAVEN, NASA_APOD, ART_INSTITUTE)
         fun fromId(id: String): WallpaperSource? = entries.firstOrNull { it.id == id }
     }
 }
@@ -54,13 +59,13 @@ data class Wallpaper(
     val originSourceUrl: String? = null,
     /** Provider-supplied title. Null means the source did not give us one. */
     val title: String? = null,
-    /** Openverse attribution string, when supplied. */
+    /** Source-provided rights, licence, and credit statement when supplied. */
     val attribution: String? = null,
-    /** Exact Openverse licence code, e.g. `by-sa`. */
+    /** Exact source licence or rights-policy identifier, when known. */
     val licenseCode: String? = null,
     val licenseVersion: String? = null,
     val licenseUrl: String? = null,
-    /** Openverse metadata for the indexed publisher and the content-source slug. */
+    /** Additional source/catalogue metadata preserved for older records. */
     val providerName: String? = null,
     val catalogSource: String? = null,
     /** False unless the provider URL and known licence allow an original file to be saved. */
@@ -84,6 +89,7 @@ data class Wallpaper(
 
 /** User-facing sort choices. Provider-specific sort orders are never described as a global rank. */
 enum class SortOption(val label: String) {
+    SOURCE_DEFAULT("Source order"),
     RELEVANCE("Relevance"),
     NEWEST("Newest"),
     POPULAR("Popular"),
@@ -103,49 +109,19 @@ enum class WallhavenCategory(val label: String, val bitIndex: Int) {
     PEOPLE("People", 2),
 }
 
-/** Real image categories returned by Openverse's image endpoint. */
-enum class OpenverseCategory(val label: String, val apiValue: String) {
-    PHOTOGRAPH("Photographs", "photograph"),
-    ILLUSTRATION("Illustrations", "illustration"),
-    DIGITIZED_ARTWORK("Digitized artwork", "digitized_artwork"),
-}
-
-/** Exact image licences and Openverse's documented licence groups. */
-enum class OpenverseLicense(val label: String, val apiValue: String, val isGroup: Boolean = false) {
-    CC0("CC0", "cc0"),
-    PUBLIC_DOMAIN("Public domain", "pdm"),
-    CC_BY("CC BY", "by"),
-    CC_BY_SA("CC BY-SA", "by-sa"),
-    CC_BY_ND("CC BY-ND", "by-nd"),
-    CC_BY_NC("CC BY-NC", "by-nc"),
-    CC_BY_NC_SA("CC BY-NC-SA", "by-nc-sa"),
-    CC_BY_NC_ND("CC BY-NC-ND", "by-nc-nd"),
-    CC_SAMPLING_PLUS("CC Sampling+", "sampling+"),
-    CC_NC_SAMPLING_PLUS("CC NC Sampling+", "nc-sampling+"),
-    COMMERCIAL("Commercial-use group", "commercial", true),
-    MODIFICATION("Adaptation group", "modification", true),
-    ALL_CC("All CC incl. CC0 & sampling", "all-cc", true),
-}
-
 /** Everything the user can change on the filter screen. */
 @Immutable
 data class WallpaperFilter(
-    /** Empty set means both integrated sources. */
+    /** Empty set means all currently integrated sources. */
     val sources: Set<WallpaperSource> = emptySet(),
     val aspect: AspectFilter = AspectFilter.Any,
     val resolution: ResolutionFilter = ResolutionFilter.Any,
     val orientation: Orientation = Orientation.ANY,
-    val sort: SortOption = SortOption.RELEVANCE,
+    val sort: SortOption = SortOption.SOURCE_DEFAULT,
     /** Wallhaven only. Empty = all three. */
     val wallhavenCategories: Set<WallhavenCategory> = emptySet(),
     /** Wallhaven only; lowercase `rrggbb` without '#'. */
     val colorHex: String? = null,
-    /** Openverse only. A tag must be reported on the returned image. */
-    val openverseTag: String? = null,
-    val openverseCategory: OpenverseCategory? = null,
-    val openverseLicense: OpenverseLicense? = null,
-    /** Conservative metadata flag; providers' own SFW/safe filters are still applied independently. */
-    val reducePotentiallyExplicitContent: Boolean = true,
 ) {
     /** Number of non-default settings, shown as a badge on the filter button. */
     val activeCount: Int
@@ -154,18 +130,14 @@ data class WallpaperFilter(
             aspect != AspectFilter.Any,
             resolution != ResolutionFilter.Any,
             orientation != Orientation.ANY,
-            sort != SortOption.RELEVANCE,
+            sort != SortOption.SOURCE_DEFAULT,
             wallhavenCategories.isNotEmpty(),
             colorHex != null,
-            !openverseTag.isNullOrBlank(),
-            openverseCategory != null,
-            openverseLicense != null,
         ).count { it }
 
     val requiredSources: Set<WallpaperSource>
         get() = buildSet {
             if (wallhavenCategories.isNotEmpty() || colorHex != null) add(WallpaperSource.WALLHAVEN)
-            if (!openverseTag.isNullOrBlank() || openverseCategory != null || openverseLicense != null) add(WallpaperSource.OPENVERSE)
         }
 
     val hasConflictingSourceFilters: Boolean get() = requiredSources.size > 1

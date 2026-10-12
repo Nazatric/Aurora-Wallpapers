@@ -56,7 +56,8 @@ object Migrations {
 
             // Keep old saved metadata and all memberships, history and download rows readable,
             // while ensuring retired providers are no longer treated as live catalogue sources.
-            val retiredRows = "SELECT `key` FROM `wallpaper` WHERE `source` NOT IN ('wallhaven', 'openverse', 'archived')"
+            val retiredRows =
+                "SELECT `key` FROM `wallpaper` WHERE `source` NOT IN ('wallhaven', 'nasa-apod', 'art-institute', 'openverse', 'archived')"
             db.execSQL("UPDATE `favorite` SET `wallpaperKey` = 'archived:' || `wallpaperKey` WHERE `wallpaperKey` IN ($retiredRows)")
             db.execSQL("UPDATE `collection_item` SET `wallpaperKey` = 'archived:' || `wallpaperKey` WHERE `wallpaperKey` IN ($retiredRows)")
             db.execSQL("UPDATE `history` SET `wallpaperKey` = 'archived:' || `wallpaperKey` WHERE `wallpaperKey` IN ($retiredRows)")
@@ -64,10 +65,11 @@ object Migrations {
             db.execSQL(
                 "UPDATE `wallpaper` SET `key` = 'archived:' || `source` || ':' || `sourceId`, " +
                     "`sourceId` = `source` || ':' || `sourceId`, `source` = 'archived' " +
-                    "WHERE `source` NOT IN ('wallhaven', 'openverse', 'archived')",
+                    "WHERE `source` NOT IN ('wallhaven', 'nasa-apod', 'art-institute', 'openverse', 'archived')",
             )
-            // Old records may have a saved original on device. Keep local wallpaper setting
-            // available, but never refetch an archived provider URL as a new download.
+            // Pre-rights-metadata NASA/AIC rows must be revalidated before any new reuse action.
+            db.execSQL("UPDATE `wallpaper` SET `downloadAllowed` = 0, `setWallpaperAllowed` = 0 WHERE `source` IN ('nasa-apod', 'art-institute')")
+            // Keep the explicit local-file apply path, but never refetch an archived source URL.
             db.execSQL("UPDATE `wallpaper` SET `downloadAllowed` = 0 WHERE `source` = 'archived'")
             // Keep old local file identity, but don't fetch preview URLs from retired providers.
             db.execSQL("UPDATE `wallpaper` SET `thumbUrl` = '', `previewUrl` = '' WHERE `source` = 'archived'")

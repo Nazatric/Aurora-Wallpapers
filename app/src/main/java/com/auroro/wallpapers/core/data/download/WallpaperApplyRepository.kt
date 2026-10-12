@@ -44,6 +44,7 @@ class WallpaperApplyRepository(
     }
 
     suspend fun prepare(wallpaper: Wallpaper): ApplyOriginal = mutex.withLock {
+        require(wallpaper.source in WallpaperSource.integrated) { "This provider is retired; only an existing local copy can be applied." }
         require(wallpaper.setWallpaperAllowed) { "This image's licence doesn't permit setting it as a wallpaper." }
         require(wallpaper.downloadAllowed) { "This original can't be fetched for wallpaper setting." }
         require(urlAllowed(wallpaper.source, wallpaper.originalUrl)) { "This original URL isn't an approved secure image address." }

@@ -4,11 +4,10 @@ import android.content.SharedPreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import okhttp3.Headers
 
 /**
- * Persistent sliding-window limiter. The optional preference store keeps usage bounded across
- * process restarts. Provider-reported search budgets are honoured in addition to the local window.
+ * Persistent sliding-window limiter. The optional preference store keeps request pacing and
+ * Retry-After cooldowns bounded across process restarts.
  */
 class SlidingWindowLimiter(
     private val maxEvents: Int,
@@ -71,23 +70,6 @@ class SlidingWindowLimiter(
         }
     }
 
-    /** Incorporates Openverse's `anon_burst` and `anon_sustained` search budgets from response headers. */
-    suspend fun observeProviderHeaders(headers: Headers) {
-        val time = now()
-        val observed = listOf("anon_burst", "anon_sustained")
-            .mapNotNull { bucket ->
-                val limit = headers["X-RateLimit-Limit-$bucket"] ?: return@mapNotNull null
-                val remaining = headers["X-RateLimit-Available-$bucket"]?.toIntOrNull() ?: return@mapNotNull null
-                val interval = rateWindowMillis(limit) ?: return@mapNotNull null
-                bucket to RemoteBudget(remaining.coerceAtLeast(0), time + interval)
-            }
-        if (observed.isEmpty()) return
-        mutex.withLock {
-            observed.forEach { (bucket, budget) -> remoteBudgets[bucket] = budget }
-            persist()
-        }
-    }
-
     /** Use a provider's Retry-After on a 429 even if a proxy omits quota headers. */
     suspend fun pauseFor(milliseconds: Long) {
         if (milliseconds <= 0) return
@@ -124,16 +106,8 @@ class SlidingWindowLimiter(
         retryAfterSeconds = (milliseconds + 999) / 1000,
     )
 
-    private fun rateWindowMillis(rate: String): Long? = when (rate.substringAfter('/', "").trim().lowercase()) {
-        "second", "seconds", "sec" -> 1_000L
-        "minute", "minutes", "min" -> 60_000L
-        "hour", "hours", "hr" -> 3_600_000L
-        "day", "days" -> 86_400_000L
-        else -> null
-    }
-
     private companion object {
-        val PERSISTED_BUDGETS = setOf("anon_burst", "anon_sustained", "retry_after")
+        val PERSISTED_BUDGETS = setOf("retry_after")
     }
 }
 
@@ -144,7 +118,15 @@ object RateLimitedCall {
         return try {
             block()
         } catch (t: Throwable) {
-            throw t.toProviderException(providerName)
+            val error = t.toProviderException(providerName)
+            if (error.kind == ProviderErrorKind.RATE_LIMITED) {
+                error.retryAfterSeconds?.takeIf { it > 0 }?.let { seconds ->
+                    limiter.pauseFor(seconds.coerceAtMost(MAX_RETRY_AFTER_SECONDS) * 1_000L)
+                }
+            }
+            throw error
         }
     }
+
+    private const val MAX_RETRY_AFTER_SECONDS = 604_800L
 }

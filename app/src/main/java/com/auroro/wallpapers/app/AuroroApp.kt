@@ -14,9 +14,4 @@ class AuroroApp : Application(), Configuration.Provider, SingletonImageLoader.Fa
 
     override fun newImageLoader(context: Context): ImageLoader = container.imageLoader
 
-    override fun onCreate() {
-        super.onCreate()
-        // Creating the channel is cheap and lets WorkManager post truthful foreground progress.
-        container.notifier.ensureChannel()
-    }
 }

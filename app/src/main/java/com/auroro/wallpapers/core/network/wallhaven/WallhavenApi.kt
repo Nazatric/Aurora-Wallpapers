@@ -4,7 +4,7 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.QueryMap
 
-/** Official Wallhaven API v1 (https://wallhaven.cc/help/api). No API key is used or required for public SFW content. */
+/** Official Wallhaven API v1 (https://wallhaven.cc/help/api). The app requests only the provider's public `purity=100` catalogue. */
 interface WallhavenApi {
     @GET("search")
     suspend fun search(@QueryMap params: Map<String, String>): WallhavenSearchResponse

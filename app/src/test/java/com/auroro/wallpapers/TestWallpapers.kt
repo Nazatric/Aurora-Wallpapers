@@ -11,11 +11,17 @@ internal fun wallpaper(
     height: Int = 3840,
     original: String = when (source) {
         WallpaperSource.WALLHAVEN -> "https://w.wallhaven.cc/full/${id.take(2)}/wallhaven-$id.jpg"
+        WallpaperSource.NASA_APOD -> "https://images.nasa.gov/apod/$id.jpg"
+        WallpaperSource.ART_INSTITUTE -> "https://www.artic.edu/iiif/2/$id/full/max,/0/default.jpg"
+        WallpaperSource.REDDIT -> "https://www.reddit.com/r/wallpaper/comments/$id/"
         WallpaperSource.OPENVERSE -> "https://media.example.org/images/$id.jpg"
         WallpaperSource.ARCHIVED -> "https://legacy.example.org/images/$id.jpg"
     },
     page: String = when (source) {
         WallpaperSource.WALLHAVEN -> "https://wallhaven.cc/w/$id"
+        WallpaperSource.NASA_APOD -> "https://science.nasa.gov/apod/"
+        WallpaperSource.ART_INSTITUTE -> "https://www.artic.edu/artworks/$id"
+        WallpaperSource.REDDIT -> "https://www.reddit.com/r/wallpaper/comments/$id/"
         WallpaperSource.OPENVERSE -> "https://openverse.org/image/$id"
         WallpaperSource.ARCHIVED -> "https://legacy.example.org/item/$id"
     },

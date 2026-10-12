@@ -13,9 +13,8 @@ class DiscoveryCatalogTest {
         assertEquals(DiscoveryCatalog.recipes.size, DiscoveryCatalog.allIds.size)
         DiscoveryCatalog.recipes.forEach { recipe ->
             assertTrue(recipe.id.matches(Regex("[a-z0-9][a-z0-9-]*")))
-            assertTrue(recipe.sourceQueries[WallpaperSource.WALLHAVEN]!!.phrases.all(String::isNotBlank))
-            assertTrue(recipe.sourceQueries[WallpaperSource.OPENVERSE]!!.phrases.all(String::isNotBlank))
-            assertNotEquals(recipe.query(WallpaperSource.WALLHAVEN), recipe.query(WallpaperSource.OPENVERSE))
+            assertEquals(setOf(WallpaperSource.WALLHAVEN), recipe.sourceQueries.keys)
+            assertTrue(recipe.sourceQueries.getValue(WallpaperSource.WALLHAVEN).phrases.all(String::isNotBlank))
         }
     }
 

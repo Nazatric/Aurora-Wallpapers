@@ -19,8 +19,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +32,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.design.Aero
-import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 
 @Composable
@@ -51,12 +52,14 @@ fun CategoriesScreen(onMenu: () -> Unit, onSearch: (String) -> Unit) {
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
             items(SEARCH_TOPICS, key = { it.query }) { topic ->
-                GlassSurface(
+                Surface(
+                    onClick = { onSearch(topic.query) },
                     modifier = Modifier.fillMaxWidth().semantics {
                         contentDescription = "Search ${topic.title}, phrase ${topic.query}"
                     },
                     shape = RoundedCornerShape(22.dp),
-                    onClick = { onSearch(topic.query) },
+                    color = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .93f else .98f),
+                    border = BorderStroke(1.dp, Aero.colors.glassRimDark.copy(alpha = .12f)),
                 ) {
                     Column(
                         Modifier.fillMaxWidth().heightIn(min = 136.dp).padding(14.dp),

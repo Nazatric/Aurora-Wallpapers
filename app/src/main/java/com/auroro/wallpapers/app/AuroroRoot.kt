@@ -79,6 +79,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -177,10 +178,11 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val applyPreparation by vm.applyPreparation.collectAsState()
     val relatedLoading by vm.relatedLoading.collectAsState()
     val settings by vm.settings.collectAsState()
-    val enabledSources = remember(settings.wallhavenEnabled, settings.openverseEnabled) {
+    val enabledSources = remember(settings.wallhavenEnabled, settings.nasaApodEnabled, settings.artInstituteEnabled) {
         buildSet {
             if (settings.wallhavenEnabled) add(WallpaperSource.WALLHAVEN)
-            if (settings.openverseEnabled) add(WallpaperSource.OPENVERSE)
+            if (settings.nasaApodEnabled) add(WallpaperSource.NASA_APOD)
+            if (settings.artInstituteEnabled) add(WallpaperSource.ART_INSTITUTE)
         }
     }
     val reducedMotion = LocalReducedMotion.current
@@ -210,7 +212,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "home"
-    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly, settings.reducePotentiallyExplicitContent, settings.wallhavenEnabled, settings.openverseEnabled) {
+    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly, settings.wallhavenEnabled, settings.nasaApodEnabled, settings.artInstituteEnabled) {
         when (route) {
             "home" -> vm.openHome(homeTab)
             "search" -> vm.openSearch()
@@ -388,9 +390,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             enabledSources = enabledSources,
                             onBack = { nav.popBackStack() },
                             onApply = { filter ->
-                                val effectiveQuery = if (!filter.openverseTag.isNullOrBlank() && searchText.isNotBlank()) "" else searchText
-                                searchText = effectiveQuery
-                                vm.submitSearch(effectiveQuery, filter)
+                                vm.submitSearch(searchText, filter)
                                 nav.popBackStack()
                             },
                         )
@@ -458,8 +458,9 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                                 vm.updateSettings { current ->
                                     when (source) {
                                         WallpaperSource.WALLHAVEN -> current.copy(wallhavenEnabled = enabled)
-                                        WallpaperSource.OPENVERSE -> current.copy(openverseEnabled = enabled)
-                                        WallpaperSource.ARCHIVED -> current
+                                        WallpaperSource.NASA_APOD -> current.copy(nasaApodEnabled = enabled)
+                                        WallpaperSource.ART_INSTITUTE -> current.copy(artInstituteEnabled = enabled)
+                                        WallpaperSource.REDDIT, WallpaperSource.OPENVERSE, WallpaperSource.ARCHIVED -> current
                                     }
                                 }
                             },
@@ -474,7 +475,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                             onSettings = vm::updateSettings,
                             onClearCache = vm::clearImageCache,
                             onResetDiscovery = vm::resetDiscoveryPreferences,
-                            onAbout = { scope.launch { snackbar.showSnackbar("Auroro Wallpapers is a free, ad-free Android app. Made using Openverse; not endorsed or certified by Openverse.") } },
+                            onAbout = { scope.launch { snackbar.showSnackbar("Auroro Wallpapers is a free, ad-free Android app for source-backed wallpaper discovery.") } },
                             onPrivacy = { openExternal("https://github.com/Nazatric/Aurora-Wallpapers/blob/main/PRIVACY.md") },
                             onLicenses = { openExternal("https://github.com/Nazatric/Aurora-Wallpapers/blob/main/THIRD_PARTY_NOTICES.md") },
                             onSources = { nav.navigate("sources") },
@@ -557,8 +558,8 @@ private fun DrawerContent(selectedRoute: String, onChoose: (String) -> Unit) {
             Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 AppLogo(Modifier.size(52.dp), 52.dp)
                 Column(Modifier.padding(start = 12.dp)) {
-                    Text("Auroro Wallpapers", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
-                    Text("Wallhaven · Openverse", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Text("AURORO", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary, letterSpacing = 1.2.sp)
+                    Text("Wallhaven · NASA · Art Institute", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                 }
             }
         }
@@ -589,26 +590,35 @@ private fun BottomNavigation(selected: String, onSelect: (String) -> Unit) {
     GlassPanel(
         Modifier.fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        shape = CircleShape,
-        elevation = 14.dp,
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        shape = RoundedCornerShape(24.dp),
+        elevation = 10.dp,
     ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 5.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             bottomEntries.forEach { item ->
                 val active = selected == item.route
                 Column(
-                    Modifier.weight(1f).clip(CircleShape)
-                        .background(if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .19f else .12f) else Color.Transparent)
+                    Modifier.weight(1f)
                         .clickable(role = androidx.compose.ui.semantics.Role.Tab) { onSelect(item.route) }
-                        .padding(vertical = 6.dp).semantics {
+                        .padding(vertical = 4.dp)
+                        .semantics {
                             contentDescription = item.label
                             this.selected = active
                         },
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    Icon(item.icon, null, tint = if (active) Aero.colors.accent else Aero.colors.textSecondary, modifier = Modifier.size(21.dp))
-                    Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (active) Aero.colors.accent else Aero.colors.textSecondary)
+                    Icon(item.icon, null, tint = if (active) Aero.colors.accent else Aero.colors.textSecondary, modifier = Modifier.size(20.dp))
+                    Text(item.label, style = MaterialTheme.typography.labelSmall, color = if (active) Aero.colors.accent else Aero.colors.textSecondary, maxLines = 1)
+                    Spacer(
+                        Modifier.size(width = 18.dp, height = 2.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(if (active) Aero.colors.accent else Color.Transparent),
+                    )
                 }
             }
         }

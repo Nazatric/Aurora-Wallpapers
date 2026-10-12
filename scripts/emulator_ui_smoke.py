@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Live Android emulator smoke test for the installed APK.
 
-The test intentionally uses only the app's real Wallhaven/Openverse providers. It does not inject
-wallpaper fixtures into the running app. Screenshots and a small UI report are kept under
+The test uses the app's real approved providers and does not inject wallpaper fixtures into the running app. Screenshots and a small UI report are kept under
 artifacts/ui-smoke/ for CI inspection.
 """
 
@@ -482,8 +481,8 @@ def main() -> None:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
     home_header = wait_until(
-        lambda ui: bool(find_nodes(ui, text="An internal mix of validated SFW searches", contains=True)),
-        "For You internal SFW discovery description", timeout=60,
+        lambda ui: bool(find_nodes(ui, text="Validated source-backed", contains=True)),
+        "For You source-backed discovery description", timeout=60,
     )
     if find_nodes(home_header, text="Discover styles") or find_nodes(home_header, text="Auto · hourly"):
         raise AssertionError("For You must not expose a selectable aesthetic/style row")
@@ -491,16 +490,16 @@ def main() -> None:
     if not wallpaper_descriptions(home_feed):
         visible = [node_text(node) for node in home_feed.iter("node") if node_text(node)]
         raise AssertionError(
-            "The internal SFW query mix produced no visible validated wallpaper cards; "
+            "The source-backed query mix produced no visible validated wallpaper cards; "
             f"visible text/accessibility labels: {visible[:100]}"
         )
     REPORT["for_you_result_count"] = len(wallpaper_descriptions(home_feed))
-    REPORT["checks"].append({"name": "For You shows source-validated SFW results without style-selector pills", "result": "passed"})
+    REPORT["checks"].append({"name": "For You shows validated Wallhaven results without style-selector pills", "result": "passed"})
     screenshot("01-home.png")
 
     tap_text("Search", prefer_bottom=True)
-    root = wait_until(lambda ui: bool(find_nodes(ui, text="Try ocean, forest or a place")), "Search screen field", timeout=30)
-    field = find_nodes(root, text="Try ocean, forest or a place")[0]
+    root = wait_until(lambda ui: bool(find_nodes(ui, text="Subject, place, artist…")), "Search screen field", timeout=30)
+    field = find_nodes(root, text="Subject, place, artist…")[0]
     tap_node(field)
     adb("shell", "input", "text", "ocean")
     adb("shell", "input", "keyevent", "66")
@@ -550,8 +549,7 @@ def main() -> None:
     # The earlier Portrait → Any transition already verified clearing orientation. Keep the
     # Landscape results for the remaining journey instead of issuing another redundant API request.
 
-    # Favorite and queue an actual Wallhaven original before testing Openverse licensing, which can
-    # legitimately disallow direct downloads for some individual works.
+    # Favorite and queue an actual Wallhaven original before exercising the view-only APOD archive.
     tile_nodes = wallpaper_nodes(root)
     if not tile_nodes:
         raise AssertionError("No accessible Wallhaven wallpaper card was available to open")
@@ -812,19 +810,61 @@ def main() -> None:
             adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.24)), str(width // 2), str(int(height * 0.82)), "350")
             time.sleep(1)
 
-    # Exercise Openverse itself and verify its provider attribution in the real detail page.
-    tap_text("Openverse", timeout=20)
-    openverse_root = wait_for_feed_content("Openverse search", timeout=90)
-    REPORT["openverse_result_count"] = len(wallpaper_descriptions(openverse_root))
-    screenshot("09-openverse-search.png")
-    openverse_tiles = wallpaper_nodes(openverse_root)
-    if openverse_tiles:
-        tap_node(clickable_target(openverse_root, openverse_tiles[0]))
-        wait_until(lambda ui: bool(find_nodes(ui, text="Openverse")), "Openverse source attribution in detail", timeout=60)
-        screenshot("10-openverse-detail.png")
+    # APOD has no keyword search; clear the real query before opening its dated archive.
+    search_top = scroll_to_navigation_header(search, "Search")
+    clear_query = find_nodes(search_top, description="Clear query")
+    if clear_query:
+        tap_node(clear_query[0])
+        time.sleep(1)
+    tap_text("NASA APOD", timeout=20)
+    apod_root = wait_for_feed_content("NASA APOD archive", timeout=90)
+    REPORT["nasa_apod_result_count"] = len(wallpaper_descriptions(apod_root))
+    screenshot("09-nasa-apod-archive.png")
+    apod_tiles = wallpaper_nodes(apod_root)
+    if apod_tiles:
+        tap_node(clickable_target(apod_root, apod_tiles[0]))
+        apod_detail = wait_until(
+            lambda ui: bool(find_nodes(ui, text="NASA APOD"))
+            and bool(find_nodes(ui, text="NASA APOD credit does not grant reuse permission", contains=True)),
+            "NASA APOD detail clearly marked view-only", timeout=60,
+        )
+        if not find_nodes(apod_detail, text="Download unavailable", contains=True):
+            raise AssertionError("APOD detail exposed no view-only download state")
+        screenshot("10-nasa-apod-view-only.png")
         adb("shell", "input", "keyevent", "4")
     else:
-        REPORT["openverse_note"] = "The app showed its explicit empty/error state; inspect the screenshot and provider message."
+        REPORT["nasa_apod_note"] = "The app showed an honest APOD empty/error state; inspect its provider status and screenshot."
+
+    # Search a supported museum query and verify the item's retained CC0 status when available.
+    search = scroll_to_navigation_header(dump_hierarchy(), "Search")
+    query_fields = find_nodes(search, text="Subject, place, artist…")
+    if not query_fields:
+        raise AssertionError("Search query field was not available after the APOD archive check")
+    tap_node(query_fields[0])
+    adb("shell", "input", "text", "ocean")
+    adb("shell", "input", "keyevent", "66")
+    time.sleep(1)
+    search = scroll_horizontal_choice_into_view(
+        dump_hierarchy(),
+        "Art Institute of Chicago",
+        ("All", "Wallhaven", "NASA APOD", "Art Institute of Chicago"),
+    )
+    tap_text("Art Institute of Chicago", timeout=20)
+    artic_root = wait_for_feed_content("Art Institute public-domain search", timeout=120)
+    REPORT["art_institute_result_count"] = len(wallpaper_descriptions(artic_root))
+    screenshot("11-art-institute-search.png")
+    artic_tiles = wallpaper_nodes(artic_root)
+    if artic_tiles:
+        tap_node(clickable_target(artic_root, artic_tiles[0]))
+        artic_detail = wait_until(
+            lambda ui: bool(find_nodes(ui, text="Art Institute of Chicago"))
+            and bool(find_nodes(ui, text="CC0-1.0")),
+            "Art Institute detail retains CC0 attribution", timeout=60,
+        )
+        screenshot("12-art-institute-detail.png")
+        adb("shell", "input", "keyevent", "4")
+    else:
+        REPORT["art_institute_note"] = "The app showed an honest museum empty/error state; inspect its provider status and screenshot."
 
     # Finally exercise All Sources and return to Home, keeping any provider failures visible in the report.
     search_size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
@@ -848,7 +888,7 @@ def main() -> None:
         raise AssertionError("The combined search showed no results; inspect its explicit empty/error state")
     adb("shell", "input", "keyevent", "4")
     home = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Home")) and bool(find_nodes(ui, text="Explore topics")) and not find_nodes(ui, text="Try ocean, forest or a place"),
+        lambda ui: bool(find_nodes(ui, text="Home")) and bool(find_nodes(ui, text="Explore topics")) and not find_nodes(ui, text="Subject, place, artist…"),
         "system-back navigation to Home",
         timeout=45,
     )
@@ -933,11 +973,24 @@ def main() -> None:
         raise AssertionError("The Settings screen did not expose its real Wallpaper sources entry")
     tap_node(source_action[0])
     sources = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Two integrated wallpaper catalogues")) and bool(find_nodes(ui, text="Wallhaven")),
+        lambda ui: bool(find_nodes(ui, text="Real catalogues, clear source policies"))
+        and bool(find_nodes(ui, text="Wallhaven"))
+        and bool(find_nodes(ui, text="NASA APOD"))
+        and bool(find_nodes(ui, text="Art Institute of Chicago")),
         "integrated provider settings", timeout=45,
     )
     screenshot("26-source-settings.png")
-    REPORT["checks"].append({"name": "settings and provider configuration navigation", "result": "passed"})
+    for _ in range(8):
+        if find_nodes(sources, text="Paused · authorized API access is not configured"):
+            break
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.82)), str(width // 2), str(int(height * 0.28)), "450")
+        time.sleep(0.7)
+        sources = dump_hierarchy()
+    if not find_nodes(sources, text="Paused · authorized API access is not configured"):
+        raise AssertionError("The Reddit API feed must be shown as paused until authorized access is configured")
+    if find_nodes(settings, text="Reduce explicit content", contains=True):
+        raise AssertionError("The retired global content sensitivity preference is still visible in Settings")
+    REPORT["checks"].append({"name": "approved source status and no global content sensitivity setting", "result": "passed"})
     adb("shell", "input", "keyevent", "4")
     adb("shell", "input", "keyevent", "4")
     wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "return from source settings to Home", timeout=45)
@@ -949,7 +1002,7 @@ def main() -> None:
     home = wait_until(lambda ui: bool(find_nodes(ui, text="Auroro Wallpapers")), "Home after process recreation", timeout=60)
     tap_text("Search", prefer_bottom=True, timeout=20)
     search_history = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Try ocean, forest or a place")),
+        lambda ui: bool(find_nodes(ui, text="Subject, place, artist…")),
         "Search after process recreation", timeout=45,
     )
     clear_query = find_nodes(search_history, description="Clear search")

@@ -15,7 +15,7 @@ import org.junit.Test
 class FeedSessionCacheTest {
     @Test fun homeAndSearchKeepIndependentRequestsResultsCursorsAndResumeFlags() {
         val homeRequest = FeedRequest(filter = WallpaperFilter(sources = setOf(WallpaperSource.WALLHAVEN)))
-        val searchRequest = FeedRequest(query = "aurora", filter = WallpaperFilter(sources = setOf(WallpaperSource.OPENVERSE)))
+        val searchRequest = FeedRequest(query = "aurora", filter = WallpaperFilter(sources = setOf(WallpaperSource.NASA_APOD)))
         val homePager = FeedPager(emptyList(), homeRequest)
         val searchPager = FeedPager(emptyList(), searchRequest)
         val homeSession = FeedSession(
@@ -24,7 +24,7 @@ class FeedSessionCacheTest {
             resumeOnReturn = false,
         )
         val searchSession = FeedSession(
-            state = FeedUiState(request = searchRequest, items = listOf(wallpaper(source = WallpaperSource.OPENVERSE, id = "search")), initialLoadFinished = true),
+            state = FeedUiState(request = searchRequest, items = listOf(wallpaper(source = WallpaperSource.NASA_APOD, id = "search")), initialLoadFinished = true),
             pager = searchPager,
             resumeOnReturn = true,
         )

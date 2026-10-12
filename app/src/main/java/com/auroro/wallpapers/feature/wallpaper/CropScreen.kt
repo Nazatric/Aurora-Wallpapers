@@ -65,11 +65,13 @@ import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.LocalAeroHazeState
 import com.auroro.wallpapers.app.ApplyPreparationUiState
 import com.auroro.wallpapers.core.model.Wallpaper
+import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun CropScreen(
     wallpaper: Wallpaper?,

@@ -9,8 +9,6 @@ import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.model.WallpaperTag
-import com.auroro.wallpapers.core.network.ProviderErrorKind
-import com.auroro.wallpapers.core.network.ProviderException
 import com.auroro.wallpapers.core.network.RateLimitedCall
 import com.auroro.wallpapers.core.network.SlidingWindowLimiter
 import com.auroro.wallpapers.core.network.UrlPolicy
@@ -21,7 +19,7 @@ import java.util.Locale
 /**
  * Wallhaven via the official public API v1.
  *
- * - Safe-for-work only: `purity=100` is hard-coded. No API key is used, so sketchy/NSFW can't be enabled.
+ * - Uses Wallhaven's documented `purity=100` source-side catalogue; no app-wide metadata filter is applied.
  * - Quota: 45 requests/minute (official). A sliding-window limiter keeps us below it; HTTP 429 is never retried.
  */
 class WallhavenProvider(
@@ -37,8 +35,8 @@ class WallhavenProvider(
         // Wallhaven documents relevance for keyword searches, but a blank-query relevance request
         // currently returns data:[] despite meta.total > 0. Leave the default endpoint sort out of
         // the no-query sort menu; SearchSourceSelection maps a blank relevance selection to Newest.
-        sortsWithoutQuery = setOf(SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
-        sortsWithQuery = setOf(SortOption.RELEVANCE, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
+        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
+        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE, SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM),
         supportsCategories = true,
         supportsColorFilter = true,
         supportsDetail = true,
@@ -50,16 +48,8 @@ class WallhavenProvider(
     override suspend fun availability(): SourceAvailability =
         if (isEnabled()) SourceAvailability.Available else SourceAvailability.DisabledByUser()
 
-    private suspend fun <T> rateLimited(block: suspend () -> T): T = try {
+    private suspend fun <T> rateLimited(block: suspend () -> T): T =
         RateLimitedCall.run(limiter, source.displayName, block)
-    } catch (error: ProviderException) {
-        val retryAfter = error.retryAfterSeconds
-        if (error.kind == ProviderErrorKind.RATE_LIMITED && retryAfter != null && retryAfter > 0) {
-            // Bound malformed Retry-After values before converting seconds to milliseconds.
-            limiter.pauseFor(retryAfter.coerceAtMost(604_800L) * 1_000L)
-        }
-        throw error
-    }
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
         val params = WallhavenQuery.build(request, cursor)
@@ -107,9 +97,14 @@ object WallhavenQuery {
         if (q.isNotEmpty()) params["q"] = q
 
         params["categories"] = categoriesBits(f.wallhavenCategories)
-        params["purity"] = "100" // SFW only. Never widened.
+        params["purity"] = "100" // Official source-specific query parameter.
 
         when (f.sort) {
+            SortOption.SOURCE_DEFAULT -> if (q.isNotEmpty()) {
+                params["sorting"] = "relevance"
+            } else {
+                params["sorting"] = "date_added"
+            }
             SortOption.RELEVANCE -> if (q.isNotEmpty()) {
                 params["sorting"] = "relevance"
             } else {
@@ -187,7 +182,7 @@ object WallhavenMapper {
     /** Returns null for records that are unusable or whose URLs fail the provider allow-list. */
     fun toWallpaper(dto: WallhavenWallpaperDto): Wallpaper? {
         if (dto.id.isBlank() || dto.path.isBlank()) return null
-        if (dto.purity != null && dto.purity != "sfw") return null // defence in depth: never surface non-SFW
+        if (dto.purity != null && dto.purity != "sfw") return null // Validate the provider-supplied purity against the requested catalogue.
         if (dto.dimensionX !in 1..32_000 || dto.dimensionY !in 1..32_000) return null
         val ratio = dto.dimensionX.toFloat() / dto.dimensionY
         if (!ratio.isFinite() || ratio !in 0.05f..20f) return null

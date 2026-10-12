@@ -12,7 +12,6 @@ import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.model.WallpaperSource
-import com.auroro.wallpapers.core.model.WallhavenCategory
 import com.auroro.wallpapers.core.model.WallpaperTag
 import com.auroro.wallpapers.core.network.ProviderErrorKind
 import com.auroro.wallpapers.core.network.ProviderException
@@ -267,8 +266,7 @@ class DiscoveryEngineTest {
             assertEquals(Orientation.PORTRAIT, request.filter.orientation)
             assertEquals(ResolutionFilter.Preset(ResolutionPreset.P1080), request.filter.resolution)
             assertEquals(SortOption.RELEVANCE, request.filter.sort)
-            assertEquals(setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE), request.filter.wallhavenCategories)
-            assertTrue(request.filter.reducePotentiallyExplicitContent)
+            assertTrue(request.filter.wallhavenCategories.isEmpty())
         }
     }
 
@@ -359,49 +357,26 @@ class DiscoveryEngineTest {
         assertTrue(store.pools.isEmpty())
     }
 
-    @Test fun safeSensitivitySettingKeepsOrdinaryPortraitNatureSwimwearAndFigureArt() = runTest {
+    @Test fun validOrdinaryWallpapersAreNotDroppedByAGlobalContentKeywordLayer() = runTest {
         val session = session(listOf("fractal-art"))
+        val ordinaryTags = listOf("fractal art", "nature", "person portrait", "swimwear", "classical figure art")
         val provider = ScriptedDiscoveryProvider {
-            val safeTags = listOf("fractal art", "nature", "person portrait", "swimwear", "classical figure art")
             ProviderPage(
-                items = listOf(tagged("safe-subject-1", *safeTags.toTypedArray()), tagged("safe-subject-2", *safeTags.toTypedArray())),
+                items = listOf(
+                    tagged("ordinary-portrait-nature", *ordinaryTags.toTypedArray()),
+                    tagged("ordinary-figure-study", *ordinaryTags.toTypedArray()),
+                ),
                 next = null,
             )
         }
 
         val result = DiscoveryEngine(provider, MemoryDiscoveryPoolStore()).discover(session, 4L, AppSettings())
 
-        assertEquals(setOf("wallhaven:safe-subject-1", "wallhaven:safe-subject-2"), result.items.map { it.key }.toSet())
-    }
-
-    @Test fun safeSensitivitySettingRemovesOnlyMarkedCandidates() = runTest {
-        val session = session(listOf("fractal-art"))
-        val provider = ScriptedDiscoveryProvider {
-            ProviderPage(
-                items = listOf(
-                    tagged("safe-1", "fractal art"),
-                    tagged("safe-2", "fractal art"),
-                    tagged("explicit", "fractal art", "nsfw"),
-                ),
-                next = null,
-            )
-        }
-        val result = DiscoveryEngine(provider, MemoryDiscoveryPoolStore()).discover(session, 5L, AppSettings())
-        assertEquals(setOf("wallhaven:safe-1", "wallhaven:safe-2"), result.items.map { it.key }.toSet())
-
-        val allowMarked = DiscoveryEngine(
-            ScriptedDiscoveryProvider {
-                ProviderPage(
-                    items = listOf(
-                        tagged("safe-off", "fractal art"),
-                        tagged("marked-off", "fractal art", "nsfw"),
-                    ),
-                    next = null,
-                )
-            },
-            MemoryDiscoveryPoolStore(),
-        ).discover(session, 6L, AppSettings(reducePotentiallyExplicitContent = false))
-        assertEquals(2, allowMarked.items.size)
+        assertEquals(
+            setOf("wallhaven:ordinary-portrait-nature", "wallhaven:ordinary-figure-study"),
+            result.items.map { it.key }.toSet(),
+        )
+        assertEquals(2, result.locallyValidatedItems)
     }
 
     private fun session(ids: List<String>) = DiscoverySession(

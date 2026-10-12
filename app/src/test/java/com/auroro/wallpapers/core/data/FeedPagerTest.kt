@@ -2,6 +2,7 @@ package com.auroro.wallpapers.core.data
 
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.SortOption
+import com.auroro.wallpapers.core.model.SearchSourceSelection
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.model.WallpaperFilter
@@ -25,26 +26,26 @@ class FeedPagerTest {
             pages[2] = ProviderPage(listOf(wallpaper(id = "w2")), null)
             failOnceAt = 2
         }
-        val openverse = ScriptedProvider(WallpaperSource.OPENVERSE).apply {
-            pages[1] = ProviderPage(listOf(wallpaper(WallpaperSource.OPENVERSE, "a1")), PageCursor(2))
-            pages[2] = ProviderPage(listOf(wallpaper(WallpaperSource.OPENVERSE, "a2")), null)
+        val nasa = ScriptedProvider(WallpaperSource.NASA_APOD).apply {
+            pages[1] = ProviderPage(listOf(wallpaper(WallpaperSource.NASA_APOD, "a1")), PageCursor(2))
+            pages[2] = ProviderPage(listOf(wallpaper(WallpaperSource.NASA_APOD, "a2")), null)
         }
         val pager = FeedPager(
-            listOf(wallhaven, openverse),
+            listOf(wallhaven, nasa),
             FeedRequest(filter = WallpaperFilter(sort = SortOption.NEWEST)),
             perProviderTarget = 1,
             maxPagesPerLoad = 1,
         )
 
         val first = pager.loadNext()
-        assertEquals(setOf("wallhaven:w1", "openverse:a1"), first.items.map { it.key }.toSet())
+        assertEquals(setOf("wallhaven:w1", "nasa-apod:a1"), first.items.map { it.key }.toSet())
         assertFalse(first.endReached)
 
         val second = pager.loadNext()
-        assertEquals(listOf("openverse:a2"), second.items.map { it.key })
+        assertEquals(listOf("nasa-apod:a2"), second.items.map { it.key })
         assertTrue(second.hadFailure)
         assertEquals(1, wallhaven.calls.count { it.page == 2 }) // failed page was not advanced or re-requested
-        assertEquals(2, openverse.calls.size) // the other source advanced independently
+        assertEquals(2, nasa.calls.size) // the other source advanced independently
         assertTrue(second.statuses.any { it.source == WallpaperSource.WALLHAVEN && it.state is SourceState.Failed })
 
         pager.retry()
@@ -56,12 +57,12 @@ class FeedPagerTest {
 
     @Test fun cancellingACombinedPageRollsBackEveryProviderCursorAndKeepsCompletedRowsRetryable() = runTest {
         val wallhavenResult = wallpaper(id = "w1")
-        val openverseResult = wallpaper(WallpaperSource.OPENVERSE, "o1")
+        val nasaResult = wallpaper(WallpaperSource.NASA_APOD, "o1")
         val wallhavenCalls = mutableListOf<Int>()
-        var openverseCallCount = 0
+        var nasaCallCount = 0
         val wallhavenCompleted = CompletableDeferred<Unit>()
-        val openverseStarted = CompletableDeferred<Unit>()
-        val releaseFirstOpenverseCall = CompletableDeferred<Unit>()
+        val nasaStarted = CompletableDeferred<Unit>()
+        val releaseFirstNasaCall = CompletableDeferred<Unit>()
         val wallhaven = object : WallpaperProvider {
             override val source = WallpaperSource.WALLHAVEN
             override val capabilities = ProviderCapabilities(setOf(SortOption.NEWEST), setOf(SortOption.NEWEST))
@@ -72,21 +73,21 @@ class FeedPagerTest {
                 return ProviderPage(listOf(wallhavenResult), if (wallhavenCalls.size == 1) PageCursor(2) else null)
             }
         }
-        val openverse = object : WallpaperProvider {
-            override val source = WallpaperSource.OPENVERSE
+        val nasa = object : WallpaperProvider {
+            override val source = WallpaperSource.NASA_APOD
             override val capabilities = ProviderCapabilities(setOf(SortOption.RELEVANCE), setOf(SortOption.RELEVANCE))
             override suspend fun availability() = SourceAvailability.Available
             override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
-                openverseCallCount++
-                if (openverseCallCount == 1) {
-                    openverseStarted.complete(Unit)
-                    releaseFirstOpenverseCall.await()
+                nasaCallCount++
+                if (nasaCallCount == 1) {
+                    nasaStarted.complete(Unit)
+                    releaseFirstNasaCall.await()
                 }
-                return ProviderPage(listOf(openverseResult), null)
+                return ProviderPage(listOf(nasaResult), null)
             }
         }
         val pager = FeedPager(
-            listOf(wallhaven, openverse),
+            listOf(wallhaven, nasa),
             FeedRequest(),
             perProviderTarget = 1,
             maxPagesPerLoad = 1,
@@ -94,14 +95,14 @@ class FeedPagerTest {
 
         val cancelledLoad = async { pager.loadNext() }
         wallhavenCompleted.await()
-        openverseStarted.await()
+        nasaStarted.await()
         cancelledLoad.cancelAndJoin()
 
         val retry = pager.loadNext()
 
         assertEquals(listOf(1, 1), wallhavenCalls)
-        assertEquals(2, openverseCallCount)
-        assertEquals(setOf("wallhaven:w1", "openverse:o1"), retry.items.map { it.key }.toSet())
+        assertEquals(2, nasaCallCount)
+        assertEquals(setOf("wallhaven:w1", "nasa-apod:o1"), retry.items.map { it.key }.toSet())
         assertTrue(retry.endReached)
     }
 
@@ -109,26 +110,26 @@ class FeedPagerTest {
         val working = ScriptedProvider(WallpaperSource.WALLHAVEN).apply {
             pages[1] = ProviderPage(listOf(wallpaper(id = "w1")), null)
         }
-        val disabled = ScriptedProvider(WallpaperSource.OPENVERSE).apply {
-            availabilityValue = SourceAvailability.DisabledByUser("Openverse is turned off")
+        val disabled = ScriptedProvider(WallpaperSource.NASA_APOD).apply {
+            availabilityValue = SourceAvailability.DisabledByUser("NASA APOD is turned off")
         }
         val result = FeedPager(listOf(working, disabled), FeedRequest(), perProviderTarget = 4).loadNext()
         assertEquals(listOf("wallhaven:w1"), result.items.map { it.key })
-        val skipped = result.statuses.first { it.source == WallpaperSource.OPENVERSE }.state as SourceState.Skipped
-        assertEquals("Openverse is turned off", skipped.reason)
+        val skipped = result.statuses.first { it.source == WallpaperSource.NASA_APOD }.state as SourceState.Skipped
+        assertEquals("NASA APOD is turned off", skipped.reason)
         assertTrue(result.endReached)
     }
 
     @Test fun timedOutProviderDoesNotBlockOtherResultsAndCanBeRetriedAtTheSameCursor() = runTest {
         var slowCalls = 0
         val slow = object : WallpaperProvider {
-            override val source = WallpaperSource.OPENVERSE
+            override val source = WallpaperSource.NASA_APOD
             override val capabilities = ProviderCapabilities(setOf(SortOption.RELEVANCE), setOf(SortOption.RELEVANCE))
             override suspend fun availability() = SourceAvailability.Available
             override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage {
                 slowCalls++
                 if (slowCalls == 1) delay(60_000)
-                return ProviderPage(listOf(wallpaper(WallpaperSource.OPENVERSE, "o1")), null)
+                return ProviderPage(listOf(wallpaper(WallpaperSource.NASA_APOD, "o1")), null)
             }
         }
         val fast = ScriptedProvider(WallpaperSource.WALLHAVEN).apply {
@@ -146,20 +147,20 @@ class FeedPagerTest {
 
         assertEquals(listOf("wallhaven:w1"), first.items.map { it.key })
         assertTrue(first.hadFailure)
-        val timeout = first.statuses.single { it.source == WallpaperSource.OPENVERSE }.state as SourceState.Failed
+        val timeout = first.statuses.single { it.source == WallpaperSource.NASA_APOD }.state as SourceState.Failed
         assertEquals(ProviderErrorKind.TIMEOUT, timeout.error.kind)
         assertEquals(1, slowCalls)
 
         pager.retry()
         val retried = pager.loadNext()
 
-        assertEquals(listOf("openverse:o1"), retried.items.map { it.key })
+        assertEquals(listOf("nasa-apod:o1"), retried.items.map { it.key })
         assertEquals(2, slowCalls)
         assertTrue(retried.endReached)
     }
 
     @Test fun unsupportedSortCanBeReportedWithoutSendingARequest() = runTest {
-        val provider = ScriptedProvider(WallpaperSource.OPENVERSE).apply {
+        val provider = ScriptedProvider(WallpaperSource.NASA_APOD).apply {
             capabilities = ProviderCapabilities(
                 sortsWithoutQuery = setOf(SortOption.RELEVANCE),
                 sortsWithQuery = setOf(SortOption.RELEVANCE),
@@ -174,16 +175,27 @@ class FeedPagerTest {
     @Test fun roundRobinMergePreservesEachProvidersOrder() {
         val a1 = wallpaper(id = "a1")
         val a2 = wallpaper(id = "a2")
-        val b1 = wallpaper(WallpaperSource.OPENVERSE, "b1")
+        val b1 = wallpaper(WallpaperSource.NASA_APOD, "b1")
         assertEquals(listOf(a1, b1, a2), FeedPager.interleave(listOf(listOf(a1, a2), listOf(b1))))
     }
 
     @Test fun sourceSpecificFiltersSelectOnlyTheirActualProvider() {
         val wallhaven = ScriptedProvider(WallpaperSource.WALLHAVEN)
-        val openverse = ScriptedProvider(WallpaperSource.OPENVERSE)
-        val filter = WallpaperFilter(openverseLicense = com.auroro.wallpapers.core.model.OpenverseLicense.CC0)
-        val selected = WallpaperAggregator(listOf(wallhaven, openverse)).selected(FeedRequest(filter = filter))
-        assertEquals(listOf(WallpaperSource.OPENVERSE), selected.map { it.source })
+        val nasa = ScriptedProvider(WallpaperSource.NASA_APOD)
+        val filter = WallpaperFilter(sources = setOf(WallpaperSource.NASA_APOD))
+        val selected = WallpaperAggregator(listOf(wallhaven, nasa)).selected(FeedRequest(filter = filter))
+        assertEquals(listOf(WallpaperSource.NASA_APOD), selected.map { it.source })
+    }
+
+    @Test fun selectingOnlyARetiredSourceDoesNotSilentlyExpandToAllActiveProviders() {
+        val filter = SearchSourceSelection.select(WallpaperFilter.Default, setOf(WallpaperSource.OPENVERSE), "ocean")
+        val providers = listOf(
+            ScriptedProvider(WallpaperSource.WALLHAVEN),
+            ScriptedProvider(WallpaperSource.NASA_APOD),
+            ScriptedProvider(WallpaperSource.ART_INSTITUTE),
+        )
+
+        assertTrue(WallpaperAggregator(providers).selected(FeedRequest(filter = filter)).isEmpty())
     }
 
     private class ScriptedProvider(override val source: WallpaperSource) : WallpaperProvider {

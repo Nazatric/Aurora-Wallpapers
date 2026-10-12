@@ -23,14 +23,19 @@ android {
     }
 
     signingConfigs {
-        // Only created when ALL signing inputs are provided (CI secrets or local env).
+        // Never create a release config from a partial path/credential set.
         val storePath = config("AURORO_KEYSTORE_PATH")
-        if (storePath.isNotEmpty() && file(storePath).exists()) {
+        val storePasswordValue = config("AURORO_KEYSTORE_PASSWORD")
+        val aliasValue = config("AURORO_KEY_ALIAS")
+        val keyPasswordValue = config("AURORO_KEY_PASSWORD")
+        val signingReady = storePath.isNotEmpty() && file(storePath).exists() &&
+            storePasswordValue.isNotEmpty() && aliasValue.isNotEmpty() && keyPasswordValue.isNotEmpty()
+        if (signingReady) {
             create("release") {
                 storeFile = file(storePath)
-                storePassword = config("AURORO_KEYSTORE_PASSWORD")
-                keyAlias = config("AURORO_KEY_ALIAS")
-                keyPassword = config("AURORO_KEY_PASSWORD")
+                storePassword = storePasswordValue
+                keyAlias = aliasValue
+                keyPassword = keyPasswordValue
             }
         }
     }

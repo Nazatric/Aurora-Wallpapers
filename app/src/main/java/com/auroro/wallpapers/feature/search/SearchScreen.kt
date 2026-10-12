@@ -1,23 +1,29 @@
 package com.auroro.wallpapers.feature.search
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,10 +40,8 @@ import com.auroro.wallpapers.app.FeedUiState
 import com.auroro.wallpapers.core.data.SourceState
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
-import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
-import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
@@ -65,18 +69,11 @@ fun SearchScreen(
     val focusManager = LocalFocusManager.current
     val request = feed.request
     val filter = request.filter
-    val requestedSources = filter.sources.ifEmpty { enabledSources }
-    val effectiveSources = requestedSources.intersect(enabledSources)
-    val selectedSourcesDisabled = effectiveSources.isEmpty()
-    val openverseUsesRelevance = WallpaperSource.OPENVERSE in effectiveSources && (
-        filter.sort != com.auroro.wallpapers.core.model.SortOption.RELEVANCE ||
-            request.normalizedQuery.isEmpty() && WallpaperSource.WALLHAVEN in effectiveSources
-        )
+    val activeSources = (filter.sources.ifEmpty { enabledSources }).intersect(enabledSources)
     val sourceNotes = feed.statuses.mapNotNull { status ->
         (status.state as? SourceState.Skipped)?.let { "${status.source.displayName}: ${it.reason}" }
-    }.distinct().joinToString(" · ").takeIf(String::isNotBlank)
+    }.distinct().joinToString("\n").takeIf(String::isNotBlank)
 
-    // Debounce edits so a settled query refreshes quickly without sending a request for every keypress.
     LaunchedEffect(queryText, request.query, filter) {
         val normalized = queryText.trim().replace(Regex("\\s+"), " ")
         if (normalized != request.normalizedQuery) {
@@ -95,39 +92,35 @@ fun SearchScreen(
         onLoadMore = onLoadMore,
         onRetry = onRetry,
         emptyTitle = when {
-            enabledSources.isEmpty() -> "No wallpaper source enabled"
-            selectedSourcesDisabled -> "Selected source is turned off"
-            else -> "No wallpapers matched"
+            enabledSources.isEmpty() -> "No catalogue enabled"
+            activeSources.isEmpty() -> "Selected catalogue is off"
+            else -> "No matching wallpapers"
         },
         emptyMessage = when {
-            enabledSources.isEmpty() -> "Turn on Wallhaven or Openverse in Sources before searching."
-            selectedSourcesDisabled -> "Enable the selected source in Sources, or choose another enabled source."
-            else -> "Try a broader phrase or adjust the shape and size filters."
+            enabledSources.isEmpty() -> "Turn on an approved source in Settings → Sources."
+            activeSources.isEmpty() -> "Choose an enabled source or switch it back on in Sources."
+            else -> "Try a broader subject or adjust the source and dimension filters."
         },
         headerContent = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                HeaderBar("Search", onMenu = onMenu)
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    GlassSurface(Modifier.weight(1f), shape = CircleShape) {
+            Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+                HeaderBar("Search", "Search approved catalogues", onMenu = onMenu)
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    GlassSurface(Modifier.weight(1f), shape = RoundedCornerShape(18.dp)) {
                         OutlinedTextField(
                             value = queryText,
                             onValueChange = { onQueryText(it.take(200)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
-                            shape = CircleShape,
-                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, tint = Aero.colors.accent) },
+                            shape = RoundedCornerShape(18.dp),
+                            leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Aero.colors.accent) },
                             trailingIcon = {
                                 if (queryText.isNotEmpty()) {
-                                    IconButton(onClick = { onQueryText(""); focusManager.clearFocus() }, modifier = Modifier.size(48.dp)) {
-                                        Icon(Icons.Rounded.Close, contentDescription = "Clear search", tint = Aero.colors.textSecondary)
+                                    IconButton(onClick = { onQueryText(""); focusManager.clearFocus() }) {
+                                        Icon(Icons.Rounded.Close, "Clear query", tint = Aero.colors.textSecondary)
                                     }
                                 }
                             },
-                            placeholder = { Text("Try ocean, forest or a place", maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            placeholder = { Text("Subject, place, artist…", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
                                 focusManager.clearFocus()
@@ -152,68 +145,88 @@ fun SearchScreen(
                         selected = filter.activeCount > 0,
                     )
                 }
+
                 if (queryText.isBlank() && recentSearches.isNotEmpty()) {
-                    SectionTitle(
-                        title = "Recent searches",
-                        trailing = {
-                            TextButton(onClick = onClearRecentSearches) {
-                                Text("Clear", color = Aero.colors.accent)
-                            }
-                        },
-                    )
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        recentSearches.forEach { query ->
-                            GlassPill(
-                                text = query,
-                                selected = false,
-                                selectionRole = null,
-                                onClick = {
-                                    focusManager.clearFocus()
-                                    onQueryText(query)
-                                    onSelectRecentSearch(query)
-                                },
-                            )
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Recent", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary, modifier = Modifier.weight(1f))
+                        TextButton(onClick = onClearRecentSearches) { Text("Clear history") }
+                    }
+                    recentSearches.take(5).forEach { query ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                focusManager.clearFocus()
+                                onQueryText(query)
+                                onSelectRecentSearch(query)
+                            }.padding(vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.History, null, tint = Aero.colors.textTertiary, modifier = Modifier.size(18.dp))
+                            Text(query, Modifier.weight(1f).padding(start = 10.dp), style = MaterialTheme.typography.bodyMedium, color = Aero.colors.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
-                SectionTitle("Sources")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    GlassPill("All", filter.sources.isEmpty(), enabled = enabledSources.isNotEmpty(), onClick = { onSource(emptySet()) })
+
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SourceTab("All", filter.sources.isEmpty(), enabledSources.isNotEmpty()) { onSource(emptySet()) }
                     WallpaperSource.integrated.forEach { source ->
-                        GlassPill(
-                            source.displayName,
-                            filter.sources == setOf(source),
-                            enabled = source in enabledSources,
-                            onClick = { onSource(setOf(source)) },
-                        )
+                        SourceTab(source.displayName, filter.sources == setOf(source), source in enabledSources) {
+                            onSource(setOf(source))
+                        }
                     }
                 }
-                sourceNotes?.let {
-                    Text(it, style = MaterialTheme.typography.labelSmall, color = Aero.colors.warning, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                if (openverseUsesRelevance) {
-                    Text(
-                        if (request.normalizedQuery.isEmpty() && filter.sort == com.auroro.wallpapers.core.model.SortOption.RELEVANCE && WallpaperSource.WALLHAVEN in effectiveSources) {
-                            "Wallhaven uses newest for a blank search; Openverse keeps relevance. Provider order isn't blended."
-                        } else {
-                            "Openverse keeps its own relevance order; provider rankings aren't blended."
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Aero.colors.textTertiary,
-                    )
-                }
-                SectionTitle("Orientation", "Measured from the image's original pixel dimensions")
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     Orientation.entries.forEach { orientation ->
-                        GlassPill(
-                            text = orientation.label,
-                            selected = filter.orientation == orientation,
-                            onClick = { onOrientation(orientation) },
-                        )
+                        SourceTab(orientation.label, filter.orientation == orientation, true) {
+                            onOrientation(orientation)
+                        }
+                    }
+                    TextButton(onClick = onOpenFilters) { Text("More filters") }
+                }
+
+                if (sourceNotes != null) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        color = Aero.colors.warning.copy(alpha = .09f),
+                        border = BorderStroke(1.dp, Aero.colors.warning.copy(alpha = .22f)),
+                    ) {
+                        Text(sourceNotes, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                     }
                 }
-                SectionTitle("Results", if (feed.items.isEmpty()) null else "${feed.items.size} loaded")
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Results", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary, modifier = Modifier.weight(1f))
+                    Text("${feed.items.size}", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textTertiary)
+                }
             }
         },
     )
+}
+
+@Composable
+private fun SourceTab(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier.clickable(enabled = enabled, onClick = onClick).semantics { androidx.compose.ui.semantics.selected = selected }.padding(vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelLarge, color = when {
+            !enabled -> Aero.colors.textTertiary.copy(alpha = .55f)
+            selected -> Aero.colors.accent
+            else -> Aero.colors.textSecondary
+        }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Surface(
+            Modifier.fillMaxWidth().size(width = 28.dp, height = 3.dp),
+            color = if (selected) Aero.colors.accent else Color.Transparent,
+            shape = RoundedCornerShape(2.dp),
+        ) { }
+    }
 }

@@ -72,7 +72,6 @@ data class AppSettings(
     val increaseContrast: Boolean = false,
     val amoled: Boolean = false,
     val reduceTransparency: Boolean = false,
-    val reducePotentiallyExplicitContent: Boolean = true,
     val rotateDiscoveryHourly: Boolean = true,
     val avoidRecentlySeen: Boolean = true,
     val repeatAfterHours: Int = 24,
@@ -87,7 +86,8 @@ data class AppSettings(
     val notifyProgress: Boolean = true,
     val notifyResult: Boolean = true,
     val wallhavenEnabled: Boolean = true,
-    val openverseEnabled: Boolean = true,
+    val nasaApodEnabled: Boolean = true,
+    val artInstituteEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_CACHE_MB = 250
@@ -108,6 +108,8 @@ class SettingsRepository(
             store.edit { prefs ->
                 prefs.remove(LEGACY_RETIRED_PROVIDER_ENABLED)
                 prefs.remove(LEGACY_DOWNLOAD_QUALITY)
+                prefs.remove(LEGACY_REDUCE_EXPLICIT)
+                prefs.remove(LEGACY_OPENVERSE_ENABLED)
             }
         }
     }
@@ -337,7 +339,6 @@ class SettingsRepository(
             prefs[INCREASE_CONTRAST] = next.increaseContrast
             prefs[AMOLED] = next.amoled
             prefs[REDUCE_TRANSPARENCY] = next.reduceTransparency
-            prefs[REDUCE_EXPLICIT] = next.reducePotentiallyExplicitContent
             prefs[ROTATE_DISCOVERY_HOURLY] = next.rotateDiscoveryHourly
             prefs[AVOID_RECENT_DISCOVERY] = next.avoidRecentlySeen
             prefs[DISCOVERY_REPEAT_HOURS] = next.repeatAfterHours.coerceIn(1, 720)
@@ -354,7 +355,8 @@ class SettingsRepository(
             prefs[NOTIFY_PROGRESS] = next.notifyProgress
             prefs[NOTIFY_RESULT] = next.notifyResult
             prefs[WALLHAVEN_ON] = next.wallhavenEnabled
-            prefs[OPENVERSE_ON] = next.openverseEnabled
+            prefs[NASA_APOD_ON] = next.nasaApodEnabled
+            prefs[ART_INSTITUTE_ON] = next.artInstituteEnabled
             prefs.remove(LEGACY_RETIRED_PROVIDER_ENABLED)
             prefs.remove(LEGACY_DOWNLOAD_QUALITY)
         }
@@ -379,7 +381,6 @@ class SettingsRepository(
             increaseContrast = this[INCREASE_CONTRAST] ?: defaults.increaseContrast,
             amoled = this[AMOLED] ?: defaults.amoled,
             reduceTransparency = this[REDUCE_TRANSPARENCY] ?: defaults.reduceTransparency,
-            reducePotentiallyExplicitContent = this[REDUCE_EXPLICIT] ?: defaults.reducePotentiallyExplicitContent,
             rotateDiscoveryHourly = this[ROTATE_DISCOVERY_HOURLY] ?: defaults.rotateDiscoveryHourly,
             avoidRecentlySeen = this[AVOID_RECENT_DISCOVERY] ?: defaults.avoidRecentlySeen,
             repeatAfterHours = (this[DISCOVERY_REPEAT_HOURS] ?: defaults.repeatAfterHours).coerceIn(1, 720),
@@ -395,7 +396,8 @@ class SettingsRepository(
             notifyProgress = this[NOTIFY_PROGRESS] ?: defaults.notifyProgress,
             notifyResult = this[NOTIFY_RESULT] ?: defaults.notifyResult,
             wallhavenEnabled = this[WALLHAVEN_ON] ?: defaults.wallhavenEnabled,
-            openverseEnabled = this[OPENVERSE_ON] ?: defaults.openverseEnabled,
+            nasaApodEnabled = this[NASA_APOD_ON] ?: defaults.nasaApodEnabled,
+            artInstituteEnabled = this[ART_INSTITUTE_ON] ?: defaults.artInstituteEnabled,
         )
     }
 
@@ -443,7 +445,8 @@ class SettingsRepository(
         private val FONT_SCALE = floatPreferencesKey("font_scale")
         private val GLASS_QUALITY = stringPreferencesKey("glass_quality")
         private val INCREASE_CONTRAST = booleanPreferencesKey("increase_contrast")
-        private val REDUCE_EXPLICIT = booleanPreferencesKey("reduce_explicit_content")
+        private val LEGACY_REDUCE_EXPLICIT = booleanPreferencesKey("reduce_explicit_content")
+        private val LEGACY_OPENVERSE_ENABLED = booleanPreferencesKey("openverse_enabled")
         private val ROTATE_DISCOVERY_HOURLY = booleanPreferencesKey("rotate_discovery_hourly")
         private val AVOID_RECENT_DISCOVERY = booleanPreferencesKey("avoid_recent_discovery")
         private val DISCOVERY_REPEAT_HOURS = intPreferencesKey("discovery_repeat_hours")
@@ -460,7 +463,8 @@ class SettingsRepository(
         private val NOTIFY_PROGRESS = booleanPreferencesKey("notify_progress")
         private val NOTIFY_RESULT = booleanPreferencesKey("notify_result")
         private val WALLHAVEN_ON = booleanPreferencesKey("wallhaven_enabled")
-        private val OPENVERSE_ON = booleanPreferencesKey("openverse_enabled")
+        private val NASA_APOD_ON = booleanPreferencesKey("nasa_apod_enabled")
+        private val ART_INSTITUTE_ON = booleanPreferencesKey("art_institute_enabled")
         private val LEGACY_RETIRED_PROVIDER_ENABLED = booleanPreferencesKey("abyss_enabled")
         private val LEGACY_DOWNLOAD_QUALITY = stringPreferencesKey("download_quality")
     }

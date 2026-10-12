@@ -152,7 +152,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     val relatedLoading: StateFlow<Boolean> = _relatedLoading.asStateFlow()
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             app.downloads.reconcile()
         }
         viewModelScope.launch {
@@ -169,7 +169,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
 
     private fun AppSettings.enabledSources(): Set<WallpaperSource> = buildSet {
         if (wallhavenEnabled) add(WallpaperSource.WALLHAVEN)
-        if (openverseEnabled) add(WallpaperSource.OPENVERSE)
+        if (nasaApodEnabled) add(WallpaperSource.NASA_APOD)
+        if (artInstituteEnabled) add(WallpaperSource.ART_INSTITUTE)
     }
 
     fun openHome(
@@ -182,8 +183,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         val currentFeedIsDiscovery = _feed.value.discoverySession?.sessionId != null &&
             _feed.value.discoverySession?.sessionId == previousDiscoverySession?.sessionId
         val settingsStillMatch = !currentFeedIsDiscovery || (
-            _feed.value.request.filter.reducePotentiallyExplicitContent == visibleSettings.reducePotentiallyExplicitContent &&
-                _feed.value.discoveryRotationEnabled == visibleSettings.rotateDiscoveryHourly &&
+            _feed.value.discoveryRotationEnabled == visibleSettings.rotateDiscoveryHourly &&
                 _feed.value.discoveryWallhavenEnabled == visibleSettings.wallhavenEnabled
             )
         val selectionIsCurrent = tab != HomeTab.FOR_YOU || previousDiscoverySession?.let { session ->
@@ -257,8 +257,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                         sort = tab.sort ?: SortOption.NEWEST,
                         sources = setOf(WallpaperSource.WALLHAVEN),
                         wallhavenCategories = setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE),
-                        reducePotentiallyExplicitContent = prefs.reducePotentiallyExplicitContent,
-                    ),
+                            ),
                 )
                 feedPreparationJob = null
                 startFeed(request, null, FeedScope.HOME)
@@ -286,7 +285,6 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                 resolution = ResolutionFilter.Preset(ResolutionPreset.P1080),
                 sort = SortOption.RANDOM,
                 wallhavenCategories = setOf(WallhavenCategory.GENERAL, WallhavenCategory.PEOPLE),
-                reducePotentiallyExplicitContent = prefs.reducePotentiallyExplicitContent,
             ),
             aspectTolerance = prefs.aspectTolerance,
         )
@@ -297,7 +295,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             loading = true,
             initialLoadFinished = safeInitial.isNotEmpty(),
             endReached = true,
-            forYouLabel = "Source-matched SFW discovery",
+            forYouLabel = "Source-matched discovery",
             discoverySession = session,
             discoveryRotationEnabled = prefs.rotateDiscoveryHourly,
             discoveryWallhavenEnabled = prefs.wallhavenEnabled,
@@ -353,7 +351,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                     endReached = true,
                     pageError = message.takeIf { hasError },
                     appendCount = if (finalItems.isNotEmpty()) 1 else 0,
-                    forYouLabel = "Source-matched SFW discovery",
+                    forYouLabel = "Source-matched discovery",
                     discoverySession = session,
                     discoveryValidatedRecipeCount = result.sections.size,
                     cacheNotice = cacheNotice,
@@ -393,8 +391,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         val currentEnabledSources = currentSettings.enabledSources()
         if (useSavedSearch && activeFeedScope == FeedScope.SEARCH && feedInitialized) {
             val current = _feed.value
-            val settingsMatch = current.request.filter.reducePotentiallyExplicitContent == currentSettings.reducePotentiallyExplicitContent &&
-                current.enabledSourcesAtRequest == currentEnabledSources
+            val settingsMatch = current.enabledSourcesAtRequest == currentEnabledSources
             if (settingsMatch) return
             startFeed(current.request, current.forYouLabel, FeedScope.SEARCH)
             return
@@ -406,8 +403,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         val cached = if (useSavedSearch) feedSessions.takeSearch() else null
         if (cached != null) {
             val saved = cached.state
-            val settingsMatch = saved.request.filter.reducePotentiallyExplicitContent == currentSettings.reducePotentiallyExplicitContent &&
-                saved.enabledSourcesAtRequest == currentEnabledSources
+            val settingsMatch = saved.enabledSourcesAtRequest == currentEnabledSources
             if (settingsMatch) {
                 restoreFeedSession(FeedScope.SEARCH, cached)
             } else {
@@ -469,12 +465,9 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             lastDiscoverySession = discoverySession
             pager = null
             val preferences = settings.value
-            val needsSettingsSync = state.request.filter.reducePotentiallyExplicitContent != preferences.reducePotentiallyExplicitContent ||
-                state.discoveryRotationEnabled != preferences.rotateDiscoveryHourly ||
+            val needsSettingsSync = state.discoveryRotationEnabled != preferences.rotateDiscoveryHourly ||
                 state.discoveryWallhavenEnabled != preferences.wallhavenEnabled
-            val request = state.request.copy(
-                filter = state.request.filter.copy(reducePotentiallyExplicitContent = preferences.reducePotentiallyExplicitContent),
-            )
+            val request = state.request
             val safeItems = if (preferences.wallhavenEnabled) {
                 LocalFilter.apply(state.items, request.filter, request.aspectTolerance)
             } else emptyList()
@@ -517,10 +510,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         feedInitialized = true
         if (scope == FeedScope.HOME) feedSessions.clearHome(currentTab) else feedSessions.clearSearch()
         val currentSettings = settings.value
-        val effectiveRequest = request.copy(
-            filter = request.filter.copy(reducePotentiallyExplicitContent = currentSettings.reducePotentiallyExplicitContent),
-            aspectTolerance = currentSettings.aspectTolerance,
-        )
+        val effectiveRequest = request.copy(aspectTolerance = currentSettings.aspectTolerance)
         pager = app.aggregator.newPager(effectiveRequest)
         _feed.value = FeedUiState(
             request = effectiveRequest,

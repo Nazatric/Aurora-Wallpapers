@@ -12,7 +12,7 @@ class HostAllowlistInterceptor(private val allowPublicHttpsAssets: Boolean = fal
         val request = chain.request()
         val url = request.url
         val allowed = UrlPolicy.isAllowedForNetwork(url) ||
-            (allowPublicHttpsAssets && UrlPolicy.isAllowedOpenverseAsset(url.toString()))
+            (allowPublicHttpsAssets && UrlPolicy.isAllowedPublicHttpsAsset(url.toString()))
         if (!allowed) throw BlockedUrlException(url.host)
         return chain.proceed(request)
     }

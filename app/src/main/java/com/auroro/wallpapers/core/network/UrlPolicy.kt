@@ -7,9 +7,16 @@ import java.util.Locale
 
 /** URL checks for fixed API hosts, provider-published image files, and safe external attribution links. */
 object UrlPolicy {
-    /** API hosts only. Openverse's original media is hosted on many third-party domains. */
-    val networkDomains: Set<String> = setOf("wallhaven.cc", "api.openverse.org")
-    val browsableDomains: Set<String> = networkDomains + setOf("openverse.org")
+    /** Fixed official API hosts and media hosts used by the approved providers. */
+    val networkDomains: Set<String> = setOf(
+        "wallhaven.cc",
+        "nasa.gov",
+        "science.nasa.gov",
+        "apod.nasa.gov",
+        "api.artic.edu",
+        "artic.edu",
+    )
+    val browsableDomains: Set<String> = networkDomains + setOf("nasa.gov")
 
     /** Restrictive check used for API clients. */
     fun isAllowedForNetwork(url: HttpUrl): Boolean =
@@ -21,14 +28,16 @@ object UrlPolicy {
     fun isAllowedForNetwork(source: WallpaperSource, url: String?): Boolean {
         val parsed = parse(url) ?: return false
         return when (source) {
-            WallpaperSource.WALLHAVEN -> isAllowedForNetwork(parsed)
-            WallpaperSource.OPENVERSE -> isPublicHttpsUrl(parsed)
-            WallpaperSource.ARCHIVED -> false
+            WallpaperSource.WALLHAVEN -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("wallhaven.cc"))
+            WallpaperSource.NASA_APOD -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("nasa.gov"))
+            WallpaperSource.ART_INSTITUTE -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("artic.edu"))
+            WallpaperSource.OPENVERSE -> false // legacy local records remain readable; no new network use
+            WallpaperSource.REDDIT, WallpaperSource.ARCHIVED -> false
         }
     }
 
-    /** Openverse image URLs are served by many external hosts; only public HTTPS destinations are accepted. */
-    fun isAllowedOpenverseAsset(url: String?): Boolean = parse(url)?.let(::isPublicHttpsUrl) ?: false
+    /** Legacy saved records may use public HTTPS media hosts; new provider rows use source-specific checks. */
+    fun isAllowedPublicHttpsAsset(url: String?): Boolean = parse(url)?.let(::isPublicHttpsUrl) ?: false
 
     /** Attribution pages are opened only as public HTTPS links. API URLs remain separately allow-listed. */
     fun isAllowedForBrowsing(url: String?): Boolean = parse(url)?.let(::isPublicHttpsUrl) ?: false

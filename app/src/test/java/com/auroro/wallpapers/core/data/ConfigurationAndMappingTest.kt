@@ -1,6 +1,8 @@
 package com.auroro.wallpapers.core.data
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.model.WallpaperTag
 import kotlinx.coroutines.flow.first
@@ -75,6 +77,25 @@ class ConfigurationAndMappingTest {
         assertTrue(settings.recentSearches.first().isEmpty())
     }
 
+    @Test fun retiredGlobalContentAndOpenversePreferencesAreRemovedFromDataStore() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "retired-preferences.preferences_pb") })
+        val oldContentSetting = booleanPreferencesKey("reduce_explicit_content")
+        val oldOpenverseToggle = booleanPreferencesKey("openverse_enabled")
+        store.edit {
+            it[oldContentSetting] = true
+            it[oldOpenverseToggle] = true
+        }
+
+        val settings = SettingsRepository(store, bootPrefs = null)
+        val migrated = kotlinx.coroutines.withTimeout(5_000L) {
+            store.data.first { !it.contains(oldContentSetting) && !it.contains(oldOpenverseToggle) }
+        }
+
+        assertFalse(migrated.contains(oldContentSetting))
+        assertFalse(migrated.contains(oldOpenverseToggle))
+        assertTrue(settings.current().wallhavenEnabled)
+    }
+
     @Test fun discoverySnapshotsRepeatHistoryAndManualRefreshCooldownPersistLocally() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "discovery.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null)
@@ -138,7 +159,6 @@ class ConfigurationAndMappingTest {
                 fontScale = 1.2f,
                 glassQuality = GlassQuality.FULL,
                 increaseContrast = true,
-                reducePotentiallyExplicitContent = false,
                 rotateDiscoveryHourly = false,
                 avoidRecentlySeen = false,
                 repeatAfterHours = 72,
@@ -147,7 +167,8 @@ class ConfigurationAndMappingTest {
                 pinnedDiscoveryStyleId = "surreal",
                 cacheLimitMb = 500,
                 wallhavenEnabled = false,
-                openverseEnabled = true,
+                nasaApodEnabled = false,
+                artInstituteEnabled = true,
             )
         }
         val saved = settings.current()
@@ -158,7 +179,6 @@ class ConfigurationAndMappingTest {
         assertEquals(1.2f, saved.fontScale, 0.001f)
         assertEquals(GlassQuality.FULL, saved.glassQuality)
         assertTrue(saved.increaseContrast)
-        assertFalse(saved.reducePotentiallyExplicitContent)
         assertFalse(saved.rotateDiscoveryHourly)
         assertFalse(saved.avoidRecentlySeen)
         assertEquals(72, saved.repeatAfterHours)
@@ -167,6 +187,7 @@ class ConfigurationAndMappingTest {
         assertEquals("surreal", saved.pinnedDiscoveryStyleId)
         assertEquals(500, saved.cacheLimitMb)
         assertFalse(saved.wallhavenEnabled)
-        assertTrue(saved.openverseEnabled)
+        assertFalse(saved.nasaApodEnabled)
+        assertTrue(saved.artInstituteEnabled)
     }
 }

@@ -1,9 +1,7 @@
 package com.auroro.wallpapers.feature.search
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -15,19 +13,19 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,19 +38,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.auroro.wallpapers.core.data.WallhavenQuery
 import com.auroro.wallpapers.core.design.Aero
-import com.auroro.wallpapers.core.design.GlassPanel
-import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.model.AspectFilter
 import com.auroro.wallpapers.core.model.AspectMath
 import com.auroro.wallpapers.core.model.AspectPreset
-import com.auroro.wallpapers.core.model.OpenverseCategory
-import com.auroro.wallpapers.core.model.OpenverseLicense
 import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.ResolutionFilter
 import com.auroro.wallpapers.core.model.ResolutionPreset
@@ -61,8 +56,7 @@ import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.WallhavenCategory
 import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.model.WallpaperSource
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.roundToInt
 
 @Composable
 fun FilterScreen(
@@ -73,327 +67,246 @@ fun FilterScreen(
     aspectTolerance: Float = AspectMath.DEFAULT_TOLERANCE,
     enabledSources: Set<WallpaperSource> = WallpaperSource.integrated.toSet(),
 ) {
-    var draft by remember(initial, query, enabledSources) {
-        val activeSources = initial.sources.ifEmpty { enabledSources }.intersect(enabledSources)
-        val normalized = when {
-            query.isBlank() && activeSources == setOf(WallpaperSource.WALLHAVEN) && initial.sort == SortOption.RELEVANCE ->
-                initial.copy(sort = SortOption.NEWEST)
-            activeSources == setOf(WallpaperSource.OPENVERSE) && initial.sort != SortOption.RELEVANCE ->
-                initial.copy(sort = SortOption.RELEVANCE)
-            else -> initial
-        }
-        mutableStateOf(normalized)
-    }
+    var draft by remember(initial, query, enabledSources) { mutableStateOf(initial) }
     var customW by remember(initial) { mutableStateOf((initial.aspect as? AspectFilter.Custom)?.ratio?.w?.toString().orEmpty()) }
     var customH by remember(initial) { mutableStateOf((initial.aspect as? AspectFilter.Custom)?.ratio?.h?.toString().orEmpty()) }
     var minShort by remember(initial) { mutableStateOf((initial.resolution as? ResolutionFilter.Custom)?.shortEdge?.toString().orEmpty()) }
     var minLong by remember(initial) { mutableStateOf((initial.resolution as? ResolutionFilter.Custom)?.longEdge?.toString().orEmpty()) }
-    var invalidAspectInput by remember(initial) { mutableStateOf(false) }
-    var invalidResolutionInput by remember(initial) { mutableStateOf(false) }
-    val tagKeywordConflict = query.isNotBlank() && !draft.openverseTag.isNullOrBlank()
-    val colors = com.auroro.wallpapers.core.data.WallhavenQuery.PALETTE
+    var invalidAspect by remember(initial) { mutableStateOf(false) }
+    var invalidResolution by remember(initial) { mutableStateOf(false) }
+
+    val activeSources = (draft.sources.ifEmpty { enabledSources }).intersect(enabledSources)
+    val onlyWallhaven = activeSources == setOf(WallpaperSource.WALLHAVEN)
+    val sortChoices = buildList {
+        if (activeSources.isNotEmpty()) add(SortOption.SOURCE_DEFAULT)
+        if (query.isNotBlank() && activeSources.any { it == WallpaperSource.WALLHAVEN || it == WallpaperSource.ART_INSTITUTE }) {
+            add(SortOption.RELEVANCE)
+        }
+        if (query.isBlank() && activeSources.any { it == WallpaperSource.WALLHAVEN || it == WallpaperSource.NASA_APOD }) {
+            add(SortOption.NEWEST)
+        }
+        if (onlyWallhaven) addAll(listOf(SortOption.POPULAR, SortOption.RANDOM))
+    }.distinct()
 
     fun chooseSource(source: WallpaperSource?) {
         if (source != null && source !in enabledSources) return
-        val requested = source?.let { setOf(it) }.orEmpty()
-        draft = SearchSourceSelection.select(draft, requested, query)
+        draft = SearchSourceSelection.select(draft, source?.let(::setOf).orEmpty(), query)
     }
 
-    fun toggleWallhavenCategory(category: WallhavenCategory?) {
+    fun setCategory(category: WallhavenCategory?) {
         if (WallpaperSource.WALLHAVEN !in enabledSources) return
-        chooseSource(WallpaperSource.WALLHAVEN)
-        if (category == null) {
-            draft = draft.copy(wallhavenCategories = emptySet())
-        } else {
-            val selected = draft.wallhavenCategories.toMutableSet()
-            if (!selected.add(category)) selected.remove(category)
-            draft = draft.copy(wallhavenCategories = selected)
-        }
+        draft = SearchSourceSelection.select(draft, setOf(WallpaperSource.WALLHAVEN), query)
+        draft = draft.copy(
+            wallhavenCategories = when {
+                category == null -> emptySet()
+                category in draft.wallhavenCategories -> draft.wallhavenCategories - category
+                else -> draft.wallhavenCategories + category
+            },
+        )
     }
 
-    fun chooseOpenverseFilter(transform: (WallpaperFilter) -> WallpaperFilter) {
-        if (WallpaperSource.OPENVERSE !in enabledSources) return
-        chooseSource(WallpaperSource.OPENVERSE)
-        draft = transform(draft)
-    }
-
-    fun resetDraft() {
+    fun reset() {
         draft = WallpaperFilter.Default
         customW = ""
         customH = ""
         minShort = ""
         minLong = ""
-        invalidAspectInput = false
-        invalidResolutionInput = false
-    }
-
-    val effectiveSources = (draft.sources.ifEmpty { enabledSources }).intersect(enabledSources)
-    val isOnlyOpenverse = effectiveSources == setOf(WallpaperSource.OPENVERSE)
-    val wallhavenOnly = effectiveSources == setOf(WallpaperSource.WALLHAVEN)
-    val sortChoices = when {
-        effectiveSources.isEmpty() -> emptyList()
-        isOnlyOpenverse -> listOf(SortOption.RELEVANCE)
-        wallhavenOnly && query.isBlank() -> listOf(SortOption.NEWEST, SortOption.POPULAR, SortOption.RANDOM)
-        else -> SortOption.entries
+        invalidAspect = false
+        invalidResolution = false
     }
 
     Column(Modifier.fillMaxSize()) {
-        HeaderBar(
-            title = "Filters",
-            subtitle = "Actual dimensions · source-aware filters",
-            onBack = onBack,
-        )
+        HeaderBar("Filters", "Source-aware · measured image dimensions", onBack = onBack)
         Column(
-            Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
-            FilterSection("Sources", if (enabledSources.isEmpty()) "Enable a catalogue in Sources to search." else "All uses enabled catalogues.") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    GlassPill("All", draft.sources.isEmpty(), enabled = enabledSources.isNotEmpty(), onClick = { chooseSource(null) })
-                    GlassPill("Wallhaven", draft.sources == setOf(WallpaperSource.WALLHAVEN), enabled = WallpaperSource.WALLHAVEN in enabledSources, onClick = { chooseSource(WallpaperSource.WALLHAVEN) })
-                    GlassPill("Openverse", draft.sources == setOf(WallpaperSource.OPENVERSE), enabled = WallpaperSource.OPENVERSE in enabledSources, onClick = { chooseSource(WallpaperSource.OPENVERSE) })
+            FilterBlock("Catalogues", "Each catalogue keeps its own results and ranking.") {
+                SourceChoice("All enabled", draft.sources.isEmpty(), enabledSources.isNotEmpty()) { chooseSource(null) }
+                WallpaperSource.integrated.forEach { source ->
+                    SourceChoice(source.displayName, draft.sources == setOf(source), source in enabledSources) {
+                        chooseSource(source)
+                    }
                 }
             }
 
-            FilterSection("Aspect ratio", "Exact ratio presets or a custom width-to-height match.") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    GlassPill("Any", draft.aspect == AspectFilter.Any, onClick = { draft = draft.copy(aspect = AspectFilter.Any) })
-                    AspectPreset.entries.forEach { preset ->
-                        GlassPill(preset.label, draft.aspect == AspectFilter.Preset(preset), onClick = {
-                            draft = draft.copy(aspect = AspectFilter.Preset(preset))
-                        })
+            FilterBlock("Orientation", "Uses the provider's original pixel dimensions; unknown dimensions are not guessed.") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Orientation.entries.forEach { option ->
+                        SelectableTile(
+                            label = option.label,
+                            selected = draft.orientation == option,
+                            onClick = { draft = draft.copy(orientation = option) },
+                        )
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    NumberField("Width", customW, { customW = it; invalidAspectInput = false }, Modifier.weight(1f), decimal = true)
-                    Text(":", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textSecondary)
-                    NumberField("Height", customH, { customH = it; invalidAspectInput = false }, Modifier.weight(1f), decimal = true)
+            }
+
+            FilterBlock("Aspect ratio", "Match a composition rather than a cropped card.") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectableTile("Any", draft.aspect == AspectFilter.Any) { draft = draft.copy(aspect = AspectFilter.Any) }
+                    AspectPreset.entries.forEach { preset ->
+                        SelectableTile(preset.label, draft.aspect == AspectFilter.Preset(preset)) {
+                            draft = draft.copy(aspect = AspectFilter.Preset(preset))
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Width", customW, { customW = it; invalidAspect = false }, Modifier.weight(1f), decimal = true)
+                    Text(":", color = Aero.colors.textSecondary)
+                    NumberField("Height", customH, { customH = it; invalidAspect = false }, Modifier.weight(1f), decimal = true)
                     TextButton(onClick = {
                         val ratio = AspectMath.parseCustom("$customW:$customH")
-                        if (ratio == null) {
-                            invalidAspectInput = true
-                        } else {
-                            invalidAspectInput = false
+                        if (ratio == null) invalidAspect = true else {
+                            invalidAspect = false
                             draft = draft.copy(aspect = AspectFilter.Custom(ratio))
                         }
-                    }) { Text("Use") }
+                    }) { Text("Set") }
                 }
-                if (invalidAspectInput) Text("Enter positive width and height values (up to 100 each).", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
-                if (draft.aspect is AspectFilter.Custom) Text("Selected · ${draft.aspect.label}", style = MaterialTheme.typography.labelSmall, color = Aero.colors.success)
-                Text(
-                    "Relative tolerance: ${(aspectTolerance * 100).toInt()}%. Openverse can prefilter portrait or landscape only when the full tolerance range fits; actual dimensions decide the ratio match.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Aero.colors.textTertiary,
-                )
+                if (invalidAspect) HelperText("Enter positive width and height values, up to 100 each.")
+                if (draft.aspect != AspectFilter.Any) HelperText("Tolerance ${(aspectTolerance * 100).roundToInt()}% · checked against source dimensions")
             }
 
-            FilterSection("Minimum resolution", "Short and long edges work for portrait and landscape images.") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    GlassPill("Any", draft.resolution == ResolutionFilter.Any, onClick = { draft = draft.copy(resolution = ResolutionFilter.Any) })
+            FilterBlock("Minimum resolution", "Both edges are verified locally against the image metadata.") {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SelectableTile("Any", draft.resolution == ResolutionFilter.Any) { draft = draft.copy(resolution = ResolutionFilter.Any) }
                     ResolutionPreset.entries.forEach { preset ->
-                        GlassPill(preset.label, draft.resolution == ResolutionFilter.Preset(preset), onClick = {
+                        SelectableTile(preset.label, draft.resolution == ResolutionFilter.Preset(preset)) {
                             draft = draft.copy(resolution = ResolutionFilter.Preset(preset))
-                        })
+                        }
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    NumberField("Short edge px", minShort, { minShort = it; invalidResolutionInput = false }, Modifier.weight(1f))
-                    NumberField("Long edge px", minLong, { minLong = it; invalidResolutionInput = false }, Modifier.weight(1f))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    NumberField("Short edge", minShort, { minShort = it; invalidResolution = false }, Modifier.weight(1f))
+                    NumberField("Long edge", minLong, { minLong = it; invalidResolution = false }, Modifier.weight(1f))
                     TextButton(onClick = {
-                        val first = minShort.toIntOrNull()
-                        val second = minLong.toIntOrNull()
-                        if (first == null || second == null || first !in 1..20_000 || second !in 1..20_000) {
-                            invalidResolutionInput = true
-                        } else {
-                            invalidResolutionInput = false
-                            draft = draft.copy(resolution = ResolutionFilter.Custom(min(first, second), max(first, second)))
+                        val short = minShort.toIntOrNull()
+                        val long = minLong.toIntOrNull()
+                        if (short == null || long == null || short !in 1..32_000 || long !in short..32_000) invalidResolution = true else {
+                            invalidResolution = false
+                            draft = draft.copy(resolution = ResolutionFilter.Custom(short, long))
                         }
-                    }) { Text("Use") }
+                    }) { Text("Set") }
                 }
-                if (invalidResolutionInput) Text("Enter both edge values between 1 and 20,000 pixels.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
-                if (draft.resolution is ResolutionFilter.Custom) Text("Selected · ${draft.resolution.label}", style = MaterialTheme.typography.labelSmall, color = Aero.colors.success)
-                Text("Openverse wallpaper results have a 720 px minimum short edge even when the optional resolution filter is Any.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
+                if (invalidResolution) HelperText("Use whole-pixel edges from 1 to 32,000; the long edge cannot be shorter.")
             }
 
-            FilterSection("Orientation", "Portrait and landscape use original dimensions. Edges within 5% of the longer side count as square.") {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Orientation.entries.forEach { orientation ->
-                        GlassPill(orientation.label, draft.orientation == orientation, onClick = { draft = draft.copy(orientation = orientation) })
-                    }
+            FilterBlock("Order", "Provider rankings are never blended into a made-up global score.") {
+                if (sortChoices.isEmpty()) HelperText("Turn on at least one catalogue in Sources.")
+                sortChoices.forEach { option ->
+                    SourceChoice(option.label, draft.sort == option, true) { draft = draft.copy(sort = option) }
                 }
             }
 
-            if (effectiveSources.isNotEmpty()) {
-                val sortDescription = when {
-                    isOnlyOpenverse -> "Openverse supports relevance order."
-                    query.isBlank() && WallpaperSource.OPENVERSE in effectiveSources -> "With no keyword, Wallhaven uses newest as its default; Openverse keeps relevance order."
-                    query.isBlank() -> "Wallhaven offers newest, popular and random ordering for blank searches."
-                    else -> "New, popular and random ordering applies to Wallhaven; Openverse keeps relevance order."
-                }
-                FilterSection("Sort", sortDescription) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        sortChoices.forEach { sort -> GlassPill(sort.label, draft.sort == sort, onClick = { draft = draft.copy(sort = sort) }) }
-                    }
-                    if (!isOnlyOpenverse && WallpaperSource.OPENVERSE in effectiveSources && draft.sort != SortOption.RELEVANCE) {
-                        Text("Openverse remains relevance-ranked; sources are not given a made-up global ranking.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
-                    }
-                }
-            }
-
-            if (WallpaperSource.WALLHAVEN in enabledSources && (draft.sources.isEmpty() || draft.sources.contains(WallpaperSource.WALLHAVEN))) {
-                FilterSection("Wallhaven categories", "Category and colour values come from Wallhaven metadata.") {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        GlassPill("All", draft.wallhavenCategories.isEmpty(), onClick = { toggleWallhavenCategory(null) })
-                        WallhavenCategory.entries.forEach { category ->
-                            GlassPill(
-                                category.label,
-                                category in draft.wallhavenCategories,
-                                selectionRole = Role.Checkbox,
-                                onClick = { toggleWallhavenCategory(category) },
-                            )
+            if (onlyWallhaven) {
+                FilterBlock("Wallhaven categories", "Uses Wallhaven's own category parameter.") {
+                    WallhavenCategory.entries.forEach { category ->
+                        SourceChoice(category.label, category in draft.wallhavenCategories, true) {
+                            setCategory(category)
                         }
                     }
-                    Text("Dominant colour", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                    ColorPalette(colors, draft.colorHex) { selected ->
-                        chooseSource(WallpaperSource.WALLHAVEN)
-                        draft = draft.copy(colorHex = selected)
-                    }
+                    SourceChoice("All categories", draft.wallhavenCategories.isEmpty(), true) { setCategory(null) }
                 }
-            }
-
-            if (WallpaperSource.OPENVERSE in enabledSources && (draft.sources.isEmpty() || draft.sources.contains(WallpaperSource.OPENVERSE))) {
-                FilterSection("Openverse metadata", "Tags, categories and licences are returned by the image API.") {
-                    OutlinedTextField(
-                        value = draft.openverseTag.orEmpty(),
-                        onValueChange = { value -> chooseOpenverseFilter { it.copy(openverseTag = value.take(200).takeIf(String::isNotBlank)) } },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Openverse tag") },
-                        placeholder = { Text("For example: aurora") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Aero.colors.textPrimary,
-                            unfocusedTextColor = Aero.colors.textPrimary,
-                            focusedBorderColor = Aero.colors.accent,
-                            unfocusedBorderColor = Aero.colors.glassRimDark,
-                            focusedLabelColor = Aero.colors.accent,
-                            unfocusedLabelColor = Aero.colors.textTertiary,
-                            cursorColor = Aero.colors.accent,
-                        ),
-                    )
-                    if (tagKeywordConflict) {
-                        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Text(
-                                "Openverse tag-only searches cannot be combined with a keyword.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Aero.colors.warning,
-                            )
-                            TextButton(onClick = { onApply(draft) }) {
-                                Text("Clear keyword and apply tag", color = Aero.colors.accent)
+                FilterBlock("Dominant colour", "Only Wallhaven reports a colour palette.") {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SelectableTile("Any", draft.colorHex == null) { draft = draft.copy(colorHex = null) }
+                        WallhavenQuery.PALETTE.take(18).forEach { value ->
+                            val colour = remember(value) { Color(android.graphics.Color.parseColor("#$value")) }
+                            Surface(
+                                onClick = { draft = draft.copy(colorHex = if (draft.colorHex.equals(value, true)) null else value) },
+                                modifier = Modifier.size(38.dp).semantics { selected = draft.colorHex.equals(value, true) },
+                                shape = CircleShape,
+                                color = colour,
+                                border = BorderStroke(if (draft.colorHex.equals(value, true)) 3.dp else 1.dp, Aero.colors.glassRimDark.copy(alpha = .35f)),
+                            ) {
+                                if (draft.colorHex.equals(value, true)) androidx.compose.material3.Icon(Icons.Rounded.Check, "Selected", tint = Color.White, modifier = Modifier.padding(9.dp))
                             }
                         }
                     }
-                    Text("Category", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        GlassPill("Any", draft.openverseCategory == null, onClick = { chooseOpenverseFilter { it.copy(openverseCategory = null) } })
-                        OpenverseCategory.entries.forEach { category ->
-                            GlassPill(category.label, draft.openverseCategory == category, onClick = {
-                                chooseOpenverseFilter { it.copy(openverseCategory = category) }
-                            })
-                        }
-                    }
-                    Text("Licence", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                        GlassPill("Any", draft.openverseLicense == null, onClick = { chooseOpenverseFilter { it.copy(openverseLicense = null) } })
-                        OpenverseLicense.entries.forEach { licence ->
-                            GlassPill(licence.label, draft.openverseLicense == licence, onClick = {
-                                chooseOpenverseFilter { it.copy(openverseLicense = licence) }
-                            })
-                        }
-                    }
-                    Text("Openverse aspect filters select orientation, not exact ratios; size bands are coarse. Real dimensions are checked locally. Licence groups follow the API; sampling licences are browse-only here. Check source terms before reuse.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
         }
 
-        GlassPanel(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).navigationBarsPadding(),
-            shape = RoundedCornerShape(18.dp),
-            elevation = 2.dp,
-        ) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${draft.activeCount} active", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary, modifier = Modifier.weight(1f))
-                TextButton(onClick = ::resetDraft) { Text("Reset") }
-                Button(onClick = { onApply(draft) }, enabled = !tagKeywordConflict) { Text("Apply") }
+        Surface(color = Aero.colors.surfaceSolid.copy(alpha = .96f), shadowElevation = 8.dp) {
+            Row(
+                Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = ::reset) { Text("Reset") }
+                Button(
+                    onClick = { onApply(draft) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(17.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Aero.colors.accent, contentColor = Aero.colors.onAccent),
+                ) { Text("Show results") }
             }
         }
     }
 }
 
 @Composable
-private fun FilterSection(title: String, subtitle: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = Aero.colors.textPrimary)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
-        }
+private fun FilterBlock(title: String, note: String? = null, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text(title, style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
+        if (note != null) HelperText(note)
         content()
     }
 }
 
 @Composable
-private fun NumberField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, decimal: Boolean = false) {
+private fun SourceChoice(label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) { this.selected = selected },
+        shape = RoundedCornerShape(15.dp),
+        color = if (selected) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .72f),
+        border = BorderStroke(1.dp, if (selected) Aero.colors.accent.copy(alpha = .36f) else Aero.colors.glassRimDark.copy(alpha = .15f)),
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = selected, onClick = null, enabled = enabled)
+            Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = if (enabled) Aero.colors.textPrimary else Aero.colors.textTertiary)
+        }
+    }
+}
+
+@Composable
+private fun SelectableTile(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.semantics { this.selected = selected },
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .2f else .12f) else Aero.colors.surfaceSolid.copy(alpha = .78f),
+        border = BorderStroke(1.dp, if (selected) Aero.colors.accent.copy(alpha = .42f) else Aero.colors.glassRimDark.copy(alpha = .14f)),
+    ) {
+        Text(label, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge, color = if (selected) Aero.colors.accent else Aero.colors.textSecondary)
+    }
+}
+
+@Composable
+private fun NumberField(label: String, value: String, onValue: (String) -> Unit, modifier: Modifier = Modifier, decimal: Boolean = false) {
     OutlinedTextField(
         value = value,
-        onValueChange = { input -> onChange(input.filter { it.isDigit() || decimal && it == '.' }.take(8)) },
+        onValueChange = { onValue(it.filter { char -> char.isDigit() || decimal && char == '.' }.take(6)) },
         modifier = modifier,
-        label = { Text(label, style = MaterialTheme.typography.bodySmall) },
+        label = { Text(label, maxLines = 1) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = if (decimal) KeyboardType.Decimal else KeyboardType.Number),
-        textStyle = MaterialTheme.typography.bodyMedium,
+        shape = RoundedCornerShape(15.dp),
         colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = Aero.colors.accent,
+            unfocusedBorderColor = Aero.colors.glassRimDark.copy(alpha = .3f),
             focusedTextColor = Aero.colors.textPrimary,
             unfocusedTextColor = Aero.colors.textPrimary,
-            focusedBorderColor = Aero.colors.accent,
-            unfocusedBorderColor = Aero.colors.glassRimDark,
             focusedLabelColor = Aero.colors.accent,
             unfocusedLabelColor = Aero.colors.textTertiary,
-            cursorColor = Aero.colors.accent,
         ),
     )
 }
 
 @Composable
-private fun ColorPalette(colors: List<String>, selected: String?, onSelect: (String?) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        ColorDot(null, selected == null, onSelect)
-        colors.forEach { ColorDot(it, selected == it, onSelect) }
-    }
-}
-
-@Composable
-private fun ColorDot(hex: String?, selected: Boolean, onSelect: (String?) -> Unit) {
-    val color = when (hex?.lowercase()) {
-        "ffffff" -> Color.White
-        null -> Aero.colors.surfaceSolid
-        else -> runCatching { Color(android.graphics.Color.parseColor("#$hex")) }.getOrDefault(Aero.colors.textSecondary)
-    }
-    Box(
-        Modifier.size(48.dp)
-            .selectable(selected = selected, role = Role.RadioButton) { onSelect(if (selected) null else hex) }
-            .semantics { contentDescription = if (hex == null) "Any dominant colour" else "Dominant colour #$hex" },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            Modifier.size(34.dp)
-                .clip(CircleShape)
-                .background(color)
-                .border(if (selected) 2.dp else 1.dp, if (selected) Aero.colors.accent else Aero.colors.glassRimLight.copy(alpha = .58f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected && hex != null) Icon(Icons.Rounded.Check, null, tint = if (hex == "ffffff") Color.Black else Color.White, modifier = Modifier.size(17.dp))
-            else if (hex == null) Icon(Icons.Rounded.ColorLens, null, tint = Aero.colors.accent, modifier = Modifier.size(17.dp))
-        }
-    }
+private fun HelperText(text: String) {
+    Text(text, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
 }

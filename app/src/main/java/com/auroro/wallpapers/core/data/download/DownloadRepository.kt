@@ -16,6 +16,7 @@ import com.auroro.wallpapers.core.database.AppDatabase
 import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.UrlPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -28,9 +29,18 @@ class DownloadRepository(
     private val context: Context,
     private val db: AppDatabase,
     private val store: WallpaperStore,
-    private val workManager: WorkManager,
+    private val workManagerProvider: () -> WorkManager,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
+    constructor(
+        context: Context,
+        db: AppDatabase,
+        store: WallpaperStore,
+        workManager: WorkManager,
+        clock: () -> Long = System::currentTimeMillis,
+    ) : this(context, db, store, { workManager }, clock)
+
+    private val workManager: WorkManager by lazy(LazyThreadSafetyMode.SYNCHRONIZED, workManagerProvider)
     fun observeAll(): Flow<List<DownloadEntity>> = db.downloads().observeAll()
     fun observe(key: String): Flow<DownloadEntity?> = db.downloads().observe(key)
 
@@ -39,6 +49,7 @@ class DownloadRepository(
      * is already downloading or saved (and its file still exists).
      */
     suspend fun enqueue(w: Wallpaper) {
+        require(w.source in WallpaperSource.integrated) { "This provider is retired; existing local files are still available." }
         require(w.downloadAllowed) { "This image's licence or original URL doesn't permit a direct download in Auroro." }
         require(UrlPolicy.isAllowedForNetwork(w.source, w.originalUrl)) { "This image's address isn't an approved secure URL." }
         val existing = db.downloads().get(w.key)
@@ -76,7 +87,7 @@ class DownloadRepository(
                 existing.status == DownloadStatus.CANCELED.name || missingCompletedFile,
         ) { "Only a failed, canceled, or missing-file download can be retried." }
         val w = store.get(key) ?: throw IllegalStateException("Wallpaper details are missing; search again to refresh.")
-        require(w.downloadAllowed && UrlPolicy.isAllowedForNetwork(w.source, w.originalUrl)) {
+        require(w.source in WallpaperSource.integrated && w.downloadAllowed && UrlPolicy.isAllowedForNetwork(w.source, w.originalUrl)) {
             "This source or licence no longer allows a new download. Any saved local copy is unchanged."
         }
         db.downloads().delete(key)

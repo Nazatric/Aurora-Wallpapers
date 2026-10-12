@@ -1,6 +1,8 @@
 package com.auroro.wallpapers.feature.offline
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,6 +39,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.dp
@@ -45,9 +51,6 @@ import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.EmptyState
 import com.auroro.wallpapers.core.design.GlassIconButton
-import com.auroro.wallpapers.core.design.GlassPanel
-import com.auroro.wallpapers.core.design.GlassPill
-import com.auroro.wallpapers.core.design.GlassSurface
 import com.auroro.wallpapers.core.design.HeaderBar
 import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.model.Format
@@ -186,14 +189,37 @@ private enum class OfflineTab(val label: String) { SAVED("Downloaded"), QUEUE("Q
 
 @Composable
 private fun OfflineTabs(selected: OfflineTab, onSelect: (OfflineTab) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OfflineTab.entries.forEach { tab -> GlassPill(tab.label, selected == tab, onClick = { onSelect(tab) }) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OfflineTab.entries.forEach { tab ->
+            val active = selected == tab
+            Column(
+                Modifier.weight(1f)
+                    .clickable(role = Role.Tab) { onSelect(tab) }
+                    .semantics { this.selected = active }
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(tab.label, style = MaterialTheme.typography.labelLarge, color = if (active) Aero.colors.accent else Aero.colors.textSecondary)
+                Box(
+                    Modifier.fillMaxWidth().height(2.dp).background(
+                        if (active) Aero.colors.accent else Aero.colors.glassRimDark.copy(alpha = .16f),
+                        RoundedCornerShape(2.dp),
+                    ),
+                )
+            }
+        }
     }
 }
 
 @Composable
 private fun StorageSummary(info: StorageInfo) {
-    GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = 3.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .94f else .98f),
+        border = BorderStroke(1.dp, Aero.colors.glassRimDark.copy(alpha = .12f)),
+    ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Saved files", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textTertiary)
@@ -254,7 +280,12 @@ private fun DownloadRow(
 ) {
     val download = row.download
     val wallpaper = row.wallpaper
-    GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), elevation = 3.dp) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .94f else .98f),
+        border = BorderStroke(1.dp, Aero.colors.glassRimDark.copy(alpha = .12f)),
+    ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (wallpaper != null) {
                 OfflineTile(
@@ -310,7 +341,8 @@ private fun DownloadRow(
                 download.status == DownloadStatus.RUNNING.name || download.status == DownloadStatus.QUEUED.name ->
                     GlassIconButton(onClick = { onCancel(download.wallpaperKey) }, description = "Cancel download", icon = Icons.Rounded.DeleteOutline)
                 download.status == DownloadStatus.FAILED.name || download.status == DownloadStatus.CANCELED.name ||
-                    download.status == DownloadStatus.COMPLETED.name && !row.fileExists && wallpaper?.downloadAllowed == true ->
+                    download.status == DownloadStatus.COMPLETED.name && !row.fileExists &&
+                    wallpaper?.let { it.source.isIntegrated && it.downloadAllowed } == true ->
                     GlassIconButton(onClick = { onRetry(download.wallpaperKey) }, description = "Retry download", icon = Icons.Rounded.Refresh, tint = Aero.colors.accent)
                 else -> GlassIconButton(onClick = { onDelete(row) }, description = "Delete saved file", icon = Icons.Rounded.DeleteOutline, tint = Aero.colors.error)
             }
@@ -320,7 +352,13 @@ private fun DownloadRow(
 
 @Composable
 private fun HistoryRow(wallpaper: Wallpaper, onOpen: () -> Unit) {
-    GlassSurface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), onClick = onOpen) {
+    Surface(
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .94f else .98f),
+        border = BorderStroke(1.dp, Aero.colors.glassRimDark.copy(alpha = .12f)),
+    ) {
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             OfflineTile(
                 wallpaper = wallpaper,
