@@ -1,14 +1,14 @@
 # Verification and release status
 
-**Current source status recorded: 2026-10-12.** CI run [38222614085](https://github.com/Nazatric/Aurora-Wallpapers/actions/runs/38222614085) tested commit `efcb1d2`; the build passed and emulator smoke completed 39 checks before an incorrect Search-screen predicate timed out. The predicate correction and this status update are newer local changes awaiting CI.
+**Current source status recorded: 2026-10-12.** CI run [38224038282](https://github.com/Nazatric/Aurora-Wallpapers/actions/runs/38224038282) tested commit `815362c`; its build job passed unit tests, lint, debug/release assembly, and debug APK signature verification. Hosted-emulator smoke completed 118 checks, then timed out on a stale Home predicate that expected “Explore topics” instead of the actual “Explore Ocean”/topic labels. That predicate is corrected in this commit and awaits CI rerun.
 
 ## Current source: Android build, tests, emulator, screenshots
 
 - This workspace has no `java`, `javac`, or `adb` on `PATH`; `JAVA_HOME`, `ANDROID_HOME`, and `ANDROID_SDK_ROOT` are unset. `./gradlew` cannot run locally. Local Android build/install and `apksigner` verification are unavailable.
-- On commits `0e20d08`, `76ca42b`, and `efcb1d2`, CI job `build` passed unit tests, lint, debug and release assembly, and `apksigner` verification of the debug APK (latest pass: run [38222614085](https://github.com/Nazatric/Aurora-Wallpapers/actions/runs/38222614085)). Production signing was not configured; no production-signed release APK was published. The current Search-predicate fix is newer and awaits build/CI confirmation.
-- In run `38222614085`, hosted-emulator smoke verified the brand, initial For You cards, exact live Search text `ocean`, 23 Wallhaven results, measured Any/Portrait/Landscape filter outcomes, Favorite/collection actions, and a set-only Home wallpaper change reported by Android's wallpaper service. It completed 39 checks before timing out on `search_feed_visible`, which required an `Orientation` label the Search UI does not render. The actual hierarchy showed the Search header, 23 results, and the visible `Any`, `Portrait`, and `Landscape` controls. The predicate now checks those actual controls; the full rerun remains pending. Earlier runs failed first on a stale brand label and then on batched ADB text appearing as `oean`; both were corrected and the exact text check passed in this run.
-- Hosted query diagnostics included Wallhaven usable rows. An Art Institute query returned rows in the earlier smoke sample, but the captured sample had `0x0` dimensions and zero size-usable records. The current smoke has not completed its full provider/download/wallpaper journey. This is partial API evidence, not manual screenshot review or a comprehensive source/rights audit. Artifact/log downloads returned EOF, so screenshots were not inspected.
-- Static checks on this working tree passed after the smoke-script fix: Python syntax compilation for `scripts/*.py` and `.github/scripts/*.py`, `bash -n scripts/live_source_smoke.sh`, XML parsing of 11 Android resource files, and `git diff --check`. These checks do not compile Kotlin or execute the app.
+- In run `38224038282`, the CI `build` job passed unit tests, lint, debug/release assembly, and `apksigner` verification of the debug APK. Production signing was not configured; no production-signed release APK was published. The only change after that run is this Python smoke-predicate correction and status documentation.
+- Hosted API 35 emulator smoke completed 118 checks through combined-source search before timing out during system-back navigation. The stale predicate expected “Explore topics”; the actual Home hierarchy exposes topic controls such as “Explore Ocean”. It also recorded 30 visible For You images from two contributing catalogues and the earlier smoke assertions covered search filters, Favorite/collection actions, and set-only wallpaper application. The current predicate checks the actual `Explore ` topic labels and is awaiting rerun.
+- The run reached NASA APOD and Art Institute search screens, but available check annotations do not establish item-level APOD/AIC result counts or rights. The report artifact download returned EOF, so those outcomes and screenshots remain unreviewed. These are partial live-flow observations, not a comprehensive source or rights audit.
+- Static checks on this working tree passed after the smoke-script fix: Python syntax compilation for `scripts/*.py` and `.github/scripts/*.py`, `bash -n scripts/live_source_smoke.sh`, XML parsing of 12 Android resource files, and `git diff --check`. These checks do not compile Kotlin or execute the app.
 - No supported physical Android device or 120 Hz panel was available. Startup, scrolling/navigation latency, frame pacing, image-load time, memory, battery, APK size, and prolonged-browsing measurements are not claimed. Macrobenchmark/Baseline Profile remain follow-up work.
 
 ## Previous revision evidence (historical; not proof for current source)
@@ -29,13 +29,13 @@
 
 ## Production release
 
-- Source version is `versionName` **0.1**, `versionCode` **3**. CI produced the debug APK from commit `0e20d08`, verified its signature with `apksigner`, and installed/launched it in the hosted emulator; this does not constitute production signing or a completed functional smoke run.
+- Source version is `versionName` **0.1**, `versionCode` **3**. CI produced the debug APK from commit `815362c`, verified its signature with `apksigner`, and installed/launched it in the hosted emulator; this does not constitute production signing or a completed functional smoke run.
 - No production signing key or signed release APK has been verified, and no new tag or GitHub release is claimed. CI reported that production signing was not configured and did not publish a release APK. Never put signing material in Git or chat.
 - Release signing requires `AURORO_KEYSTORE_BASE64`, `AURORO_KEYSTORE_PASSWORD`, `AURORO_KEY_ALIAS`, and `AURORO_KEY_PASSWORD`. The tag workflow checks for an existing release and refuses to overwrite it.
 
 ## Required follow-up
 
-1. Commit and push the corrected smoke assertion and status docs; rerun CI and fix any actual compile, test, lint, or app-flow failures rather than weakening functional checks.
+1. Rerun CI for the corrected Home predicate and fix any actual compile, test, lint, or app-flow failures rather than weakening functional checks.
 2. Confirm the debug APK signature with `apksigner`, rerun the full `scripts/emulator_ui_smoke.py` journey, and manually review resulting screenshots. Record provider skips/failures separately from app/UI verification; investigate artifact download errors if screenshots remain inaccessible.
 3. Run `scripts/live_source_smoke.sh` from a network that can reach the approved public APIs; preserve each provider's actual response/error independently.
 4. Reconfirm reuse rights per NASA item before enabling any reuse; obtain Reddit authorization and confirm Pixabay permission before enabling those sources.
