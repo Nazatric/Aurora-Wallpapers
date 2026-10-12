@@ -283,7 +283,7 @@ private fun ThemeChoiceCard(theme: DesignTheme, accent: AccentTheme, selected: B
     val border = if (selected) Aero.colors.accent else Aero.colors.glassRimDark.copy(alpha = 0.20f)
     Surface(
         onClick = onClick,
-        modifier = Modifier.width(172.dp).semantics(mergeDescendants = true) { this.selected = selected },
+        modifier = Modifier.width(142.dp).semantics(mergeDescendants = true) { this.selected = selected },
         shape = RoundedCornerShape(20.dp),
         color = Aero.colors.surfaceSolid.copy(alpha = if (selected) 0.96f else 0.84f),
         border = BorderStroke(if (selected) 1.6.dp else 1.dp, border),
@@ -347,12 +347,14 @@ private fun <T> ChoiceGrid(values: List<Pair<T, String>>, selected: T, onSelect:
                 color = if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .58f),
                 border = BorderStroke(1.dp, if (active) Aero.colors.accent.copy(alpha = .38f) else Aero.colors.glassRimDark.copy(alpha = .15f)),
             ) {
-                Text(
-                    label,
+                Row(
                     Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (active) Aero.colors.accent else Aero.colors.textSecondary,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (active) Icon(Icons.Rounded.Check, contentDescription = null, tint = Aero.colors.accent, modifier = Modifier.size(14.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) Aero.colors.accent else Aero.colors.textSecondary)
+                }
             }
         }
     }
@@ -370,12 +372,14 @@ private fun MultiChoiceGrid(values: List<Pair<String, String>>, selected: Set<St
                 color = if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .58f),
                 border = BorderStroke(1.dp, if (active) Aero.colors.accent.copy(alpha = .38f) else Aero.colors.glassRimDark.copy(alpha = .15f)),
             ) {
-                Text(
-                    label,
+                Row(
                     Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (active) Aero.colors.accent else Aero.colors.textSecondary,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (active) Icon(Icons.Rounded.Check, contentDescription = null, tint = Aero.colors.accent, modifier = Modifier.size(14.dp))
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = if (active) Aero.colors.accent else Aero.colors.textSecondary)
+                }
             }
         }
     }

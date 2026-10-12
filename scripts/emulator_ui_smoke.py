@@ -917,6 +917,8 @@ def main() -> None:
     )
     if not selected_state(settings, "Follow system") or not selected_state(settings, "Frutiger Aero"):
         raise AssertionError("Fresh settings must select Follow system and Frutiger Aero by default")
+    if find_nodes(settings, text="Frutiger Flower"):
+        raise AssertionError("The retired Frutiger Flower label must not appear as a theme or discovery topic")
 
     settings = scroll_horizontal_choice_into_view(settings, "Dark", THEME_MODE_LABELS)
     tap_text("Dark", timeout=20)
