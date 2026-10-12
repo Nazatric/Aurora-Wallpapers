@@ -16,10 +16,10 @@ import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import java.util.Locale
 
 enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"), DARK("Dark") }
@@ -102,23 +102,21 @@ class SettingsRepository(
 ) {
     private val migrationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    init {
-        migrationScope.launch {
-            store.edit { prefs ->
-                prefs.remove(LEGACY_RETIRED_PROVIDER_ENABLED)
-                prefs.remove(LEGACY_DOWNLOAD_QUALITY)
-                prefs.remove(LEGACY_REDUCE_EXPLICIT)
-                prefs.remove(LEGACY_OPENVERSE_ENABLED)
+    private val preferenceMigration = migrationScope.async {
+        store.edit { prefs ->
+            prefs.remove(LEGACY_RETIRED_PROVIDER_ENABLED)
+            prefs.remove(LEGACY_DOWNLOAD_QUALITY)
+            prefs.remove(LEGACY_REDUCE_EXPLICIT)
+            prefs.remove(LEGACY_OPENVERSE_ENABLED)
 
-                // Split the old combined appearance preset into independent mode and design theme.
-                val migratedSettings = prefs.toSettings()
-                if (!prefs.contains(THEME)) prefs[THEME] = migratedSettings.themeMode.name
-                if (!prefs.contains(DESIGN_THEME)) prefs[DESIGN_THEME] = migratedSettings.designTheme.name
-                prefs.remove(LEGACY_APPEARANCE)
+            // Split the old combined appearance preset into independent mode and design theme.
+            val migratedSettings = prefs.toSettings()
+            if (!prefs.contains(THEME)) prefs[THEME] = migratedSettings.themeMode.name
+            if (!prefs.contains(DESIGN_THEME)) prefs[DESIGN_THEME] = migratedSettings.designTheme.name
+            prefs.remove(LEGACY_APPEARANCE)
 
-                // Discovery topic IDs are normalized when settings are read or next written,
-                // leaving the existing preference values intact until that ordinary update.
-            }
+            // Discovery topic IDs are normalized when settings are read or next written,
+            // leaving the existing preference values intact until that ordinary update.
         }
     }
 
@@ -135,7 +133,10 @@ class SettingsRepository(
             .toList()
     }
 
-    suspend fun current(): AppSettings = settings.first()
+    suspend fun current(): AppSettings {
+        preferenceMigration.await()
+        return settings.first()
+    }
 
     suspend fun rememberSearchQuery(query: String) {
         val normalized = query.trim().replace(Regex("\\s+"), " ").take(MAX_SEARCH_LENGTH)
@@ -301,6 +302,7 @@ class SettingsRepository(
     }
 
     suspend fun resetDiscovery() {
+        preferenceMigration.await()
         store.edit { prefs ->
             prefs.remove(RECENT_DISCOVERY_KEYS)
             prefs.remove(RECENT_DISCOVERY_RECIPES)
@@ -324,6 +326,7 @@ class SettingsRepository(
     }
 
     suspend fun update(transform: (AppSettings) -> AppSettings) {
+        preferenceMigration.await()
         var committed = AppSettings()
         store.edit { prefs ->
             val current = prefs.toSettings()

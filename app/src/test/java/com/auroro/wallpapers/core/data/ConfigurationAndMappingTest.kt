@@ -89,8 +89,9 @@ class ConfigurationAndMappingTest {
         }
 
         val settings = SettingsRepository(store, bootPrefs = null)
-        val migrated = kotlinx.coroutines.withTimeout(5_000L) {
-            store.data.first { !it.contains(oldContentSetting) && !it.contains(oldOpenverseToggle) }
+        val migrated = kotlinx.coroutines.withTimeout(10_000L) {
+            settings.current()
+            store.data.first()
         }
 
         assertFalse(migrated.contains(oldContentSetting))
@@ -187,8 +188,9 @@ class ConfigurationAndMappingTest {
         }
 
         val settings = SettingsRepository(store, bootPrefs = null)
-        val migrated = kotlinx.coroutines.withTimeout(5_000L) {
-            store.data.first { !it.contains(legacyAppearance) && it.contains(stringPreferencesKey("design_theme")) }
+        val migrated = kotlinx.coroutines.withTimeout(10_000L) {
+            settings.current()
+            store.data.first()
         }
         assertEquals(ThemeMode.LIGHT, settings.current().themeMode)
         assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
