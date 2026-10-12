@@ -384,8 +384,10 @@ def wallpaper_descriptions(root: ET.Element) -> list[str]:
 
 
 def search_feed_visible(root: ET.Element) -> bool:
-    """Recognize Search even when its remembered scroll position has moved the query field off-screen."""
-    return bool(wallpaper_descriptions(root)) and bool(find_nodes(root, text="Orientation"))
+    """Recognize Search from its visible orientation choices even when its query field is off-screen."""
+    return bool(wallpaper_descriptions(root)) and all(
+        find_nodes(root, text=label) for label in ("Any", "Portrait", "Landscape")
+    )
 
 
 def parse_dimensions(description: str) -> tuple[int, int] | None:
