@@ -1028,10 +1028,18 @@ def main() -> None:
     sources = wait_until(
         lambda ui: bool(find_nodes(ui, text="Real catalogues, clear source policies"))
         and bool(find_nodes(ui, text="Wallhaven"))
-        and bool(find_nodes(ui, text="NASA APOD"))
-        and bool(find_nodes(ui, text="Art Institute of Chicago")),
+        and bool(find_nodes(ui, text="NASA APOD")),
         "integrated provider settings", timeout=45,
     )
+    for _ in range(8):
+        if find_nodes(sources, text="Art Institute of Chicago"):
+            break
+        adb("shell", "input", "swipe", str(width // 2), str(int(height * 0.82)),
+            str(width // 2), str(int(height * 0.27)), "450")
+        time.sleep(0.7)
+        sources = dump_hierarchy()
+    if not find_nodes(sources, text="Art Institute of Chicago"):
+        raise AssertionError("The Sources screen did not expose the Art Institute catalogue after scrolling")
     screenshot("26-source-settings.png")
     for _ in range(8):
         if find_nodes(sources, text="Paused · authorized API access is not configured"):
