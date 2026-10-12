@@ -27,8 +27,14 @@ class FeedPagerTest {
             failOnceAt = 2
         }
         val nasa = ScriptedProvider(WallpaperSource.NASA_APOD).apply {
-            pages[1] = ProviderPage(listOf(wallpaper(WallpaperSource.NASA_APOD, "a1")), PageCursor(2))
-            pages[2] = ProviderPage(listOf(wallpaper(WallpaperSource.NASA_APOD, "a2")), null)
+            pages[1] = ProviderPage(
+                listOf(wallpaper(source = WallpaperSource.NASA_APOD, id = "a1", page = "https://science.nasa.gov/apod/2026-10-01/")),
+                PageCursor(2),
+            )
+            pages[2] = ProviderPage(
+                listOf(wallpaper(source = WallpaperSource.NASA_APOD, id = "a2", page = "https://science.nasa.gov/apod/2026-10-02/")),
+                null,
+            )
         }
         val pager = FeedPager(
             listOf(wallhaven, nasa),

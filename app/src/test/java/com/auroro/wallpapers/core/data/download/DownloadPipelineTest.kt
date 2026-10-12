@@ -7,6 +7,7 @@ import androidx.room.Room
 import com.auroro.wallpapers.core.data.SettingsRepository
 import com.auroro.wallpapers.core.data.WallpaperStore
 import com.auroro.wallpapers.core.database.AppDatabase
+import com.auroro.wallpapers.core.database.DownloadEntity
 import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.model.WallpaperSource
 import kotlinx.coroutines.runBlocking
@@ -122,6 +123,7 @@ class DownloadPipelineTest {
             original = server.url("/legacy-original.jpg").toString(),
         ).copy(downloadAllowed = true, setWallpaperAllowed = true)
         store.persist(legacy)
+        db.downloads().upsert(DownloadEntity(legacy.key, DownloadStatus.QUEUED.name, createdAt = 1L))
 
         assertFalse(executor(store).execute(legacy.key))
         assertEquals(0, server.requestCount)

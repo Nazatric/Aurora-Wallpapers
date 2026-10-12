@@ -327,7 +327,7 @@ class DiscoveryEngineTest {
         assertTrue(result.allFromCache)
         assertEquals(setOf("wallhaven:cached-1", "wallhaven:cached-2"), result.items.map { it.key }.toSet())
         assertEquals(ProviderErrorKind.NO_NETWORK, result.errors.single().kind)
-        assertTrue(result.message()!!.contains("Some searches could not finish"))
+        assertTrue(result.message()!!.contains("Some Wallhaven searches could not finish"))
         assertEquals(recipe.id, result.sections.single().identity.recipeId)
     }
 
