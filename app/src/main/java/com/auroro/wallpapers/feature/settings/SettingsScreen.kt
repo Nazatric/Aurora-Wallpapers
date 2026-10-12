@@ -1,7 +1,10 @@
 package com.auroro.wallpapers.feature.settings
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
@@ -11,16 +14,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -36,19 +42,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.mergeDescendants
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AccentTheme
 import com.auroro.wallpapers.core.data.AppSettings
-import com.auroro.wallpapers.core.data.AppearancePreset
+import com.auroro.wallpapers.core.data.DesignTheme
 import com.auroro.wallpapers.core.data.FontChoice
 import com.auroro.wallpapers.core.data.GlassQuality
 import com.auroro.wallpapers.core.data.SaveLocation
+import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.design.Aero
+import com.auroro.wallpapers.core.design.GlassPanel
 import com.auroro.wallpapers.core.design.HeaderBar
-import com.auroro.wallpapers.core.model.DiscoveryStyle
 
 @Composable
 fun SettingsScreen(
@@ -69,21 +78,45 @@ fun SettingsScreen(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        item { HeaderBar("Settings", "Make Auroro yours", onMenu = onMenu) }
+        item { HeaderBar("Settings", "Personalise your wallpaper space", onMenu = onMenu) }
 
         item {
-            SettingsGroup("Appearance", "Image-first surfaces, with glass where it helps.") {
-                Text("Colour and atmosphere", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                ChoiceGrid(AppearancePreset.entries.map { it to it.label }, settings.appearance) { value ->
-                    onSettings { it.copy(appearance = value) }
+            SettingsGroup("Display mode", "Follow system is the default and updates with your device.") {
+                ChoiceGrid(ThemeMode.entries.map { it to it.label }, settings.themeMode) { mode ->
+                    onSettings { it.copy(themeMode = mode) }
                 }
-                Text(settings.appearance.description, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
+            }
+        }
+
+        item {
+            SettingsGroup("Advanced theme", "Choose a design language. Each one works in Light, Dark, or Follow system.") {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    DesignTheme.entries.forEach { theme ->
+                        ThemeChoiceCard(
+                            theme = theme,
+                            selected = settings.designTheme == theme,
+                            onClick = { onSettings { it.copy(designTheme = theme) } },
+                        )
+                    }
+                }
                 Text("Accent", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                ChoiceGrid(AccentTheme.entries.map { it to it.label }, settings.accent) { value -> onSettings { it.copy(accent = value) } }
+                ChoiceGrid(AccentTheme.entries.map { it to it.label }, settings.accent) { value ->
+                    onSettings { it.copy(accent = value) }
+                }
+            }
+        }
+
+        item {
+            SettingsGroup("Typography", "Keep text comfortable across the app.") {
                 Text("Typeface", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                ChoiceGrid(FontChoice.entries.map { it to it.label }, settings.fontChoice) { value -> onSettings { it.copy(fontChoice = value) } }
+                ChoiceGrid(FontChoice.entries.map { it to it.label }, settings.fontChoice) { value ->
+                    onSettings { it.copy(fontChoice = value) }
+                }
                 Text("Text size · ${(fontScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = Aero.colors.textSecondary)
                 Slider(
                     value = fontScale,
@@ -92,50 +125,63 @@ fun SettingsScreen(
                     valueRange = 0.85f..1.30f,
                     steps = 8,
                 )
+            }
+        }
+
+        item {
+            SettingsGroup("Effects & accessibility", "Glass is sampled from the screen behind each surface; reduce it whenever you prefer.") {
                 Text("Glass rendering", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                ChoiceGrid(GlassQuality.entries.map { it to it.label }, settings.glassQuality) { value -> onSettings { it.copy(glassQuality = value) } }
+                ChoiceGrid(GlassQuality.entries.map { it to it.label }, settings.glassQuality) { value ->
+                    onSettings { it.copy(glassQuality = value) }
+                }
                 Text(settings.glassQuality.description, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
-                SettingSwitch("Reduce transparency", "Use the accessibility fallback with less live blur.", settings.reduceTransparency) { value -> onSettings { it.copy(reduceTransparency = value) } }
-                SettingSwitch("Increase contrast", "Strengthen borders and control separation.", settings.increaseContrast) { value -> onSettings { it.copy(increaseContrast = value) } }
-                if (settings.appearance == AppearancePreset.DARK_AERO || settings.appearance == AppearancePreset.SYSTEM) {
-                    SettingSwitch("Black background", "Use deeper blacks in a dark appearance.", settings.amoled) { value -> onSettings { it.copy(amoled = value) } }
+                SettingSwitch(
+                    "Reduce transparency",
+                    "Use a more opaque surface and less backdrop blur.",
+                    settings.reduceTransparency,
+                ) { value -> onSettings { it.copy(reduceTransparency = value) } }
+                SettingSwitch(
+                    "Increase contrast",
+                    "Strengthen borders and control separation.",
+                    settings.increaseContrast,
+                ) { value -> onSettings { it.copy(increaseContrast = value) } }
+                if (settings.themeMode == ThemeMode.DARK || (settings.themeMode == ThemeMode.SYSTEM && Aero.colors.isDark)) {
+                    SettingSwitch(
+                        "Black background",
+                        "Use near-black backdrops in Dark mode.",
+                        settings.amoled,
+                    ) { value -> onSettings { it.copy(amoled = value) } }
                 }
             }
         }
 
         item {
-            SettingsGroup("For You", "Wallhaven and public-domain Art Institute searches, plus the dated view-only APOD archive.") {
-                Text(
-                    "Search-query results need source-reported dimensions and a 720 px minimum short edge; portrait and 1080p are not forced. APOD does not report pixel dimensions, so those view-only entries remain unknown.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Aero.colors.textTertiary,
-                )
-                SettingSwitch("Rotate hourly", "Reuse a stable mix during the hour instead of polling repeatedly.", settings.rotateDiscoveryHourly) { value -> onSettings { it.copy(rotateDiscoveryHourly = value) } }
-                SettingSwitch("Avoid recently shown", "Skip recent recipe and image IDs when possible; new results are not guaranteed.", settings.avoidRecentlySeen) { value -> onSettings { it.copy(avoidRecentlySeen = value) } }
+            SettingsGroup("For You", "Tune refresh and repeat behaviour without narrowing the source mix.") {
+                SettingSwitch(
+                    "Rotate hourly",
+                    "Keep one stable discovery mix during the hour.",
+                    settings.rotateDiscoveryHourly,
+                ) { value -> onSettings { it.copy(rotateDiscoveryHourly = value) } }
+                SettingSwitch(
+                    "Avoid recently shown",
+                    "Prefer wallpaper and recipe IDs that were not shown recently.",
+                    settings.avoidRecentlySeen,
+                ) { value -> onSettings { it.copy(avoidRecentlySeen = value) } }
                 if (settings.avoidRecentlySeen) {
                     Text("Repeat window", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                    ChoiceGrid(listOf(12 to "12 hours", 24 to "24 hours", 72 to "3 days", 168 to "7 days"), settings.repeatAfterHours) { hours ->
-                        onSettings { it.copy(repeatAfterHours = hours) }
-                    }
+                    ChoiceGrid(
+                        listOf(12 to "12 hours", 24 to "24 hours", 72 to "3 days", 168 to "7 days"),
+                        settings.repeatAfterHours,
+                    ) { hours -> onSettings { it.copy(repeatAfterHours = hours) } }
                 }
-                Text("Preferred styles", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                Text("These preferences bias the source-backed mix; they do not invent category results.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
-                MultiChoiceGrid(DiscoveryStyle.entries.map { it.id to it.label }, settings.preferredDiscoveryStyleIds) { id ->
-                    onSettings { current -> current.copy(preferredDiscoveryStyleIds = if (id in current.preferredDiscoveryStyleIds) current.preferredDiscoveryStyleIds - id else current.preferredDiscoveryStyleIds + id) }
+                TextButton(onClick = onResetDiscovery, modifier = Modifier.align(Alignment.End)) {
+                    Text("Reset For You history")
                 }
-                Text("Exclude from Auto", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
-                MultiChoiceGrid(DiscoveryStyle.entries.map { it.id to it.label }, settings.hiddenDiscoveryStyleIds) { id ->
-                    onSettings { current ->
-                        val hidden = if (id in current.hiddenDiscoveryStyleIds) current.hiddenDiscoveryStyleIds - id else current.hiddenDiscoveryStyleIds + id
-                        current.copy(hiddenDiscoveryStyleIds = hidden, preferredDiscoveryStyleIds = current.preferredDiscoveryStyleIds - id)
-                    }
-                }
-                TextButton(onClick = onResetDiscovery, modifier = Modifier.align(Alignment.End)) { Text("Reset discovery preferences") }
             }
         }
 
         item {
-            SettingsGroup("Image matching", "Filters use source-reported dimensions; unknown dimensions stay unknown.") {
+            SettingsGroup("Image matching", "Filters use dimensions reported by the selected source.") {
                 Text("Aspect-ratio tolerance · ${(tolerance * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
                 Slider(
                     value = tolerance,
@@ -144,12 +190,12 @@ fun SettingsScreen(
                     valueRange = 0.01f..0.05f,
                     steps = 3,
                 )
-                Text("The selected tolerance is relative to each exact ratio preset.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
+                Text("The tolerance is relative to the selected ratio preset.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
             }
         }
 
         item {
-            SettingsGroup("Downloads", "Setting a wallpaper and saving a file remain separate actions.") {
+            SettingsGroup("Downloads", "Setting a wallpaper and saving its file are separate actions.") {
                 Text("Save originals to", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textSecondary)
                 SaveLocation.entries.forEach { location ->
                     ChoiceRow(
@@ -170,9 +216,11 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup("Image cache", "The disposable preview cache never removes saved files.") {
+            SettingsGroup("Image cache", "Clearing previews never removes downloaded wallpapers.") {
                 Text("Maximum cache · ${settings.cacheLimitMb} MB", style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
-                ChoiceGrid(AppSettings.CACHE_CHOICES_MB.map { it to "$it MB" }, settings.cacheLimitMb) { value -> onSettings { it.copy(cacheLimitMb = value) } }
+                ChoiceGrid(AppSettings.CACHE_CHOICES_MB.map { it to "$it MB" }, settings.cacheLimitMb) { value ->
+                    onSettings { it.copy(cacheLimitMb = value) }
+                }
                 Text("The new limit is applied the next time Auroro starts.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
                 TextButton(onClick = onClearCache, modifier = Modifier.align(Alignment.End)) {
                     Icon(Icons.Rounded.CleaningServices, contentDescription = null)
@@ -182,11 +230,11 @@ fun SettingsScreen(
         }
 
         item {
-            SettingsGroup("Sources and information", "Provider terms, privacy and attribution.") {
+            SettingsGroup("Sources & information", "Provider terms, privacy, and attribution.") {
                 SettingAction("Wallpaper sources", "Wallhaven · NASA APOD · Art Institute · Reddit status", Icons.Rounded.Tune, onSources)
-                SettingAction("Privacy", "On-device history, settings and saved files", Icons.Rounded.Policy, onPrivacy)
-                SettingAction("Third-party notices", "Libraries, image rights and attribution", Icons.Rounded.Info, onLicenses)
-                SettingAction("About Auroro", "Version, product details and acknowledgements", Icons.Rounded.Info, onAbout)
+                SettingAction("Privacy", "On-device history, settings, and saved files", Icons.Rounded.Policy, onPrivacy)
+                SettingAction("Third-party notices", "Libraries, image rights, and attribution", Icons.Rounded.Info, onLicenses)
+                SettingAction("About Auroro", "Version, product details, and acknowledgements", Icons.Rounded.Info, onAbout)
             }
         }
         item { Spacer(Modifier.height(20.dp)) }
@@ -194,59 +242,88 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun SettingsGroup(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(title, style = MaterialTheme.typography.titleLarge, color = Aero.colors.textPrimary)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
-        }
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
-            color = Aero.colors.surfaceSolid.copy(alpha = if (Aero.colors.isDark) .94f else .97f),
-            border = BorderStroke(1.dp, Aero.colors.glassRimDark.copy(alpha = .13f)),
-            shadowElevation = 1.dp,
-        ) {
-            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp)) { content() }
-        }
+private fun ThemeChoiceCard(theme: DesignTheme, selected: Boolean, onClick: () -> Unit) {
+    val (light, dark) = when (theme) {
+        DesignTheme.MATERIAL_3 -> Color(0xFFE9EDF6) to Color(0xFF191B21)
+        DesignTheme.FRUTIGER_AERO -> Color(0xFFE2F3F5) to Color(0xFF0B2029)
+        DesignTheme.FRUTIGER_ZEN -> Color(0xFFE7F0E8) to Color(0xFF17231D)
     }
-}
-
-@Composable
-private fun <T> ChoiceGrid(
-    values: List<Pair<T, String>>,
-    selected: T,
-    onSelect: (T) -> Unit,
-) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        values.forEach { (value, label) ->
-            val active = value == selected
-            Surface(
-                onClick = { onSelect(value) },
-                modifier = Modifier.semantics { this.selected = active },
-                shape = RoundedCornerShape(13.dp),
-                color = if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .58f),
-                border = BorderStroke(1.dp, if (active) Aero.colors.accent.copy(alpha = .38f) else Aero.colors.glassRimDark.copy(alpha = .15f)),
-            ) {
-                Text(label, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge, color = if (active) Aero.colors.accent else Aero.colors.textSecondary)
+    val border = if (selected) Aero.colors.accent else Aero.colors.glassRimDark.copy(alpha = 0.20f)
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.width(172.dp).semantics(mergeDescendants = true) { this.selected = selected },
+        shape = RoundedCornerShape(20.dp),
+        color = Aero.colors.surfaceSolid.copy(alpha = if (selected) 0.96f else 0.84f),
+        border = BorderStroke(if (selected) 1.6.dp else 1.dp, border),
+    ) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ThemeVariantSwatch("Light", light, dark = false, modifier = Modifier.weight(1f))
+                ThemeVariantSwatch("Dark", dark, dark = true, modifier = Modifier.weight(1f))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(theme.label, style = MaterialTheme.typography.labelLarge, color = Aero.colors.textPrimary)
+                    Text(theme.description, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary, maxLines = 2)
+                }
+                if (selected) Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = Aero.colors.accent, modifier = Modifier.size(18.dp))
             }
         }
     }
 }
 
 @Composable
-private fun MultiChoiceGrid(values: List<Pair<String, String>>, selected: Set<String>, onToggle: (String) -> Unit) {
+private fun ThemeVariantSwatch(label: String, color: Color, dark: Boolean, modifier: Modifier = Modifier) {
+    val foreground = if (dark) Color(0xFFE6F4F3) else Color(0xFF25343A)
+    Column(
+        modifier.height(62.dp).background(
+            Brush.linearGradient(
+                if (dark) listOf(color, color.copy(alpha = 0.76f)) else listOf(color, Color.White),
+            ),
+            RoundedCornerShape(12.dp),
+        ).padding(7.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Box(Modifier.fillMaxWidth(0.54f).height(5.dp).background(foreground.copy(alpha = 0.74f), RoundedCornerShape(8.dp)))
+        Text(label, style = MaterialTheme.typography.labelSmall, color = foreground)
+    }
+}
+
+@Composable
+private fun SettingsGroup(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, color = Aero.colors.textPrimary)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+        }
+        GlassPanel(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            elevation = 2.dp,
+        ) {
+            Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(11.dp), content = content)
+        }
+    }
+}
+
+@Composable
+private fun <T> ChoiceGrid(values: List<Pair<T, String>>, selected: T, onSelect: (T) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         values.forEach { (value, label) ->
-            val active = value in selected
+            val active = value == selected
             Surface(
-                onClick = { onToggle(value) },
-                modifier = Modifier.semantics { this.selected = active },
+                onClick = { onSelect(value) },
+                modifier = Modifier.heightIn(min = 44.dp).semantics { this.selected = active },
                 shape = RoundedCornerShape(13.dp),
                 color = if (active) Aero.colors.accent.copy(alpha = if (Aero.colors.isDark) .20f else .11f) else Aero.colors.surfaceSolid.copy(alpha = .58f),
                 border = BorderStroke(1.dp, if (active) Aero.colors.accent.copy(alpha = .38f) else Aero.colors.glassRimDark.copy(alpha = .15f)),
             ) {
-                Text(label, Modifier.padding(horizontal = 12.dp, vertical = 9.dp), style = MaterialTheme.typography.labelLarge, color = if (active) Aero.colors.accent else Aero.colors.textSecondary)
+                Text(
+                    label,
+                    Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (active) Aero.colors.accent else Aero.colors.textSecondary,
+                )
             }
         }
     }

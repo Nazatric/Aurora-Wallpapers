@@ -3,6 +3,8 @@ package com.auroro.wallpapers.core.data
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.model.WallpaperTag
 import kotlinx.coroutines.flow.first
@@ -121,7 +123,6 @@ class ConfigurationAndMappingTest {
         assertTrue(settings.discoverySnapshot("42:surreal:1:2").isEmpty())
         assertTrue(settings.recentlySeenDiscoveryKeys(now + 2, 24).isEmpty())
         assertTrue(settings.current().rotateDiscoveryHourly)
-        assertEquals(null, settings.current().pinnedDiscoveryStyleId)
     }
 
     @Test fun validatedDiscoveryPoolsAndRecipeRepeatHistoryPersistAndResetLocally() = runBlocking {
@@ -147,14 +148,65 @@ class ConfigurationAndMappingTest {
         assertTrue(settings.recentlyUsedDiscoveryRecipeIds(now + 1, 24).isEmpty())
     }
 
+    @Test fun appearanceDefaultsToFollowSystemAndMaterial3() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "appearance-defaults.preferences_pb") })
+        val settings = SettingsRepository(store, bootPrefs = null).current()
+
+        assertEquals(ThemeMode.SYSTEM, settings.themeMode)
+        assertEquals("Follow system", settings.themeMode.label)
+        assertEquals(DesignTheme.MATERIAL_3, settings.designTheme)
+        assertEquals(listOf(DesignTheme.MATERIAL_3, DesignTheme.FRUTIGER_AERO, DesignTheme.FRUTIGER_ZEN), DesignTheme.entries)
+    }
+
+    @Test fun basicModeAndAdvancedThemePersistIndependently() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "separate-themes.preferences_pb") })
+        val settings = SettingsRepository(store, bootPrefs = null)
+        settings.update { it.copy(themeMode = ThemeMode.DARK, designTheme = DesignTheme.FRUTIGER_ZEN) }
+        assertEquals(ThemeMode.DARK, settings.current().themeMode)
+        assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
+
+        settings.update { it.copy(themeMode = ThemeMode.SYSTEM) }
+        assertEquals(ThemeMode.SYSTEM, settings.current().themeMode)
+        assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
+        settings.update { it.copy(designTheme = DesignTheme.FRUTIGER_AERO) }
+        assertEquals(ThemeMode.SYSTEM, settings.current().themeMode)
+        assertEquals(DesignTheme.FRUTIGER_AERO, settings.current().designTheme)
+    }
+
+    @Test fun legacyCombinedAppearanceAndStylePreferencesMigrateWithoutExposingRetiredPreset() = runBlocking {
+        val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "legacy-theme.preferences_pb") })
+        val legacyAppearance = stringPreferencesKey("appearance_preset")
+        val oldPreferred = stringSetPreferencesKey("preferred_discovery_styles")
+        val oldHidden = stringSetPreferencesKey("hidden_discovery_styles")
+        val oldPinned = stringPreferencesKey("pinned_discovery_style")
+        store.edit {
+            it[legacyAppearance] = "FRUTIGER_FLOWER"
+            it[oldPreferred] = setOf("surreal")
+            it[oldHidden] = setOf("weirdcore")
+            it[oldPinned] = "surreal"
+        }
+
+        val settings = SettingsRepository(store, bootPrefs = null)
+        val migrated = kotlinx.coroutines.withTimeout(5_000L) {
+            store.data.first { !it.contains(legacyAppearance) && it.contains(stringPreferencesKey("design_theme")) }
+        }
+        assertEquals(ThemeMode.LIGHT, settings.current().themeMode)
+        assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
+        assertFalse(migrated.contains(legacyAppearance))
+        assertFalse(migrated.contains(oldPreferred))
+        assertFalse(migrated.contains(oldHidden))
+        assertFalse(migrated.contains(oldPinned))
+        assertEquals(listOf("Material 3", "Frutiger Aero", "Frutiger Zen"), DesignTheme.entries.map { it.label })
+    }
+
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "settings.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null)
         settings.update {
             it.copy(
                 themeMode = ThemeMode.DARK,
+                designTheme = DesignTheme.FRUTIGER_ZEN,
                 accent = AccentTheme.EMERALD,
-                appearance = AppearancePreset.FRUTIGER_FLOWER,
                 fontChoice = FontChoice.SYSTEM,
                 fontScale = 1.2f,
                 glassQuality = GlassQuality.FULL,
@@ -162,9 +214,6 @@ class ConfigurationAndMappingTest {
                 rotateDiscoveryHourly = false,
                 avoidRecentlySeen = false,
                 repeatAfterHours = 72,
-                preferredDiscoveryStyleIds = setOf("surreal", "weirdcore"),
-                hiddenDiscoveryStyleIds = setOf("vaporwave-y2k"),
-                pinnedDiscoveryStyleId = "surreal",
                 cacheLimitMb = 500,
                 wallhavenEnabled = false,
                 nasaApodEnabled = false,
@@ -173,8 +222,8 @@ class ConfigurationAndMappingTest {
         }
         val saved = settings.current()
         assertEquals(ThemeMode.DARK, saved.themeMode)
+        assertEquals(DesignTheme.FRUTIGER_ZEN, saved.designTheme)
         assertEquals(AccentTheme.EMERALD, saved.accent)
-        assertEquals(AppearancePreset.FRUTIGER_FLOWER, saved.appearance)
         assertEquals(FontChoice.SYSTEM, saved.fontChoice)
         assertEquals(1.2f, saved.fontScale, 0.001f)
         assertEquals(GlassQuality.FULL, saved.glassQuality)
@@ -182,9 +231,6 @@ class ConfigurationAndMappingTest {
         assertFalse(saved.rotateDiscoveryHourly)
         assertFalse(saved.avoidRecentlySeen)
         assertEquals(72, saved.repeatAfterHours)
-        assertEquals(setOf("surreal", "weirdcore"), saved.preferredDiscoveryStyleIds)
-        assertEquals(setOf("vaporwave-y2k"), saved.hiddenDiscoveryStyleIds)
-        assertEquals("surreal", saved.pinnedDiscoveryStyleId)
         assertEquals(500, saved.cacheLimitMb)
         assertFalse(saved.wallhavenEnabled)
         assertFalse(saved.nasaApodEnabled)

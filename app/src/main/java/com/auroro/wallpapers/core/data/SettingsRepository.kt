@@ -11,7 +11,6 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.auroro.wallpapers.core.model.AspectMath
-import com.auroro.wallpapers.core.model.DiscoveryStyle
 import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,15 +21,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-enum class ThemeMode(val label: String) { SYSTEM("System"), DARK("Dark ocean"), LIGHT("Light sky") }
+enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"), DARK("Dark") }
 enum class AccentTheme(val label: String) { AQUA("Aqua"), EMERALD("Emerald"), SKY("Sky blue") }
-enum class AppearancePreset(val label: String, val description: String) {
-    FRUTIGER_AERO("Frutiger Aero", "Sky, water, fresh greens and translucent surfaces"),
-    FRUTIGER_FLOWER("Frutiger Flower", "Petal pink, lilac and soft botanical greens"),
+enum class DesignTheme(val label: String, val description: String) {
+    MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),
+    FRUTIGER_AERO("Frutiger Aero", "Luminous sky, water, glass and optimistic greens"),
     FRUTIGER_ZEN("Frutiger Zen", "Quiet sea-glass, sage and warm stone"),
-    DARK_AERO("Dark Aero", "Deep ocean, luminous aqua and reflective edges"),
-    AQUA_DAY("Aqua Day", "Bright sky blue, clean white and crisp contrast"),
-    SYSTEM("Follow system", "Use the device's light or dark appearance"),
 }
 enum class FontChoice(val label: String, val description: String) {
     OPEN_SANS("Open Sans", "Bundled humanist sans · works offline"),
@@ -62,10 +58,11 @@ enum class SaveLocation(val label: String, val description: String) {
 }
 
 data class AppSettings(
-    /** Legacy theme fields remain readable so existing DataStore preferences are migrated safely. */
+    /** Basic colour mode; system changes remain live while SYSTEM is selected. */
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    /** Independent design language; it never overrides the basic colour mode. */
+    val designTheme: DesignTheme = DesignTheme.MATERIAL_3,
     val accent: AccentTheme = AccentTheme.AQUA,
-    val appearance: AppearancePreset = AppearancePreset.FRUTIGER_AERO,
     val fontChoice: FontChoice = FontChoice.OPEN_SANS,
     val fontScale: Float = 1f,
     val glassQuality: GlassQuality = GlassQuality.BALANCED,
@@ -75,9 +72,6 @@ data class AppSettings(
     val rotateDiscoveryHourly: Boolean = true,
     val avoidRecentlySeen: Boolean = true,
     val repeatAfterHours: Int = 24,
-    val preferredDiscoveryStyleIds: Set<String> = emptySet(),
-    val hiddenDiscoveryStyleIds: Set<String> = emptySet(),
-    val pinnedDiscoveryStyleId: String? = null,
     val discoveryRefreshOrdinal: Int = 0,
     val aspectTolerance: Float = AspectMath.DEFAULT_TOLERANCE,
     val cacheLimitMb: Int = DEFAULT_CACHE_MB,
@@ -110,6 +104,17 @@ class SettingsRepository(
                 prefs.remove(LEGACY_DOWNLOAD_QUALITY)
                 prefs.remove(LEGACY_REDUCE_EXPLICIT)
                 prefs.remove(LEGACY_OPENVERSE_ENABLED)
+
+                // Split the old combined appearance preset into independent mode and design theme.
+                val migratedSettings = prefs.toSettings()
+                if (!prefs.contains(THEME)) prefs[THEME] = migratedSettings.themeMode.name
+                if (!prefs.contains(DESIGN_THEME)) prefs[DESIGN_THEME] = migratedSettings.designTheme.name
+                prefs.remove(LEGACY_APPEARANCE)
+
+                // These unused style filters are retired; For You now remains a balanced source mix.
+                prefs.remove(PREFERRED_DISCOVERY_STYLES)
+                prefs.remove(HIDDEN_DISCOVERY_STYLES)
+                prefs.remove(PINNED_DISCOVERY_STYLE)
             }
         }
     }
@@ -308,9 +313,6 @@ class SettingsRepository(
             rotateDiscoveryHourly = true,
             avoidRecentlySeen = true,
             repeatAfterHours = 24,
-            preferredDiscoveryStyleIds = emptySet(),
-            hiddenDiscoveryStyleIds = emptySet(),
-            pinnedDiscoveryStyleId = null,
             discoveryRefreshOrdinal = 0,
         ) }
     }
@@ -319,20 +321,12 @@ class SettingsRepository(
         var committed = AppSettings()
         store.edit { prefs ->
             val current = prefs.toSettings()
-            val transformed = transform(current)
-            val next = if (transformed.appearance == current.appearance && transformed.themeMode != current.themeMode) {
-                transformed.copy(
-                    appearance = when (transformed.themeMode) {
-                        ThemeMode.SYSTEM -> AppearancePreset.SYSTEM
-                        ThemeMode.DARK -> AppearancePreset.DARK_AERO
-                        ThemeMode.LIGHT -> AppearancePreset.AQUA_DAY
-                    },
-                )
-            } else transformed
+            val next = transform(current)
             committed = next
             prefs[THEME] = next.themeMode.name
+            prefs[DESIGN_THEME] = next.designTheme.name
+            prefs.remove(LEGACY_APPEARANCE)
             prefs[ACCENT] = next.accent.name
-            prefs[APPEARANCE] = next.appearance.name
             prefs[FONT_CHOICE] = next.fontChoice.name
             prefs[FONT_SCALE] = next.fontScale.coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE)
             prefs[GLASS_QUALITY] = next.glassQuality.name
@@ -342,10 +336,6 @@ class SettingsRepository(
             prefs[ROTATE_DISCOVERY_HOURLY] = next.rotateDiscoveryHourly
             prefs[AVOID_RECENT_DISCOVERY] = next.avoidRecentlySeen
             prefs[DISCOVERY_REPEAT_HOURS] = next.repeatAfterHours.coerceIn(1, 720)
-            prefs[PREFERRED_DISCOVERY_STYLES] = next.preferredDiscoveryStyleIds.intersect(DiscoveryStyle.allIds)
-            prefs[HIDDEN_DISCOVERY_STYLES] = next.hiddenDiscoveryStyleIds.intersect(DiscoveryStyle.allIds)
-            next.pinnedDiscoveryStyleId?.takeIf { it in DiscoveryStyle.allIds }?.let { prefs[PINNED_DISCOVERY_STYLE] = it }
-                ?: prefs.remove(PINNED_DISCOVERY_STYLE)
             prefs[DISCOVERY_REFRESH_ORDINAL] = next.discoveryRefreshOrdinal.coerceAtLeast(0)
             prefs[ASPECT_TOL] = next.aspectTolerance.coerceIn(0.005f, 0.10f)
             prefs[CACHE_MB] = next.cacheLimitMb.coerceIn(50, 2_000)
@@ -365,16 +355,26 @@ class SettingsRepository(
 
     private fun Preferences.toSettings(): AppSettings {
         val defaults = AppSettings()
-        val legacyTheme = enumOr(this[THEME], defaults.themeMode)
-        val appearance = this[APPEARANCE]?.let { enumOr(it, defaults.appearance) } ?: when (legacyTheme) {
-            ThemeMode.DARK -> AppearancePreset.DARK_AERO
-            ThemeMode.LIGHT -> AppearancePreset.AQUA_DAY
-            ThemeMode.SYSTEM -> AppearancePreset.FRUTIGER_AERO
+        val legacyAppearance = this[LEGACY_APPEARANCE]
+        val themeMode = if (this[DESIGN_THEME] == null && legacyAppearance != null) {
+            // Old appearance presets controlled mode and design together. Preserve the visible
+            // light/dark choice while mapping the removed presets to one of the supported themes.
+            when (legacyAppearance) {
+                "DARK_AERO" -> ThemeMode.DARK
+                "AQUA_DAY", "FRUTIGER_AERO", "FRUTIGER_FLOWER", "FRUTIGER_ZEN" -> ThemeMode.LIGHT
+                "SYSTEM" -> ThemeMode.SYSTEM
+                else -> enumOr(this[THEME], defaults.themeMode)
+            }
+        } else enumOr(this[THEME], defaults.themeMode)
+        val designTheme = this[DESIGN_THEME]?.let { enumOr(it, defaults.designTheme) } ?: when (legacyAppearance) {
+            "FRUTIGER_AERO", "DARK_AERO", "AQUA_DAY", "SYSTEM" -> DesignTheme.FRUTIGER_AERO
+            "FRUTIGER_FLOWER", "FRUTIGER_ZEN" -> DesignTheme.FRUTIGER_ZEN
+            else -> defaults.designTheme
         }
         return AppSettings(
-            themeMode = legacyTheme,
+            themeMode = themeMode,
+            designTheme = designTheme,
             accent = enumOr(this[ACCENT], defaults.accent),
-            appearance = appearance,
             fontChoice = enumOr(this[FONT_CHOICE], defaults.fontChoice),
             fontScale = (this[FONT_SCALE] ?: defaults.fontScale).coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE),
             glassQuality = enumOr(this[GLASS_QUALITY], defaults.glassQuality),
@@ -384,9 +384,6 @@ class SettingsRepository(
             rotateDiscoveryHourly = this[ROTATE_DISCOVERY_HOURLY] ?: defaults.rotateDiscoveryHourly,
             avoidRecentlySeen = this[AVOID_RECENT_DISCOVERY] ?: defaults.avoidRecentlySeen,
             repeatAfterHours = (this[DISCOVERY_REPEAT_HOURS] ?: defaults.repeatAfterHours).coerceIn(1, 720),
-            preferredDiscoveryStyleIds = this[PREFERRED_DISCOVERY_STYLES].orEmpty().intersect(DiscoveryStyle.allIds),
-            hiddenDiscoveryStyleIds = this[HIDDEN_DISCOVERY_STYLES].orEmpty().intersect(DiscoveryStyle.allIds),
-            pinnedDiscoveryStyleId = this[PINNED_DISCOVERY_STYLE]?.takeIf { it in DiscoveryStyle.allIds },
             discoveryRefreshOrdinal = (this[DISCOVERY_REFRESH_ORDINAL] ?: 0).coerceAtLeast(0),
             aspectTolerance = (this[ASPECT_TOL] ?: defaults.aspectTolerance).coerceIn(0.005f, 0.10f),
             cacheLimitMb = (this[CACHE_MB] ?: defaults.cacheLimitMb).coerceIn(50, 2_000),
@@ -439,8 +436,9 @@ class SettingsRepository(
         private val DISCOVERY_AVAILABILITY_INDEX = stringPreferencesKey("discovery_availability_index")
         private val LAST_MANUAL_DISCOVERY_REFRESH = longPreferencesKey("last_manual_discovery_refresh")
         private val THEME = stringPreferencesKey("theme_mode")
+        private val DESIGN_THEME = stringPreferencesKey("design_theme")
+        private val LEGACY_APPEARANCE = stringPreferencesKey("appearance_preset")
         private val ACCENT = stringPreferencesKey("accent")
-        private val APPEARANCE = stringPreferencesKey("appearance_preset")
         private val FONT_CHOICE = stringPreferencesKey("font_choice")
         private val FONT_SCALE = floatPreferencesKey("font_scale")
         private val GLASS_QUALITY = stringPreferencesKey("glass_quality")

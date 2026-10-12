@@ -30,9 +30,9 @@ class DiscoveryTest {
         }
         val pinned = DiscoveryRotation.select(
             epochMillis = 1_800_000_000_000L,
-            pinnedStyleId = DiscoveryStyle.FRUTIGER_FLOWER.id,
+            pinnedStyleId = DiscoveryStyle.BOTANICAL_ART.id,
         )
-        assertEquals(DiscoveryStyle.FRUTIGER_FLOWER, pinned.style)
+        assertEquals(DiscoveryStyle.BOTANICAL_ART, pinned.style)
         assertTrue(pinned.pinned)
     }
 
@@ -51,7 +51,7 @@ class DiscoveryTest {
     }
 
     @Test fun qualityRankingUsesRelevanceResolutionAndRepeatPenaltyNotPopularity() {
-        val selection = DiscoveryRotation.select(0L, pinnedStyleId = DiscoveryStyle.FRUTIGER_FLOWER.id)
+        val selection = DiscoveryRotation.select(0L, pinnedStyleId = DiscoveryStyle.BOTANICAL_ART.id)
         val relevant = wallpaper(id = "relevant", tags = listOf(WallpaperTag(1, "flower"), WallpaperTag(2, "botanical")))
             .copy(favorites = 0)
         val popularNoise = wallpaper(id = "popular", tags = listOf(WallpaperTag(3, "mountain")))

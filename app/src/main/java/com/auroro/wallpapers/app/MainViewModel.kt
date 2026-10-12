@@ -18,7 +18,6 @@ import com.auroro.wallpapers.core.model.DiscoveryQuality
 import com.auroro.wallpapers.core.model.DiscoveryRotation
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
-import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
 import com.auroro.wallpapers.core.model.LocalFilter
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.SearchSourceSelection
@@ -225,8 +224,6 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                         rotateHourly = prefs.rotateDiscoveryHourly,
                         refreshOrdinal = prefs.discoveryRefreshOrdinal,
                         recentRecipeIds = recentRecipes,
-                        preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.preferredDiscoveryStyleIds),
-                        excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
                     )
                     app.discoveryPools.recordSessionRecipeIds(session.candidateRecipeIds, currentTime)
                 }

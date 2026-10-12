@@ -301,7 +301,7 @@ object DiscoveryCatalog {
         recipe("experimental-typography", "Experimental typography", DiscoveryFamily.EXPERIMENTAL, listOf("experimental typography", "typographic art"), "typography|typographic"),
         recipe("unusual-texture-studies", "Unusual texture studies", DiscoveryFamily.PHOTOGRAPHY, listOf("abstract texture study", "unusual surface texture"), "texture study|surface texture"),
         recipe("frutiger-aero", "Frutiger Aero", DiscoveryFamily.AERO, listOf("frutiger aero", "aqua glass architecture"), "frutiger aero|aqua glass"),
-        recipe("frutiger-flower", "Frutiger Flower", DiscoveryFamily.AERO, listOf("frutiger flower", "luminous translucent flowers"), "frutiger flower|translucent flower"),
+        recipe("luminous-botanical-art", "Luminous botanical art", DiscoveryFamily.NATURE, listOf("luminous botanical art", "translucent flower art"), "botanical illustration|translucent flower"),
         recipe("frutiger-zen", "Frutiger Zen", DiscoveryFamily.AERO, listOf("frutiger zen", "serene water architecture"), "frutiger zen|serene water"),
         recipe("dark-aero", "Dark Aero", DiscoveryFamily.AERO, listOf("dark aero", "dark reflective glass cyan"), "dark aero|dark reflective glass"),
         recipe("art-nouveau-botanical", "Art Nouveau botanicals", DiscoveryFamily.ILLUSTRATION, listOf("art nouveau botanical illustration", "art nouveau flowers"), "art nouveau|botanical", artInstitutePhrase = "art nouveau", artInstituteEvidence = "art nouveau|botanical|flower"),

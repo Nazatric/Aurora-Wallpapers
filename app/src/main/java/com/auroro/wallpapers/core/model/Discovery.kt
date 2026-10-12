@@ -20,11 +20,11 @@ enum class DiscoveryStyle(
         listOf("frutiger aero", "aqua glass architecture", "water sky futuristic", "nature"),
         setOf("aero", "aqua", "glass", "water", "sky", "architecture", "retro", "future", "nature"),
     ),
-    FRUTIGER_FLOWER(
-        "frutiger-flower",
-        "Frutiger Flower",
+    BOTANICAL_ART(
+        "botanical-art",
+        "Botanical art",
         "Luminous botanicals, organic forms and translucent petals",
-        listOf("frutiger flower", "translucent flower", "luminous botanical art", "flower"),
+        listOf("luminous botanical art", "botanical illustration", "wildflower art", "flower"),
         setOf("flower", "floral", "botanical", "petal", "organic", "luminous", "translucent"),
     ),
     FRUTIGER_ZEN(

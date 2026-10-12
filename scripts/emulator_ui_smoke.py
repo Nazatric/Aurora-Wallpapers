@@ -26,14 +26,8 @@ EMPTY_STATES = (
     "No catalogue available",
     "Couldn't load wallpapers",
 )
-APPEARANCE_PRESET_LABELS = (
-    "Frutiger Aero",
-    "Frutiger Flower",
-    "Frutiger Zen",
-    "Dark Aero",
-    "Aqua Day",
-    "Follow system",
-)
+THEME_MODE_LABELS = ("Follow system", "Light", "Dark")
+DESIGN_THEME_LABELS = ("Material 3", "Frutiger Aero", "Frutiger Zen")
 
 
 def run(command: list[str], *, timeout: int = 30, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -918,22 +912,52 @@ def main() -> None:
     wait_until(lambda ui: bool(find_nodes(ui, text="Settings")), "navigation drawer Settings entry", timeout=20)
     tap_text("Settings", timeout=20)
     settings = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Appearance")),
-        "Settings appearance section", timeout=45,
+        lambda ui: bool(find_nodes(ui, text="Display mode")) and bool(find_nodes(ui, text="Advanced theme")),
+        "Settings display mode and advanced theme sections", timeout=45,
     )
-    if not selected_state(settings, "Frutiger Aero"):
-        raise AssertionError("The default Frutiger Aero appearance is not initially selected")
-    settings = scroll_horizontal_choice_into_view(settings, "Dark Aero", APPEARANCE_PRESET_LABELS)
-    tap_text("Dark Aero", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "Dark Aero"), "Dark Aero appearance selection", timeout=20)
+    if not selected_state(settings, "Follow system") or not selected_state(settings, "Material 3"):
+        raise AssertionError("Fresh settings must select Follow system and Material 3 by default")
+
+    settings = scroll_horizontal_choice_into_view(settings, "Dark", THEME_MODE_LABELS)
+    tap_text("Dark", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Dark"), "Dark display mode selection", timeout=20)
     screenshot("22-theme-dark.png")
-    settings = scroll_horizontal_choice_into_view(settings, "Aqua Day", APPEARANCE_PRESET_LABELS)
-    tap_text("Aqua Day", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "Aqua Day"), "Aqua Day appearance selection", timeout=20)
+    tap_text("Light", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Light"), "Light display mode selection", timeout=20)
     screenshot("23-theme-light.png")
-    settings = scroll_horizontal_choice_into_view(settings, "Frutiger Aero", APPEARANCE_PRESET_LABELS, direction="right")
+    tap_text("Follow system", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Follow system"), "Follow system display mode restored", timeout=20)
+
+    # Exercise the live system-following branch and retain both actual emulator screenshots.
+    night_on = adb("shell", "cmd", "uimode", "night", "yes", timeout=20, check=False)
+    if night_on.returncode == 0:
+        time.sleep(2)
+        settings = dump_hierarchy()
+        if not selected_state(settings, "Follow system"):
+            raise AssertionError("Follow system mode lost its selected state after Android switched to night mode")
+        screenshot("24-settings-follow-system-dark.png")
+        night_off = adb("shell", "cmd", "uimode", "night", "no", timeout=20, check=False)
+        if night_off.returncode != 0:
+            raise AssertionError(f"Could not restore Android day mode after system-theme check: {night_off.stderr[-1000:]}")
+        time.sleep(2)
+        settings = dump_hierarchy()
+        if not selected_state(settings, "Follow system"):
+            raise AssertionError("Follow system mode lost its selected state after Android switched to day mode")
+        screenshot("25-settings-follow-system-light.png")
+        REPORT["checks"].append({"name": "Follow system remains active across Android night/day changes", "result": "passed"})
+    else:
+        REPORT["system_theme_observation"] = f"cmd uimode night unsupported: {night_on.stderr[-1000:]}"
+
+    settings = scroll_horizontal_choice_into_view(settings, "Frutiger Aero", DESIGN_THEME_LABELS)
     tap_text("Frutiger Aero", timeout=20)
-    settings = wait_until(lambda ui: selected_state(ui, "Frutiger Aero"), "restore Frutiger Aero appearance", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Frutiger Aero"), "Frutiger Aero design theme selection", timeout=20)
+    settings = scroll_horizontal_choice_into_view(settings, "Frutiger Zen", DESIGN_THEME_LABELS)
+    tap_text("Frutiger Zen", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Frutiger Zen"), "Frutiger Zen design theme selection", timeout=20)
+    settings = scroll_horizontal_choice_into_view(settings, "Material 3", DESIGN_THEME_LABELS, direction="right")
+    tap_text("Material 3", timeout=20)
+    settings = wait_until(lambda ui: selected_state(ui, "Material 3"), "restore Material 3 design theme", timeout=20)
+
     tap_text("Emerald", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "Emerald"), "Emerald accent selection", timeout=20)
     tap_text("Aqua", timeout=20)
@@ -949,7 +973,7 @@ def main() -> None:
         time.sleep(1)
         settings = dump_hierarchy()
     if not find_nodes(settings, text="Reduce transparency"):
-        raise AssertionError("The Settings appearance panel did not expose Reduce transparency after scrolling")
+        raise AssertionError("The Settings effects panel did not expose Reduce transparency after scrolling")
     transparency = switch_node(settings, "Reduce transparency")
     if transparency.attrib.get("checked") != "false":
         raise AssertionError(f"Expected fresh-install Reduce transparency=false, got {transparency.attrib}")
@@ -958,7 +982,7 @@ def main() -> None:
         lambda ui: switch_node(ui, "Reduce transparency").attrib.get("checked") == "true",
         "Reduce transparency preference toggled on", timeout=20,
     )
-    screenshot("24-settings-appearance.png")
+    screenshot("26-settings-effects.png")
 
     size_output = adb("shell", "wm", "size").stdout
     size = re.search(r"(\d+)x(\d+)", size_output)
@@ -975,7 +999,7 @@ def main() -> None:
     tap_text("500 MB", timeout=20)
     settings = wait_until(lambda ui: selected_state(ui, "500 MB"), "500 MB image cache limit selected", timeout=20)
     screenshot("25-settings-cache.png")
-    REPORT["checks"].append({"name": "theme, accent, transparency and image-cache settings", "result": "passed"})
+    REPORT["checks"].append({"name": "system/light/dark mode, advanced themes, accent, transparency and image-cache settings", "result": "passed"})
 
     for _ in range(8):
         if find_nodes(settings, text="Wallpaper sources", contains=True):
@@ -1041,11 +1065,11 @@ def main() -> None:
     wait_until(lambda ui: bool(find_nodes(ui, text="Settings")), "Settings entry after process recreation", timeout=20)
     tap_text("Settings", timeout=20)
     settings = wait_until(
-        lambda ui: bool(find_nodes(ui, text="Appearance")),
-        "restored Settings appearance section after process recreation", timeout=45,
+        lambda ui: bool(find_nodes(ui, text="Display mode")) and bool(find_nodes(ui, text="Advanced theme")),
+        "restored Settings display mode and advanced theme after process recreation", timeout=45,
     )
-    if not selected_state(settings, "Frutiger Aero") or not selected_state(settings, "Aqua"):
-        raise AssertionError("Appearance or accent selection did not survive process recreation")
+    if not selected_state(settings, "Follow system") or not selected_state(settings, "Material 3") or not selected_state(settings, "Aqua"):
+        raise AssertionError("Display mode, design theme, or accent selection did not survive process recreation")
     size_output = adb("shell", "wm", "size").stdout
     size = re.search(r"(\d+)x(\d+)", size_output)
     width, height = map(int, size.groups()) if size else (1080, 2400)
