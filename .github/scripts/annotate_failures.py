@@ -4,16 +4,20 @@
 Annotations are readable through the GitHub REST API, which makes failures
 diagnosable without downloading raw job logs.
 """
+
 import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 path = sys.argv[1]
-lines = open(path, errors="replace").read().splitlines()
+with open(path, errors="replace") as log:
+    lines = log.read().splitlines()
+
 
 def esc(s: str) -> str:
     return s.replace("%", "%25").replace("\r", "").replace("\n", "%0A")
+
 
 def emit(title: str, body: list[str], limit: int = 45000):
     text = "\n".join(body)
@@ -42,6 +46,7 @@ def emit_chunks(title: str, body: list[str], limit: int = 3200):
         suffix = f" ({index}/{len(chunks)})" if len(chunks) > 1 else ""
         emit(title + suffix, chunk, limit)
 
+
 kotlin = [l for l in lines if l.startswith("e: ") or re.search(r"error: ", l)]
 if kotlin:
     emit_chunks("Kotlin/Java compile errors", kotlin[:120])
@@ -56,7 +61,9 @@ if wrong:
 
 failed = []
 for i, l in enumerate(lines):
-    if re.search(r"> .* FAILED$", l) or re.search(r"^\s+(java|kotlin|org|androidx)[\w.]*(Exception|Error)", l):
+    if re.search(r"> .* FAILED$", l) or re.search(
+        r"^\s+(java|kotlin|org|androidx)[\w.]*(Exception|Error)", l
+    ):
         failed.append(l)
 if failed:
     emit("Failed tests", failed[:120])
@@ -64,7 +71,9 @@ if failed:
 # Gradle's console summary omits the assertion message and stack location. Read the
 # JUnit XML written by the test task so a failed CI run remains diagnosable via Checks.
 test_failures: list[str] = []
-for report in sorted(Path("app/build/test-results/testDebugUnitTest").glob("TEST-*.xml")):
+for report in sorted(
+    Path("app/build/test-results/testDebugUnitTest").glob("TEST-*.xml")
+):
     try:
         root = ET.parse(report).getroot()
     except (ET.ParseError, OSError):
@@ -77,7 +86,9 @@ for report in sorted(Path("app/build/test-results/testDebugUnitTest").glob("TEST
             continue
         name = f"{case.get('classname', report.stem)}.{case.get('name', 'unknown')}"
         test_failures.append(f"{name}: {failure.get('message', 'test failed')}")
-        test_failures.extend(f"  {line}" for line in (failure.text or "").splitlines()[:16])
+        test_failures.extend(
+            f"  {line}" for line in (failure.text or "").splitlines()[:16]
+        )
 if test_failures:
     emit_chunks("JUnit test failures", test_failures)
 

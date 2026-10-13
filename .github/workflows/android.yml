@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed only to attach APKs to a GitHub Release on tag builds
+  contents: write # needed only to attach APKs to a GitHub Release on tag builds
 
 concurrency:
   group: android-${{ github.ref }}
@@ -139,7 +139,7 @@ jobs:
               if (error.status !== 404) throw error;
             }
 
-      - name: Prepare release notes from the versioned changelog
+      - name: Prepare release notes
         if: startsWith(github.ref, 'refs/tags/v') && success()
         env:
           TAG_NAME: ${{ github.ref_name }}
@@ -149,13 +149,8 @@ jobs:
             echo "Release tag $TAG_NAME does not match app version v$VERSION" >&2
             exit 1
           fi
-          python3 .github/scripts/extract_release_notes.py "$VERSION" CHANGELOG.md "$RUNNER_TEMP/release-notes.md"
           if [ "${{ steps.signing.outputs.signed }}" != "true" ]; then
-            {
-              echo "> **⚠️ Debug-signed build — not a production release artifact.** Production signing secrets (\`AURORO_KEYSTORE_*\`) are not configured, so the attached APK is the CI **debug** build: debug-key signed, no minification. Install it for evaluation only (\`adb install -r\`); it cannot receive signature-compatible updates from a future production key. Once signing secrets exist, the next version's tag run will attach a verified production-signed release APK."
-              echo
-              cat "$RUNNER_TEMP/release-notes.md"
-            } > "$RUNNER_TEMP/release-notes-debug.md"
+            printf '%s\n' "> **⚠️ Debug-signed build — not a production release artifact.** Production signing secrets (\`AURORO_KEYSTORE_*\`) are not configured, so the attached APK is the CI **debug** build: debug-key signed, no minification. Install it for evaluation only (\`adb install -r\`). Once signing secrets exist, the next version's tag run will attach a verified production-signed release APK." > "$RUNNER_TEMP/release-notes-debug.md"
           fi
 
       - name: Attach verified production APK to GitHub Release
@@ -166,8 +161,7 @@ jobs:
           files: |
             dist/*-release.apk
             dist/*-release.apk.sha256
-          body_path: ${{ runner.temp }}/release-notes.md
-          generate_release_notes: false
+          generate_release_notes: true
           fail_on_unmatched_files: true
           overwrite_files: false
 
@@ -183,4 +177,3 @@ jobs:
           generate_release_notes: false
           fail_on_unmatched_files: true
           overwrite_files: false
-
