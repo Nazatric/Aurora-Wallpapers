@@ -66,6 +66,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -274,7 +275,19 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     // content without self-capture. Immersive routes skip the root recording entirely — their
     // floating controls use screen-local hero recordings instead — and reduce-transparency or
     // GlassQuality.REDUCED returns null, disabling capture app-wide.
-    val rootBackdrop = rememberAmbientBackdrop()
+    //
+    // The recording is attached only after the first frame has been drawn: cold start renders
+    // the lightweight fallback chrome immediately, then the page recording and its blur
+    // pipeline attach in one bounded hitch instead of compounding first-frame cost. On the
+    // software-rendered CI emulator the un-deferred attach ANR'd flakily at launch (runs
+    // 38427909867/38440350092); deferral also keeps low-end device launches responsive.
+    var glassReady by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        delay(1_200)
+        glassReady = true
+    }
+    val rootBackdrop = if (glassReady) rememberAmbientBackdrop() else null
 
     ModalNavigationDrawer(
         drawerState = drawer,
