@@ -30,7 +30,7 @@ object HttpClients {
             .build()
     }
 
-    /** Coil requests use provider-validated original image URLs hosted by third-party HTTPS domains. */
+    /** Image requests use provider-validated original image URLs hosted by third-party HTTPS domains. */
     fun images(base: OkHttpClient): OkHttpClient = base.newBuilder()
         .apply {
             networkInterceptors().removeAll { it is HostAllowlistInterceptor }

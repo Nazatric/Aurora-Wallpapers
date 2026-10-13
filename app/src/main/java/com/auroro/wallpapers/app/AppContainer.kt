@@ -4,14 +4,6 @@ import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.work.WorkManager
-import coil3.ComponentRegistry
-import coil3.ImageLoader
-import coil3.Uri
-import coil3.disk.DiskCache
-import coil3.memory.MemoryCache
-import coil3.network.okhttp.OkHttpNetworkFetcherFactory
-import coil3.request.crossfade
-import okio.Path.Companion.toOkioPath
 import com.auroro.wallpapers.core.data.CollectionsRepository
 import com.auroro.wallpapers.core.data.DiscoverySnapshotCache
 import com.auroro.wallpapers.core.data.DiscoveryEngine
@@ -174,34 +166,8 @@ class AppContainer(context: Context) {
         workManagerProvider = { WorkManager.getInstance(appContext) },
     )
 
-    /** One Coil loader per process. Source-validated public HTTPS image URLs are decoded only as displayed. */
-    val imageLoader: ImageLoader by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
-        val cacheMb = bootPrefs.getInt(SettingsRepository.BOOT_CACHE_MB, com.auroro.wallpapers.core.data.AppSettings.DEFAULT_CACHE_MB)
-            .coerceIn(50, 2_000)
-        ImageLoader.Builder(appContext)
-            .crossfade(180)
-            .memoryCache {
-                MemoryCache.Builder()
-                    .maxSizePercent(appContext, 0.14)
-                    .build()
-            }
-            .diskCache {
-                DiskCache.Builder()
-                    .directory(File(appContext.cacheDir, "auroro-image-cache").toOkioPath())
-                    .maxSizeBytes(cacheMb.toLong() * 1024 * 1024)
-                    .build()
-            }
-            .components(
-                ComponentRegistry.Builder()
-                    .apply { add(OkHttpNetworkFetcherFactory(callFactory = { imageHttpClient }), Uri::class) }
-                    .build(),
-            )
-            .build()
-    }
-
+    /** Evicts the disposable HTTP response cache and the wallpaper-apply preparation cache. */
     suspend fun clearImageCache() {
-        imageLoader.memoryCache?.clear()
-        imageLoader.diskCache?.clear()
         runCatching { httpClient.cache?.evictAll() }
         wallpaperApplyRepository.clearCache()
     }

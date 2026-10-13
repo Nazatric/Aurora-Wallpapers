@@ -1,8 +1,21 @@
 # Changelog
 
-Notable changes to Auroro Wallpapers are recorded here. `v1.0.0`, `v1.1.0` and `v1.2.0` shipped as debug-signed artifacts (the `v1.2.0` GitHub release is explicitly labelled "debug build"); production distribution still requires a configured signing key and verified release APK. `1.3.0` continues from `v1.2.0`.
+Notable changes to Auroro Wallpapers are recorded here. `v1.0.0`, `v1.1.0` and `v1.2.0` shipped as debug-signed artifacts (the `v1.2.0` GitHub release is explicitly labelled "debug build"); production distribution still requires a configured signing key and verified release APK. `1.3.0` continues from `v1.2.0` and was never released as a tag; `1.4.0` removes the entire application UI at the maintainer's direction while keeping the data/domain layer.
 
-## [1.3.0] — pending CI verification (debug build)
+## [1.4.0] — complete UI removal (debug build)
+
+### Removed
+
+- **The entire presentation layer, A–Z, at the maintainer's direction; no UI was kept.** Deleted: every Compose screen and navigation (`feature/**` — home, search, filters, sources, categories, collections, offline, settings, wallpaper detail and crop); the complete design system (`core/design/**` — Aero theme, colors, Open Sans typography, motion, glass components and the Kyant0 liquid-glass glue); `MainActivity`, `AuroroRoot`, and `MainViewModel` including `FeedUiState`/`FeedSessionCache`; the Coil image-loader wiring in `AuroroApp`/`AppContainer`; launcher/adaptive/monochrome icon, splash, theme and color resources; the bundled Open Sans fonts and their licence file; the emulator UI smoke test (`scripts/emulator_ui_smoke.py`) and the whole `emulator-smoke` CI job; `docs/AURORO_DESIGN_SYSTEM.md`; and every UI-only dependency (Compose BOM/UI/Foundation/Material 3, Material Icons Extended, Activity/Lifecycle/Navigation-Compose, SplashScreen, Coil, Kyant0 backdrop, the Compose compiler plugin).
+- The manifest declares no launcher activity, icon, theme or browser-handoff `queries` block; the app module builds a UI-less shell APK. `versionName` moves to 1.4.0.
+- Two mechanical data-layer fixes were required by the removal: download notifications no longer set a content intent (there is no UI left to open; channels, progress and result notifications are unchanged), and the Compose `@Immutable` annotations were dropped from `core/model` classes (the annotations were Compose-runtime hints with no data-layer behavior).
+
+### Kept
+
+- The data/domain layer is untouched: Wallhaven and NASA APOD providers, discovery/validation engines and session planning, Room/DataStore persistence with migrations, settings, favorites/collections/history repositories, the download pipeline (WorkManager, notifications, MediaStore/gallery saving) and the separate wallpaper-apply repository, HTTP clients and URL policy, plus all data-layer unit tests. `ic_stat_auroro` (Material Icons `wallpaper` glyph) remains for download notifications together with its attribution.
+- The 1.3.0 data-layer changes remain in place (Art Institute provider retirement with preserved legacy attribution, discovery quality gating). The unreleased 1.3.0 UI work (liquid glass, feed-continuation presentation, static loading indicators) was removed with the rest of the presentation layer; its history stays recorded below for reference.
+
+## [1.3.0] — superseded by 1.4.0 before release (UI removed; data-layer changes kept)
 
 ### Fixed
 

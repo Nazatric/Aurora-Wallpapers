@@ -1,6 +1,5 @@
 package com.auroro.wallpapers.core.model
 
-import androidx.compose.runtime.Immutable
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -89,8 +88,6 @@ object AspectMath {
         return x.coerceAtLeast(1)
     }
 }
-
-@Immutable
 data class CustomRatio(val w: Float, val h: Float) {
     val ratio: Float get() = w / h
 }
@@ -108,11 +105,7 @@ enum class AspectPreset(val label: String, val w: Float, val h: Float) {
 
 sealed interface AspectFilter {
     data object Any : AspectFilter
-
-    @Immutable
     data class Preset(val preset: AspectPreset) : AspectFilter
-
-    @Immutable
     data class Custom(val ratio: CustomRatio) : AspectFilter
 
     val targetRatio: Float?
@@ -146,12 +139,9 @@ enum class ResolutionPreset(val label: String, val shortEdge: Int, val longEdge:
 
 sealed interface ResolutionFilter {
     data object Any : ResolutionFilter
-
-    @Immutable
     data class Preset(val preset: ResolutionPreset) : ResolutionFilter
 
     /** Minimum short/long edges; portrait and landscape images are treated identically. */
-    @Immutable
     data class Custom(val minWidth: Int, val minHeight: Int) : ResolutionFilter {
         val shortEdge: Int get() = min(minWidth, minHeight)
         val longEdge: Int get() = max(minWidth, minHeight)

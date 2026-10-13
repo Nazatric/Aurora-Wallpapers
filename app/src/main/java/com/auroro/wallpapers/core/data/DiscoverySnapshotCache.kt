@@ -3,7 +3,7 @@ package com.auroro.wallpapers.core.data
 import com.auroro.wallpapers.core.model.DiscoverySelection
 import com.auroro.wallpapers.core.model.Wallpaper
 
-/** Identifier-only snapshots keep feed state local; image bytes remain in Coil and are disposable. */
+/** Identifier-only snapshots keep feed state local; image bytes are never stored and are disposable. */
 class DiscoverySnapshotCache(
     private val settings: SettingsRepository,
     private val wallpapers: WallpaperStore,

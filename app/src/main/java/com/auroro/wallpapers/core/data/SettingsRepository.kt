@@ -260,7 +260,7 @@ class SettingsRepository(
         }
     }
 
-    /** Small identifier-only snapshots support fast return and offline recovery; image bytes stay in Coil's cache. */
+    /** Small identifier-only snapshots support fast return and offline recovery; image bytes are never stored here. */
     suspend fun saveDiscoverySnapshot(cacheKey: String, wallpaperKeys: List<String>) {
         if (wallpaperKeys.isEmpty()) return
         store.edit { prefs ->

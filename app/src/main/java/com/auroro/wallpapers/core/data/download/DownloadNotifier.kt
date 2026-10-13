@@ -4,9 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -15,7 +13,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.ForegroundInfo
 import com.auroro.wallpapers.R
-import com.auroro.wallpapers.app.MainActivity
 import com.auroro.wallpapers.core.data.SettingsRepository
 import kotlin.math.abs
 
@@ -38,13 +35,6 @@ class DownloadNotifier(private val context: Context, private val settings: Setti
         return permitted && NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
-    private fun contentIntent(): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java)
-            .putExtra(MainActivity.EXTRA_ROUTE, "offline")
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-    }
-
     /**
      * Foreground notification used while a download runs. Android requires one for background transfers on
      * older versions; when progress notifications are off only a minimal text is shown.
@@ -59,7 +49,6 @@ class DownloadNotifier(private val context: Context, private val settings: Setti
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setContentIntent(contentIntent())
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
         if (showProgress) {
             if (total > 0) b.setProgress(100, ((bytes * 100) / total).toInt().coerceIn(0, 100), false) else b.setProgress(0, 0, true)
@@ -76,7 +65,6 @@ class DownloadNotifier(private val context: Context, private val settings: Setti
             .setContentTitle("Wallpaper saved")
             .setContentText(note ?: title)
             .setAutoCancel(true)
-            .setContentIntent(contentIntent())
             .build()
         NotificationManagerCompat.from(context).notify(idFor(key), n)
     }
@@ -91,7 +79,6 @@ class DownloadNotifier(private val context: Context, private val settings: Setti
             .setContentText("$title: $message")
             .setStyle(NotificationCompat.BigTextStyle().bigText("$title: $message"))
             .setAutoCancel(true)
-            .setContentIntent(contentIntent())
             .build()
         NotificationManagerCompat.from(context).notify(idFor(key), n)
     }

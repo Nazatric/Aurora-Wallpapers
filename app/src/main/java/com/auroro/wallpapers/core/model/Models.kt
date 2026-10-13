@@ -1,6 +1,5 @@
 package com.auroro.wallpapers.core.model
 
-import androidx.compose.runtime.Immutable
 
 /** The only catalogues queried by the app, plus an internal value for records saved by older versions. */
 enum class WallpaperSource(val id: String, val displayName: String, val siteUrl: String) {
@@ -27,15 +26,12 @@ enum class WallpaperSource(val id: String, val displayName: String, val siteUrl:
         fun fromId(id: String): WallpaperSource? = entries.firstOrNull { it.id == id }
     }
 }
-
-@Immutable
 data class WallpaperTag(val id: Long?, val name: String)
 
 /**
  * Provider-agnostic record. Original dimensions, attribution and licence metadata are retained so
  * filters, saved records, downloads and the wallpaper-setting flow can make decisions from facts.
  */
-@Immutable
 data class Wallpaper(
     val source: WallpaperSource,
     /** The provider's own stable identifier. */
@@ -116,7 +112,6 @@ enum class WallhavenCategory(val label: String, val bitIndex: Int) {
 }
 
 /** Everything the user can change on the filter screen. */
-@Immutable
 data class WallpaperFilter(
     /** Empty set means all currently integrated sources. */
     val sources: Set<WallpaperSource> = emptySet(),
@@ -154,7 +149,6 @@ data class WallpaperFilter(
 }
 
 /** The set of values a feed is built from: text query plus filter. */
-@Immutable
 data class FeedRequest(
     val query: String = "",
     val filter: WallpaperFilter = WallpaperFilter.Default,
