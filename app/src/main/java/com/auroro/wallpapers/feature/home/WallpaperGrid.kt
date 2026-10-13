@@ -21,8 +21,8 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.BrokenImage
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -105,7 +105,11 @@ fun WallpaperGrid(
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CircularProgressIndicator(Modifier.size(18.dp), color = Aero.colors.accent, strokeWidth = 2.dp)
+                    // Calm static indicator: an infinite spinner inside the liquid-glass
+                    // recording would force a full re-capture + re-blur every frame while the
+                    // mix loads (minutes on a cold provider). The hourglass + copy is honest
+                    // and keeps the recorded scene still.
+                    Icon(Icons.Rounded.HourglassTop, null, tint = Aero.colors.accent, modifier = Modifier.size(18.dp))
                     Text("  Loading wallpapers…", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                 }
             }
@@ -141,7 +145,7 @@ fun WallpaperGrid(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        CircularProgressIndicator(Modifier.size(18.dp), color = Aero.colors.accent, strokeWidth = 2.dp)
+                        Icon(Icons.Rounded.HourglassTop, null, tint = Aero.colors.accent, modifier = Modifier.size(18.dp))
                         Text("  Loading images…", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                     }
                 }

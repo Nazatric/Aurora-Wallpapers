@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.auroro.wallpapers.core.data.GlassQuality
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -50,8 +51,13 @@ import com.kyant.backdrop.effects.lens
 val supportsLiquidGlass: Boolean
     get() = Build.VERSION.SDK_INT >= 31
 
-/** Frosted-glass blur radius for floating chrome; measured on emulator, see CHANGELOG 1.3.0. */
-private val LiquidBlurRadius: Dp = 12.dp
+/**
+ * Frosted-glass blur radii. The upstream engine captures at full resolution (no downscale
+ * knob), so the blur is the dominant per-redraw cost: Balanced keeps a light 6 dp frost that
+ * stays cheap while content animates behind the glass; Full doubles it and adds the lens.
+ */
+private val FullBlurRadius: Dp = 12.dp
+private val BalancedBlurRadius: Dp = 6.dp
 
 /** Edge refraction depth. Kept subtler than the engine demos so artwork stays undistorted. */
 private val LensRefractionHeight: Dp = 18.dp
@@ -115,7 +121,8 @@ fun Modifier.recordAuroraBackdrop(backdrop: LayerBackdrop?): Modifier =
  * is null or the device cannot blur. The specular rim stays caller-owned so lightweight and
  * live surfaces read as the same material.
  *
- * [lensEnabled] lets GlassQuality.BALANCED skip the runtime-shader pass while keeping blur.
+ * [quality] tiers the effect cost: FULL = 12 dp blur + API-33 lens refraction,
+ * BALANCED = 6 dp blur without the refraction shader.
  */
 fun Modifier.aeroLiquidGlass(
     backdrop: Backdrop?,
@@ -123,16 +130,17 @@ fun Modifier.aeroLiquidGlass(
     tint: Color,
     tintAlpha: Float,
     fallback: Brush,
-    lensEnabled: Boolean,
+    quality: GlassQuality,
 ): Modifier = then(
     if (backdrop != null && supportsLiquidGlass) {
+        val blurRadius = if (quality == GlassQuality.FULL) FullBlurRadius else BalancedBlurRadius
         Modifier.drawBackdrop(
             backdrop = backdrop,
             shape = { shape },
             effects = {
                 colorControls(saturation = LiquidSaturation)
-                blur(LiquidBlurRadius.toPx())
-                if (lensEnabled && Build.VERSION.SDK_INT >= 33) {
+                blur(blurRadius.toPx())
+                if (quality == GlassQuality.FULL && Build.VERSION.SDK_INT >= 33) {
                     lens(
                         refractionHeight = LensRefractionHeight.toPx(),
                         refractionAmount = LensRefractionAmount.toPx(),

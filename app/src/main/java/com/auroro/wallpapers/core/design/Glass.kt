@@ -110,7 +110,7 @@ fun GlassPanel(
             tint = c.glassTint,
             tintAlpha = aeroTintAlpha(c, clear = false, selected = false),
             fallback = glassFallbackBrush(c, opacity),
-            lensEnabled = c.glassQuality == GlassQuality.FULL,
+            quality = c.glassQuality,
         )
         .border(
             BorderStroke(
@@ -158,7 +158,7 @@ fun GlassSurface(
             tint = c.glassTint,
             tintAlpha = aeroTintAlpha(c, clear = false, selected = false),
             fallback = glassFallbackBrush(c, opacity),
-            lensEnabled = c.glassQuality == GlassQuality.FULL,
+            quality = c.glassQuality,
         )
         .border(
             BorderStroke(0.9.dp, Brush.verticalGradient(listOf(c.glassRimLight.copy(alpha = 0.58f), c.glassRimDark.copy(alpha = 0.26f)))),
@@ -399,7 +399,7 @@ fun GlassIconButton(
                 tint = fill,
                 tintAlpha = aeroTintAlpha(c, clear = true, selected = selected),
                 fallback = fallback,
-                lensEnabled = c.glassQuality == GlassQuality.FULL,
+                quality = c.glassQuality,
             )
             .border(0.9.dp, c.glassRimLight.copy(alpha = if (c.isDark) 0.48f else 0.76f), shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)

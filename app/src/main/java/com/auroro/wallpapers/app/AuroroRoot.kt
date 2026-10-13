@@ -290,7 +290,10 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     Modifier.fillMaxSize(),
                     shape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
                     elevation = 0.dp,
-                    backdrop = rootBackdrop,
+                    // Sample the page only while the drawer is actually opening/open; a closed
+                    // drawer must not re-blur a full sheet's worth of backdrop every frame the
+                    // page redraws.
+                    backdrop = if (drawer.currentValue != androidx.compose.material3.DrawerValue.Closed) rootBackdrop else null,
                 ) {
                     DrawerContent(
                         selectedRoute = route,

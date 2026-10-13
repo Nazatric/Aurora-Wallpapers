@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Share
@@ -237,10 +238,14 @@ fun WallpaperDetailScreen(
                     }
                 }
             } else if (!previewLoaded) {
-                CircularProgressIndicator(
-                    Modifier.align(Alignment.Center).size(24.dp),
-                    color = Aero.colors.accent,
-                    strokeWidth = 2.dp,
+                // Static hourglass: this spinner would sit inside the hero liquid-glass
+                // recording and force every floating control to re-blur each frame of the
+                // (potentially slow) preview load.
+                Icon(
+                    Icons.Rounded.HourglassTop,
+                    null,
+                    tint = Aero.colors.accent,
+                    modifier = Modifier.align(Alignment.Center).size(24.dp),
                 )
             }
         }
@@ -303,7 +308,7 @@ fun WallpaperDetailScreen(
                             modifier = Modifier.weight(1f),
                         )
                         if (state.loading || relatedLoading) {
-                            CircularProgressIndicator(Modifier.size(17.dp), color = Aero.colors.accent, strokeWidth = 2.dp)
+                            Icon(Icons.Rounded.HourglassTop, null, tint = Aero.colors.accent, modifier = Modifier.size(17.dp))
                         }
                     }
 
@@ -550,7 +555,7 @@ fun WallpaperDetailScreen(
                             Text("Related wallpapers", style = MaterialTheme.typography.titleSmall, color = Aero.colors.textPrimary)
                             Text("Only recommendations returned by this source are shown.", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textTertiary)
                         }
-                        if (relatedLoading) CircularProgressIndicator(Modifier.padding(8.dp).size(18.dp), strokeWidth = 2.dp, color = Aero.colors.accent)
+                        if (relatedLoading) Icon(Icons.Rounded.HourglassTop, null, tint = Aero.colors.accent, modifier = Modifier.padding(8.dp).size(18.dp))
                         if (state.related.isNotEmpty()) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                                 state.related.take(6).forEach { item ->

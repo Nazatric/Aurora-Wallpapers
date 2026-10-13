@@ -21,10 +21,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.HourglassTop
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -212,10 +213,14 @@ fun CropScreen(
                     )
                 }
                 if (isPreparingOriginal) {
-                    CircularProgressIndicator(
+                    // Static hourglass: this row lives inside a liquid-glass panel; an
+                    // infinite spinner would re-blur the crop backdrop every frame while the
+                    // original downloads.
+                    Icon(
+                        Icons.Rounded.HourglassTop,
+                        null,
+                        tint = Aero.colors.accent,
                         modifier = Modifier.size(20.dp),
-                        color = Aero.colors.accent,
-                        strokeWidth = 2.dp,
                     )
                 }
             }
