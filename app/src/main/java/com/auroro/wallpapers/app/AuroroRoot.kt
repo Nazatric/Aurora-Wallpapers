@@ -96,7 +96,8 @@ import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.AmbientBackdrop
 import com.auroro.wallpapers.core.design.AppLogo
 import com.auroro.wallpapers.core.design.GlassPanel
-import com.auroro.wallpapers.core.design.LocalAeroHazeState
+import com.auroro.wallpapers.core.design.recordAuroraBackdrop
+import com.auroro.wallpapers.core.design.rememberAmbientBackdrop
 import com.auroro.wallpapers.core.design.LocalReducedMotion
 import com.auroro.wallpapers.core.design.Motion
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -178,11 +179,10 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
     val applyPreparation by vm.applyPreparation.collectAsState()
     val relatedLoading by vm.relatedLoading.collectAsState()
     val settings by vm.settings.collectAsState()
-    val enabledSources = remember(settings.wallhavenEnabled, settings.nasaApodEnabled, settings.artInstituteEnabled) {
+    val enabledSources = remember(settings.wallhavenEnabled, settings.nasaApodEnabled) {
         buildSet {
             if (settings.wallhavenEnabled) add(WallpaperSource.WALLHAVEN)
             if (settings.nasaApodEnabled) add(WallpaperSource.NASA_APOD)
-            if (settings.artInstituteEnabled) add(WallpaperSource.ART_INSTITUTE)
         }
     }
     val reducedMotion = LocalReducedMotion.current
@@ -212,7 +212,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
 
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: "home"
-    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly, settings.wallhavenEnabled, settings.nasaApodEnabled, settings.artInstituteEnabled) {
+    LaunchedEffect(route, homeTab, settings.rotateDiscoveryHourly, settings.wallhavenEnabled, settings.nasaApodEnabled) {
         when (route) {
             "home" -> vm.openHome(homeTab)
             "search" -> vm.openSearch()
@@ -268,6 +268,14 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
         }
     }
 
+    // One page-level liquid-glass recording (Kyant0 backdrop engine): the NavHost subtree is
+    // captured with the ambient gradient painted as its opaque base. The drawer sheet and the
+    // bottom bar are siblings outside that recording, so they can sample real, scrolling page
+    // content without self-capture. Immersive routes skip the root recording entirely — their
+    // floating controls use screen-local hero recordings instead — and reduce-transparency or
+    // GlassQuality.REDUCED returns null, disabling capture app-wide.
+    val rootBackdrop = rememberAmbientBackdrop()
+
     ModalNavigationDrawer(
         drawerState = drawer,
         gesturesEnabled = !isImmersive,
@@ -282,7 +290,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     Modifier.fillMaxSize(),
                     shape = RoundedCornerShape(topEnd = 28.dp, bottomEnd = 28.dp),
                     elevation = 0.dp,
-                    hazeState = LocalAeroHazeState.current,
+                    backdrop = rootBackdrop,
                 ) {
                     DrawerContent(
                         selectedRoute = route,
@@ -319,13 +327,18 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                     if (!isImmersive) BottomNavigation(
                         selected = currentTab ?: route,
                         onSelect = ::navigateTab,
+                        backdrop = rootBackdrop,
                     )
                 },
-            ) { padding ->
+            ) { _ ->
+                // No Scaffold bottom padding: pages scroll behind the floating glass bar, which
+                // is what makes the liquid glass read as real material. Every scrollable screen
+                // carries its own bottom content padding to keep the last row reachable.
                 NavHost(
                     navController = nav,
                     startDestination = "home",
-                    modifier = Modifier.fillMaxSize().padding(padding)
+                    modifier = Modifier.fillMaxSize()
+                        .recordAuroraBackdrop(if (isImmersive) null else rootBackdrop)
                         .windowInsetsPadding(
                             if (route.startsWith("crop/") || route.startsWith("wallpaper/")) {
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
@@ -458,8 +471,7 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                                     when (source) {
                                         WallpaperSource.WALLHAVEN -> current.copy(wallhavenEnabled = enabled)
                                         WallpaperSource.NASA_APOD -> current.copy(nasaApodEnabled = enabled)
-                                        WallpaperSource.ART_INSTITUTE -> current.copy(artInstituteEnabled = enabled)
-                                        WallpaperSource.REDDIT, WallpaperSource.OPENVERSE, WallpaperSource.ARCHIVED -> current
+                                        WallpaperSource.ART_INSTITUTE, WallpaperSource.REDDIT, WallpaperSource.OPENVERSE, WallpaperSource.ARCHIVED -> current
                                     }
                                 }
                             },
@@ -558,7 +570,7 @@ private fun DrawerContent(selectedRoute: String, onChoose: (String) -> Unit) {
                 AppLogo(Modifier.size(52.dp), 52.dp)
                 Column(Modifier.padding(start = 12.dp)) {
                     Text("AURORO", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary, letterSpacing = 1.2.sp)
-                    Text("Wallhaven · NASA · Art Institute", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
+                    Text("Wallhaven · NASA APOD", style = MaterialTheme.typography.bodySmall, color = Aero.colors.textSecondary)
                 }
             }
         }
@@ -585,13 +597,18 @@ private fun DrawerContent(selectedRoute: String, onChoose: (String) -> Unit) {
 }
 
 @Composable
-private fun BottomNavigation(selected: String, onSelect: (String) -> Unit) {
+private fun BottomNavigation(
+    selected: String,
+    onSelect: (String) -> Unit,
+    backdrop: com.kyant.backdrop.Backdrop? = null,
+) {
     GlassPanel(
         Modifier.fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
             .padding(horizontal = 14.dp, vertical = 7.dp),
         shape = RoundedCornerShape(24.dp),
         elevation = 10.dp,
+        backdrop = backdrop,
     ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 7.dp, vertical = 6.dp),

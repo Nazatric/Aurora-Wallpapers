@@ -26,7 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,41 +47,53 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
+import androidx.compose.runtime.Immutable
 import com.auroro.wallpapers.core.data.GlassQuality
-import dev.chrisbanes.haze.ExperimentalHazeApi
-import dev.chrisbanes.haze.HazeInput
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.glass.GlassStyle
-import dev.chrisbanes.haze.glass.LocalGlassAccessibilitySettings
-import dev.chrisbanes.haze.glass.hazeGlass
-
-/** Shared, window-local source used by real Glass surfaces across the app. */
-val LocalAeroHazeState = staticCompositionLocalOf<HazeState?> { null }
-
-/** Avoid backdrop capture entirely when the selected effect or accessibility mode will not render it. */
-@OptIn(ExperimentalHazeApi::class)
-@Composable
-fun isLiveGlassEnabled(): Boolean =
-    !LocalGlassAccessibilitySettings.current.reduceTransparency && Aero.colors.glassQuality != GlassQuality.REDUCED
+import com.kyant.backdrop.Backdrop
 
 /**
- * Source-backed glass panel. Haze samples the earlier Compose content, applies size-aware blur and
- * refraction, then adds a directional highlight and shaped rim. Haze selects its supported renderer
- * and degrades advanced optics on older or simplified renderers; this fallback preserves legibility.
+ * Accessibility switches that govern glass rendering. Previously provided by the Haze library;
+ * owned by Auroro since the move to the Kyant0 backdrop engine (1.3.0).
  */
-@OptIn(ExperimentalHazeApi::class)
+@Immutable
+data class AeroGlassAccessibility(
+    val reduceTransparency: Boolean = false,
+    val increaseContrast: Boolean = false,
+    val showBorders: Boolean = false,
+)
+
+val LocalGlassAccessibility = staticCompositionLocalOf { AeroGlassAccessibility() }
+
+/** Avoid backdrop capture entirely when the selected effect or accessibility mode will not render it. */
+@Composable
+fun isLiveGlassEnabled(): Boolean =
+    !LocalGlassAccessibility.current.reduceTransparency && Aero.colors.glassQuality != GlassQuality.REDUCED
+
+/** Aero tint strength for a glass surface; shared by the live engine path and the fallback. */
+private fun aeroTintAlpha(c: AeroColors, clear: Boolean, selected: Boolean): Float = when {
+    selected -> 0.28f * c.opacityBoost
+    clear -> if (c.isDark) 0.15f else 0.12f
+    else -> (if (c.isDark) 0.28f else 0.22f) * c.opacityBoost
+}.coerceIn(0.08f, 0.52f)
+
+/**
+ * Glass panel. When [backdrop] is supplied — only legal for chrome mounted *outside* the
+ * recorded subtree (bottom bar, drawer, detail/crop overlays) — the panel becomes real liquid
+ * glass: it samples, saturates, frosts and refracts the content behind it. In-content panels
+ * pass no backdrop and keep the lightweight Aero treatment; capturing inside the recording
+ * would self-sample and full-resolution captures on every scrolling card would wreck frame
+ * times. The specular rim and top highlight stay in both paths so the material reads the same.
+ */
 @Composable
 fun GlassPanel(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(24.dp),
     elevation: Dp = 6.dp,
-    hazeState: HazeState? = LocalAeroHazeState.current,
+    backdrop: Backdrop? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val c = Aero.colors
-    val reducedTransparency = LocalGlassAccessibilitySettings.current.reduceTransparency
-    val style = rememberAeroGlassStyle(c, shape, clear = false)
+    val reducedTransparency = LocalGlassAccessibility.current.reduceTransparency
     val opacity = if (reducedTransparency) 1f else ((if (c.isDark) 0.72f else 0.80f) * c.opacityBoost).coerceIn(0.72f, 0.96f)
     val surface = Modifier
         .shadow(
@@ -93,12 +104,13 @@ fun GlassPanel(
             spotColor = c.accentDeep.copy(alpha = 0.12f),
         )
         .clip(shape)
-        .then(
-            if (hazeState != null && isLiveGlassEnabled()) {
-                Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
-            } else {
-                Modifier.background(glassFallbackBrush(c, opacity))
-            },
+        .aeroLiquidGlass(
+            backdrop = if (reducedTransparency) null else backdrop,
+            shape = shape,
+            tint = c.glassTint,
+            tintAlpha = aeroTintAlpha(c, clear = false, selected = false),
+            fallback = glassFallbackBrush(c, opacity),
+            lensEnabled = c.glassQuality == GlassQuality.FULL,
         )
         .border(
             BorderStroke(
@@ -126,28 +138,27 @@ fun GlassPanel(
     })
 }
 
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun GlassSurface(
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(20.dp),
     onClick: (() -> Unit)? = null,
-    hazeState: HazeState? = LocalAeroHazeState.current,
+    backdrop: Backdrop? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val c = Aero.colors
-    val reducedTransparency = LocalGlassAccessibilitySettings.current.reduceTransparency
-    val style = rememberAeroGlassStyle(c, shape, clear = false)
+    val reducedTransparency = LocalGlassAccessibility.current.reduceTransparency
     val opacity = if (reducedTransparency) 1f else ((if (c.isDark) 0.66f else 0.78f) * c.opacityBoost).coerceIn(0.66f, 0.94f)
     val base = modifier
         .shadow(5.dp, shape, clip = false, ambientColor = Color.Black.copy(alpha = if (c.isDark) 0.18f else 0.07f))
         .clip(shape)
-        .then(
-            if (hazeState != null && isLiveGlassEnabled()) {
-                Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
-            } else {
-                Modifier.background(glassFallbackBrush(c, opacity))
-            },
+        .aeroLiquidGlass(
+            backdrop = if (reducedTransparency) null else backdrop,
+            shape = shape,
+            tint = c.glassTint,
+            tintAlpha = aeroTintAlpha(c, clear = false, selected = false),
+            fallback = glassFallbackBrush(c, opacity),
+            lensEnabled = c.glassQuality == GlassQuality.FULL,
         )
         .border(
             BorderStroke(0.9.dp, Brush.verticalGradient(listOf(c.glassRimLight.copy(alpha = 0.58f), c.glassRimDark.copy(alpha = 0.26f)))),
@@ -155,28 +166,6 @@ fun GlassSurface(
         )
     val interactive = if (onClick != null) base.clickable(role = Role.Button, onClick = onClick) else base
     Box(interactive, content = content)
-}
-
-@OptIn(ExperimentalHazeApi::class)
-@Composable
-private fun rememberAeroGlassStyle(c: AeroColors, cornerShape: RoundedCornerShape, clear: Boolean, selected: Boolean = false): GlassStyle {
-    val tintAlpha = when {
-        selected -> 0.28f * c.opacityBoost
-        clear -> if (c.isDark) 0.15f else 0.12f
-        else -> (if (c.isDark) 0.28f else 0.22f) * c.opacityBoost
-    }.coerceIn(0.08f, 0.52f)
-    val tintColor = (if (selected) c.accentDeep else c.glassTint).copy(alpha = tintAlpha)
-    return remember(c.isDark, c.glassTint, c.accentDeep, tintAlpha, cornerShape, clear, selected, c.glassQuality) {
-        (if (clear) GlassStyle.clear else GlassStyle.regular).then {
-            shape(cornerShape)
-            tint(tintColor)
-            lightPosition(Alignment.TopStart)
-            if (c.glassQuality == com.auroro.wallpapers.core.data.GlassQuality.FULL) {
-                specularIntensity(if (clear) 0.62f else 0.56f)
-                ambientResponse(if (clear) 0.28f else 0.20f)
-            }
-        }
-    }
 }
 
 private fun glassFallbackBrush(c: AeroColors, opacity: Float) = Brush.verticalGradient(
@@ -272,14 +261,17 @@ fun SectionTitle(
     }
 }
 
-@OptIn(ExperimentalHazeApi::class)
+/**
+ * On-screen ambient sky behind every page. Glass surfaces do *not* sample this node directly:
+ * the liquid-glass recording ([rememberAmbientBackdrop] + [Modifier.recordAuroraBackdrop] on the
+ * NavHost) repaints the same gradient as the opaque base of the captured layer, so chrome can
+ * blur real page content without this Box ever being inside a recording.
+ */
 @Composable
 fun AmbientBackdrop(modifier: Modifier = Modifier, imageUrl: String? = null) {
     val c = Aero.colors
-    val hazeState = LocalAeroHazeState.current
     Box(
         modifier
-            .then(if (hazeState != null && isLiveGlassEnabled()) Modifier.hazeSource(hazeState) else Modifier)
             .background(Brush.verticalGradient(listOf(c.backdropTop, c.backdropMid, c.backdropBottom))),
     ) {
         if (!imageUrl.isNullOrBlank()) {
@@ -376,7 +368,6 @@ fun AppLogo(modifier: Modifier = Modifier, logoSize: Dp = 42.dp) {
     }
 }
 
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun GlassIconButton(
     onClick: () -> Unit,
@@ -386,12 +377,11 @@ fun GlassIconButton(
     tint: Color = Aero.colors.textPrimary,
     selected: Boolean = false,
     enabled: Boolean = true,
-    hazeState: HazeState? = LocalAeroHazeState.current,
+    backdrop: Backdrop? = null,
 ) {
     val shape = CircleShape
     val c = Aero.colors
-    val reducedTransparency = LocalGlassAccessibilitySettings.current.reduceTransparency
-    val style = rememberAeroGlassStyle(c, shape, clear = true, selected = selected)
+    val reducedTransparency = LocalGlassAccessibility.current.reduceTransparency
     val fill = if (selected) c.accentDeep else c.glassTint
     val fallback = Brush.verticalGradient(
         listOf(
@@ -403,12 +393,13 @@ fun GlassIconButton(
         modifier
             .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .clip(shape)
-            .then(
-                if (hazeState != null && isLiveGlassEnabled()) {
-                    Modifier.hazeGlass(input = HazeInput.Sources(hazeState), style = style)
-                } else {
-                    Modifier.background(fallback)
-                },
+            .aeroLiquidGlass(
+                backdrop = if (reducedTransparency) null else backdrop,
+                shape = shape,
+                tint = fill,
+                tintAlpha = aeroTintAlpha(c, clear = true, selected = selected),
+                fallback = fallback,
+                lensEnabled = c.glassQuality == GlassQuality.FULL,
             )
             .border(0.9.dp, c.glassRimLight.copy(alpha = if (c.isDark) 0.48f else 0.76f), shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)

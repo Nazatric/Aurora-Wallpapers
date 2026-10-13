@@ -68,7 +68,6 @@ import com.auroro.wallpapers.core.database.DownloadStatus
 import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
-import com.auroro.wallpapers.core.design.isLiveGlassEnabled
 import com.auroro.wallpapers.core.design.GlassPill
 import com.auroro.wallpapers.core.design.SectionTitle
 import com.auroro.wallpapers.core.design.SourceGlyph
@@ -78,11 +77,9 @@ import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.UrlPolicy
 import com.auroro.wallpapers.feature.home.WallpaperTile
-import dev.chrisbanes.haze.ExperimentalHazeApi
-import dev.chrisbanes.haze.hazeSource
-import dev.chrisbanes.haze.rememberHazeState
+import com.auroro.wallpapers.core.design.recordAuroraBackdrop
+import com.auroro.wallpapers.core.design.rememberSolidBackdrop
 
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun WallpaperDetailScreen(
     state: DetailUiState?,
@@ -115,7 +112,7 @@ fun WallpaperDetailScreen(
 
     val wallpaper = state.wallpaper
     val context = LocalContext.current
-    val heroHazeState = rememberHazeState()
+    val heroBackdrop = rememberSolidBackdrop(Color.Black)
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
     var showApply by remember(wallpaper.key) { mutableStateOf(false) }
     val remotePreview = if (wallpaper.source.isIntegrated) {
@@ -162,7 +159,7 @@ fun WallpaperDetailScreen(
         Box(
             Modifier.fillMaxSize()
                 .background(Color.Black)
-                .then(if (isLiveGlassEnabled()) Modifier.hazeSource(heroHazeState) else Modifier),
+                .recordAuroraBackdrop(heroBackdrop),
         ) {
             val currentPreviewUrl = previewUrl
             if (currentPreviewUrl != null) {
@@ -255,7 +252,7 @@ fun WallpaperDetailScreen(
                 .fillMaxWidth(),
             shape = RoundedCornerShape(25.dp),
             elevation = 7.dp,
-            hazeState = heroHazeState,
+            backdrop = heroBackdrop,
         ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 5.dp),
@@ -265,7 +262,7 @@ fun WallpaperDetailScreen(
                     onClick = onBack,
                     description = "Back to wallpapers",
                     icon = Icons.Rounded.ArrowBack,
-                    hazeState = heroHazeState,
+                    backdrop = heroBackdrop,
                 )
                 Spacer(Modifier.width(9.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -288,7 +285,7 @@ fun WallpaperDetailScreen(
                 Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(25.dp),
                 elevation = 9.dp,
-                hazeState = heroHazeState,
+                backdrop = heroBackdrop,
             ) {
                 Column(
                     Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
@@ -321,7 +318,7 @@ fun WallpaperDetailScreen(
                             icon = if (favorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                             tint = if (favorite) Color(0xFFFF8FA0) else Aero.colors.accent,
                             selected = favorite,
-                            hazeState = heroHazeState,
+                            backdrop = heroBackdrop,
                         )
                         GlassIconButton(
                             onClick = { onDownload(wallpaper) },
@@ -336,7 +333,7 @@ fun WallpaperDetailScreen(
                             tint = if (canDownloadFromProvider || isSaved) Aero.colors.accent else Aero.colors.textTertiary,
                             selected = isSaved,
                             enabled = canDownloadFromProvider && !isSaved && !isDownloading,
-                            hazeState = heroHazeState,
+                            backdrop = heroBackdrop,
                         )
                         GlassIconButton(
                             onClick = { showApply = true },
@@ -344,21 +341,21 @@ fun WallpaperDetailScreen(
                             icon = Icons.Rounded.Wallpaper,
                             tint = if (canApplyThisWallpaper) Aero.colors.accent else Aero.colors.textTertiary,
                             enabled = canApplyThisWallpaper,
-                            hazeState = heroHazeState,
+                            backdrop = heroBackdrop,
                         )
                         GlassIconButton(
                             onClick = { onAddToCollection(wallpaper) },
                             description = "Collection",
                             icon = Icons.Rounded.BookmarkAdd,
                             tint = Aero.colors.accent,
-                            hazeState = heroHazeState,
+                            backdrop = heroBackdrop,
                         )
                         GlassIconButton(
                             onClick = { onShare(wallpaper) },
                             description = "Share",
                             icon = Icons.Rounded.Share,
                             tint = Aero.colors.accent,
-                            hazeState = heroHazeState,
+                            backdrop = heroBackdrop,
                         )
                     }
 
@@ -547,7 +544,7 @@ fun WallpaperDetailScreen(
                 Text(state.error, modifier = Modifier.padding(horizontal = 5.dp), style = MaterialTheme.typography.bodySmall, color = Aero.colors.warning)
             }
             if (showInfo && (state.related.isNotEmpty() || relatedLoading)) {
-                GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), elevation = 3.dp, hazeState = heroHazeState) {
+                GlassPanel(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), elevation = 3.dp, backdrop = heroBackdrop) {
                     Column(Modifier.padding(13.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Related wallpapers", style = MaterialTheme.typography.titleSmall, color = Aero.colors.textPrimary)

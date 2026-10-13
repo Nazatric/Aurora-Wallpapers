@@ -68,49 +68,8 @@ PY
   fi
 }
 
-check_artic() {
-  printf 'Art Institute public-domain/Open Access API: '
-  local params
-  params=$(python3 - <<'PY'
-import json
-print(json.dumps({
-  "query": {"bool": {"must": [
-    {"term": {"is_public_domain": True}},
-    {"exists": {"field": "image_id"}},
-  ]}},
-  "limit": 3,
-  "page": 1,
-  "fields": "id,title,image_id,is_public_domain,artist_title",
-}, separators=(",", ":")))
-PY
-)
-  if ! curl --fail --silent --show-error --connect-timeout 10 --max-time 25 \
-    --get 'https://api.artic.edu/api/v1/artworks/search' \
-    --data-urlencode "params=$params" > "$work/artic.json"; then
-    echo 'UNAVAILABLE'
-    failures=$((failures + 1))
-    return
-  fi
-  if python3 - "$work/artic.json" <<'PY'
-import json, sys
-with open(sys.argv[1], encoding="utf-8") as file:
-    body = json.load(file)
-rows = body.get("data")
-assert isinstance(rows, list), "missing Art Institute data array"
-for row in rows:
-    assert row.get("is_public_domain") is True, f"non-public-domain record: {row.get('id')}"
-    assert row.get("image_id"), f"missing image identifier: {row.get('id')}"
-print(f"OK ({len(rows)} public-domain image records)")
-PY
-  then :; else
-    echo 'INVALID RESPONSE'
-    failures=$((failures + 1))
-  fi
-}
-
 check_wallhaven
 check_nasa_apod
-check_artic
 
 if (( failures > 0 )); then
   echo "$failures approved-provider check(s) were unavailable or invalid; other checks still ran." >&2

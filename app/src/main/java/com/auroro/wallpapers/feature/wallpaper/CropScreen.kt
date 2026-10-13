@@ -62,17 +62,14 @@ import com.auroro.wallpapers.core.design.Aero
 import com.auroro.wallpapers.core.design.GlassIconButton
 import com.auroro.wallpapers.core.design.GlassPanel
 import com.auroro.wallpapers.core.design.GlassPill
-import com.auroro.wallpapers.core.design.LocalAeroHazeState
-import com.auroro.wallpapers.core.design.isLiveGlassEnabled
+import com.auroro.wallpapers.core.design.recordAuroraBackdrop
+import com.auroro.wallpapers.core.design.rememberSolidBackdrop
 import com.auroro.wallpapers.app.ApplyPreparationUiState
 import com.auroro.wallpapers.core.model.Wallpaper
-import dev.chrisbanes.haze.ExperimentalHazeApi
-import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun CropScreen(
     wallpaper: Wallpaper?,
@@ -115,7 +112,7 @@ fun CropScreen(
     var viewportW by remember { mutableFloatStateOf(0f) }
     var viewportH by remember { mutableFloatStateOf(0f) }
     val density = LocalDensity.current
-    val hazeState = LocalAeroHazeState.current
+    val cropBackdrop = rememberSolidBackdrop(Color.Black)
     val crop by remember(width, height, viewportW, viewportH, scale, offsetX, offsetY) {
         derivedStateOf {
             if (viewportW <= 0f || viewportH <= 0f) NormalizedCrop(0f, 0f, 1f, 1f)
@@ -152,7 +149,7 @@ fun CropScreen(
                     contentDescription = "Full-screen crop preview of ${wallpaper?.source?.displayName ?: "saved"} wallpaper",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
-                        .then(if (hazeState != null && isLiveGlassEnabled()) Modifier.hazeSource(hazeState) else Modifier)
+                        .recordAuroraBackdrop(cropBackdrop)
                         .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offsetX; translationY = offsetY }
                         .pointerInput(imageUri, width, height, viewportWidthPx, viewportHeightPx) {
                             detectTransformGestures { _, pan, zoom, _ ->
@@ -198,12 +195,13 @@ fun CropScreen(
                 .fillMaxWidth(),
             shape = RoundedCornerShape(22.dp),
             elevation = 8.dp,
+            backdrop = cropBackdrop,
         ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                GlassIconButton(onClick = onBack, description = "Back", icon = Icons.Rounded.ArrowBack)
+                GlassIconButton(onClick = onBack, description = "Back", icon = Icons.Rounded.ArrowBack, backdrop = cropBackdrop)
                 Spacer(Modifier.width(11.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Text("Preview & crop", style = MaterialTheme.typography.titleMedium, color = Aero.colors.textPrimary)
@@ -230,6 +228,7 @@ fun CropScreen(
                 .fillMaxWidth(),
             shape = RoundedCornerShape(24.dp),
             elevation = 12.dp,
+            backdrop = cropBackdrop,
         ) {
             Column(
                 Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 10.dp),

@@ -16,8 +16,8 @@ android {
         applicationId = "com.auroro.wallpapers"
         minSdk = 29
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
     }
@@ -110,8 +110,7 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.haze.core)
-    implementation(libs.haze.glass)
+    implementation(libs.kyant.backdrop)
     implementation(libs.retrofit)
     implementation(libs.retrofit.serialization)
     implementation(libs.okhttp)

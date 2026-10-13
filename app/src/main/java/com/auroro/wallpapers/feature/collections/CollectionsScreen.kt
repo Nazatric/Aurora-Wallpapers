@@ -79,7 +79,7 @@ fun CollectionsScreen(
     var creating by remember { mutableStateOf(false) }
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 118.dp),
         verticalArrangement = Arrangement.spacedBy(13.dp),
     ) {
         item {

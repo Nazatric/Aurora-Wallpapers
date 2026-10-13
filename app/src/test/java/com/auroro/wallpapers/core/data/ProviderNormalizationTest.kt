@@ -13,12 +13,6 @@ import com.auroro.wallpapers.core.model.WallhavenCategory
 import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.UrlPolicy
-import com.auroro.wallpapers.core.network.artic.ArtInstituteApi
-import com.auroro.wallpapers.core.network.artic.ArtInstituteArtworkDto
-import com.auroro.wallpapers.core.network.artic.ArtInstituteIiifApi
-import com.auroro.wallpapers.core.network.artic.ArtInstitutePagination
-import com.auroro.wallpapers.core.network.artic.ArtInstituteSearchResponse
-import com.auroro.wallpapers.core.network.artic.IiifImageInfo
 import com.auroro.wallpapers.core.network.nasa.NasaApodApi
 import com.auroro.wallpapers.core.network.nasa.NasaApodDto
 import com.auroro.wallpapers.core.network.wallhaven.WallhavenTagDto
@@ -166,69 +160,6 @@ class ProviderNormalizationTest {
         assertFalse(LocalFilter.matches(page.items.single(), WallpaperFilter(orientation = Orientation.PORTRAIT)))
     }
 
-    @Test fun artInstituteQueryAndMappingRequirePublicDomainAndImageDimensions() = runTest {
-        val imageId = "12345678-abcd-1234-abcd-1234567890ab"
-        val api = FakeArtApi(
-            ArtInstituteSearchResponse(
-                data = listOf(
-                    ArtInstituteArtworkDto(
-                        id = 123,
-                        title = "Blue Waters",
-                        imageId = imageId,
-                        isPublicDomain = true,
-                        artistTitle = "Sample Artist",
-                        dateDisplay = "1900",
-                        artworkTypeTitle = "Painting",
-                        subjectTitles = listOf("Water", "Landscape"),
-                    ),
-                    ArtInstituteArtworkDto(
-                        id = 456,
-                        title = "Copyrighted work",
-                        imageId = "abcdef12-abcd-1234-abcd-1234567890ab",
-                        isPublicDomain = false,
-                    ),
-                ),
-                pagination = ArtInstitutePagination(currentPage = 1, totalPages = 2, limit = 12),
-            ),
-        )
-        val iiif = FakeIiifApi(mapOf(imageId to IiifImageInfo(width = 3000, height = 4000)))
-        val provider = ArtInstituteProvider(api, iiif)
-        val page = provider.fetchPage(FeedRequest(query = "blue water"), PageCursor())
-
-        val params = Json.parseToJsonElement(api.lastParams!!).jsonObject
-        assertEquals("blue water", params["q"]?.jsonPrimitive?.content)
-        assertEquals("1", params["page"]?.jsonPrimitive?.content)
-        assertEquals(1, iiif.calls.size)
-        assertEquals(imageId, iiif.calls.single())
-        assertEquals(1, page.items.size)
-        assertEquals(PageCursor(2), page.next)
-
-        val item = page.items.single()
-        assertEquals(WallpaperSource.ART_INSTITUTE, item.source)
-        assertEquals("123", item.sourceId)
-        assertEquals("Blue Waters", item.title)
-        assertEquals("Sample Artist", item.creatorName)
-        assertEquals(3000, item.width)
-        assertEquals(4000, item.height)
-        assertEquals("CC0-1.0", item.licenseCode)
-        assertEquals("https://www.artic.edu/artworks/123", item.pageUrl)
-        assertEquals("https://www.artic.edu/iiif/2/$imageId/full/max,/0/default.jpg", item.originalUrl)
-        assertTrue(item.downloadAllowed)
-        assertTrue(item.setWallpaperAllowed)
-        assertTrue(LocalFilter.matches(item, WallpaperFilter(orientation = Orientation.PORTRAIT)))
-        assertFalse(LocalFilter.matches(item, WallpaperFilter(orientation = Orientation.LANDSCAPE)))
-    }
-
-    @Test fun artInstituteParamsEnforceTheOpenAccessRightsBoundary() {
-        val json = Json.parseToJsonElement(ArtInstituteProvider.buildParams(FeedRequest(query = "forest"), 3)).jsonObject
-        assertEquals("forest", json["q"]?.jsonPrimitive?.content)
-        assertEquals("3", json["page"]?.jsonPrimitive?.content)
-        val clauses = json["query"]!!.jsonObject["bool"]!!.jsonObject["must"]!!.toString()
-        assertTrue(clauses.contains("is_public_domain"))
-        assertTrue(clauses.contains("image_id"))
-        assertTrue(clauses.contains("true"))
-    }
-
     @Test fun urlsAreRestrictedToCurrentProviderApiAndMediaHosts() {
         assertFalse(UrlPolicy.isAllowedForNetwork("http://wallhaven.cc/api/v1/search"))
         assertFalse(UrlPolicy.isAllowedForNetwork("https://wallhaven.cc.evil.example/image.jpg"))
@@ -315,22 +246,6 @@ class ProviderNormalizationTest {
         }
 
         override suspend fun byDate(nasaDate: String) = items.first()
-    }
-
-    private class FakeArtApi(private val response: ArtInstituteSearchResponse) : ArtInstituteApi {
-        var lastParams: String? = null
-        override suspend fun search(params: String): ArtInstituteSearchResponse {
-            lastParams = params
-            return response
-        }
-    }
-
-    private class FakeIiifApi(private val dimensions: Map<String, IiifImageInfo>) : ArtInstituteIiifApi {
-        val calls = mutableListOf<String>()
-        override suspend fun imageInfo(imageId: String): IiifImageInfo {
-            calls += imageId
-            return dimensions[imageId] ?: IiifImageInfo()
-        }
     }
 
     private fun apod(

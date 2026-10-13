@@ -79,7 +79,7 @@ fun FilterScreen(
     val onlyWallhaven = activeSources == setOf(WallpaperSource.WALLHAVEN)
     val sortChoices = buildList {
         if (activeSources.isNotEmpty()) add(SortOption.SOURCE_DEFAULT)
-        if (query.isNotBlank() && activeSources.any { it == WallpaperSource.WALLHAVEN || it == WallpaperSource.ART_INSTITUTE }) {
+        if (query.isNotBlank() && WallpaperSource.WALLHAVEN in activeSources) {
             add(SortOption.RELEVANCE)
         }
         if (query.isBlank() && activeSources.any { it == WallpaperSource.WALLHAVEN || it == WallpaperSource.NASA_APOD }) {

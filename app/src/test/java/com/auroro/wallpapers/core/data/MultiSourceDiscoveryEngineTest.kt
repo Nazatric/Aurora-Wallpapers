@@ -17,21 +17,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MultiSourceDiscoveryEngineTest {
-    @Test fun failedSearchSourceDoesNotBlockAicOrUnknownDimensionViewOnlyApod() = runTest {
+    @Test fun failedSearchSourceDoesNotBlockUnknownDimensionViewOnlyApod() = runTest {
         val session = session("abstract-geometry")
         val wallhaven = FakeProvider(WallpaperSource.WALLHAVEN) { _, _ ->
             throw ProviderException(ProviderErrorKind.NO_NETWORK, "Wallhaven is unreachable.")
-        }
-        val aic = FakeProvider(WallpaperSource.ART_INSTITUTE) { request, _ ->
-            assertEquals(setOf(WallpaperSource.ART_INSTITUTE), request.filter.sources)
-            assertEquals(SortOption.RELEVANCE, request.filter.sort)
-            ProviderPage(
-                items = listOf(
-                    image(WallpaperSource.ART_INSTITUTE, "aic-1", tags = listOf(WallpaperTag(null, "geometric"))),
-                    image(WallpaperSource.ART_INSTITUTE, "aic-2", tags = emptyList()),
-                ),
-                next = null,
-            )
         }
         val apod = FakeProvider(WallpaperSource.NASA_APOD) { request, cursor ->
             assertEquals(setOf(WallpaperSource.NASA_APOD), request.filter.sources)
@@ -42,25 +31,19 @@ class MultiSourceDiscoveryEngineTest {
         }
         val progress = mutableListOf<MultiSourceDiscoveryProgress>()
         val engine = MultiSourceDiscoveryEngine(
-            searchEngines = listOf(
-                DiscoveryEngine(wallhaven, MemoryDiscoveryPoolStore()),
-                DiscoveryEngine(aic, MemoryDiscoveryPoolStore(), maxRequestsPerSession = 1),
-            ),
+            searchEngines = listOf(DiscoveryEngine(wallhaven, MemoryDiscoveryPoolStore())),
             archiveProviders = listOf(apod),
         )
 
         val result = engine.discover(session, generation = 42L, preferences = AppSettings()) { progress += it }
 
-        assertEquals(listOf(WallpaperSource.WALLHAVEN, WallpaperSource.ART_INSTITUTE, WallpaperSource.NASA_APOD),
+        assertEquals(listOf(WallpaperSource.WALLHAVEN, WallpaperSource.NASA_APOD),
             result.statuses.map { it.source })
         assertTrue(result.statuses[0].state is SourceState.Failed)
         assertTrue(result.statuses[1].state is SourceState.Ok)
-        assertTrue(result.statuses[2].state is SourceState.Ok)
-        assertEquals(listOf("aic-1", "2026-10-12", "aic-2"), result.items.map { it.sourceId })
-        assertEquals(listOf(WallpaperSource.ART_INSTITUTE, WallpaperSource.NASA_APOD, WallpaperSource.ART_INSTITUTE),
-            result.items.map { it.source })
-        assertEquals(1, result.sections.size)
-        assertEquals("abstract-geometry", result.sections.single().identity.recipeId)
+        assertEquals(listOf("2026-10-12"), result.items.map { it.sourceId })
+        assertEquals(listOf(WallpaperSource.NASA_APOD), result.items.map { it.source })
+        assertEquals(0, result.sections.size)
         val apodItem = result.items.single { it.source == WallpaperSource.NASA_APOD }
         assertEquals(0, apodItem.width)
         assertEquals(0, apodItem.height)
@@ -68,13 +51,12 @@ class MultiSourceDiscoveryEngineTest {
         assertFalse(apodItem.setWallpaperAllowed)
         assertEquals(1, result.archiveResults.single().providerItemsReceived)
         assertTrue(result.message()!!.contains("Wallhaven"))
-        assertTrue(result.message()!!.contains("showing 3 available images"))
+        assertTrue(result.message()!!.contains("showing 1 available images"))
         assertTrue(progress.isNotEmpty())
         assertTrue(progress.all { it.sessionId == session.sessionId && it.generation == 42L })
         assertFalse(progress.last().loading)
         assertEquals(result.items.map { it.key }, progress.last().items.map { it.key })
         assertEquals(1, wallhaven.requests.size)
-        assertEquals(1, aic.requests.size)
         assertEquals(1, apod.requests.size)
     }
 
@@ -109,18 +91,17 @@ class MultiSourceDiscoveryEngineTest {
         val disabled = SourceAvailability.DisabledByUser("Turned off for test")
         val providers = listOf(
             FakeProvider(WallpaperSource.WALLHAVEN, disabled) { _, _ -> error("Disabled source must not be queried") },
-            FakeProvider(WallpaperSource.ART_INSTITUTE, disabled) { _, _ -> error("Disabled source must not be queried") },
             FakeProvider(WallpaperSource.NASA_APOD, disabled) { _, _ -> error("Disabled source must not be queried") },
         )
         val engine = MultiSourceDiscoveryEngine(
-            searchEngines = providers.take(2).map { DiscoveryEngine(it, MemoryDiscoveryPoolStore()) },
-            archiveProviders = providers.drop(2),
+            searchEngines = providers.take(1).map { DiscoveryEngine(it, MemoryDiscoveryPoolStore()) },
+            archiveProviders = providers.drop(1),
         )
 
         val result = engine.discover(session("abstract-geometry"), generation = 3L, preferences = AppSettings())
 
         assertTrue(result.items.isEmpty())
-        assertEquals(3, result.statuses.size)
+        assertEquals(2, result.statuses.size)
         assertTrue(result.statuses.all { it.state is SourceState.Skipped })
         assertTrue(result.message()!!.contains("Turn on at least one catalogue"))
         assertTrue(providers.all { it.requests.isEmpty() })

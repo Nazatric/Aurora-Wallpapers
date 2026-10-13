@@ -15,7 +15,6 @@ object SearchSourceSelection {
         val normalizedQuery = query.trim()
         val wallhavenOnly = selected == setOf(WallpaperSource.WALLHAVEN)
         val nasaOnly = selected == setOf(WallpaperSource.NASA_APOD)
-        val artOnly = selected == setOf(WallpaperSource.ART_INSTITUTE)
         return when {
             selected.isEmpty() -> current.copy(
                 sources = emptySet(),
@@ -31,16 +30,6 @@ object SearchSourceSelection {
             nasaOnly -> current.copy(
                 sources = selected,
                 sort = if (normalizedQuery.isEmpty() && current.sort !in setOf(SortOption.SOURCE_DEFAULT, SortOption.NEWEST)) {
-                    SortOption.SOURCE_DEFAULT
-                } else current.sort,
-                wallhavenCategories = emptySet(),
-                colorHex = null,
-            )
-            artOnly -> current.copy(
-                sources = selected,
-                sort = if (normalizedQuery.isEmpty()) {
-                    SortOption.SOURCE_DEFAULT
-                } else if (current.sort !in setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE)) {
                     SortOption.SOURCE_DEFAULT
                 } else current.sort,
                 wallhavenCategories = emptySet(),

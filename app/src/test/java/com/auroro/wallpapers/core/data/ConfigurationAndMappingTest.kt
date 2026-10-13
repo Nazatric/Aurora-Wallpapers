@@ -225,7 +225,6 @@ class ConfigurationAndMappingTest {
                 cacheLimitMb = 500,
                 wallhavenEnabled = false,
                 nasaApodEnabled = false,
-                artInstituteEnabled = true,
             )
         }
         val saved = settings.current()
@@ -242,6 +241,5 @@ class ConfigurationAndMappingTest {
         assertEquals(500, saved.cacheLimitMb)
         assertFalse(saved.wallhavenEnabled)
         assertFalse(saved.nasaApodEnabled)
-        assertTrue(saved.artInstituteEnabled)
     }
 }

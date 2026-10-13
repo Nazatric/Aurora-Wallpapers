@@ -41,7 +41,7 @@ fun SourcesScreen(
 ) {
     LazyColumn(
         Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 118.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item { HeaderBar("Sources", "Real catalogues, clear source policies", onBack = onBack) }
@@ -80,16 +80,13 @@ fun SourcesScreen(
             )
         }
         item {
-            SourceCard(
+            StaticSourceCard(
                 source = WallpaperSource.ART_INSTITUTE,
-                enabled = settings.artInstituteEnabled,
-                onToggle = { onToggle(WallpaperSource.ART_INSTITUTE, it) },
-                description = "Open Access artworks · API restricted to public-domain records.",
-                detail = "Attribution and CC0 terms are retained per artwork. Exact IIIF image dimensions power orientation and ratio filters.",
+                status = "Retired in 1.3.0 · records repeatedly arrived without usable image dimensions",
+                detail = "The catalogue kept returning metadata-only results that rendered as 'Preview unavailable' tiles, so it no longer appears in Home, Search or discovery. Artworks saved before retirement keep their CC0 attribution offline.",
                 docsLabel = "API and Open Access",
                 docsUrl = "https://api.artic.edu/docs/",
                 onOpen = onOpen,
-                onSearch = { onSearch(WallpaperSource.ART_INSTITUTE) },
             )
         }
         item {

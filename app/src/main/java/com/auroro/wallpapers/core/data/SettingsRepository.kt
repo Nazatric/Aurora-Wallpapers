@@ -34,8 +34,8 @@ enum class FontChoice(val label: String, val description: String) {
     SYSTEM("System", "Use the Android default typeface"),
 }
 enum class GlassQuality(val label: String, val description: String) {
-    FULL("Full glass", "Haze refraction, highlights and depth"),
-    BALANCED("Balanced", "Source-aware glass at Haze's balanced quality"),
+    FULL("Full glass", "Liquid glass with lens refraction, highlights and depth"),
+    BALANCED("Balanced", "Frosted live glass without the refraction shader"),
     REDUCED("Reduced effects", "Opaque material with no live glass rendering"),
 }
 
@@ -86,7 +86,6 @@ data class AppSettings(
     val notifyResult: Boolean = true,
     val wallhavenEnabled: Boolean = true,
     val nasaApodEnabled: Boolean = true,
-    val artInstituteEnabled: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_CACHE_MB = 250
@@ -363,7 +362,8 @@ class SettingsRepository(
             prefs[NOTIFY_RESULT] = next.notifyResult
             prefs[WALLHAVEN_ON] = next.wallhavenEnabled
             prefs[NASA_APOD_ON] = next.nasaApodEnabled
-            prefs[ART_INSTITUTE_ON] = next.artInstituteEnabled
+            // Retired with the Art Institute source (1.3.0); drop the stale toggle.
+            prefs.remove(ART_INSTITUTE_ON)
             prefs.remove(LEGACY_RETIRED_PROVIDER_ENABLED)
             prefs.remove(LEGACY_DOWNLOAD_QUALITY)
         }
@@ -421,7 +421,6 @@ class SettingsRepository(
             notifyResult = this[NOTIFY_RESULT] ?: defaults.notifyResult,
             wallhavenEnabled = this[WALLHAVEN_ON] ?: defaults.wallhavenEnabled,
             nasaApodEnabled = this[NASA_APOD_ON] ?: defaults.nasaApodEnabled,
-            artInstituteEnabled = this[ART_INSTITUTE_ON] ?: defaults.artInstituteEnabled,
         )
     }
 

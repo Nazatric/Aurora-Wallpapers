@@ -13,14 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.DesignTheme
-import com.auroro.wallpapers.core.data.GlassQuality
 import com.auroro.wallpapers.core.data.ThemeMode
-import dev.chrisbanes.haze.ExperimentalHazeApi
-import dev.chrisbanes.haze.HazePerformanceMode
-import dev.chrisbanes.haze.LocalHazePerformanceMode
-import dev.chrisbanes.haze.rememberHazeState
-import dev.chrisbanes.haze.glass.GlassAccessibilitySettings
-import dev.chrisbanes.haze.glass.LocalGlassAccessibilitySettings
 
 /** Pure resolver for the basic appearance control; SYSTEM always observes Compose's live system value. */
 internal fun resolveDarkMode(mode: ThemeMode, systemIsDark: Boolean): Boolean = when (mode) {
@@ -53,7 +46,6 @@ private fun shapesFor(theme: DesignTheme) = when (theme) {
     )
 }
 
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -> Unit) {
     // isSystemInDarkTheme is a Compose state read, so changes while Follow system is selected
@@ -78,7 +70,6 @@ fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -
     }
     val context = LocalContext.current
     val reducedMotion = remember { Motion.reducedMotion(context) }
-    val hazeState = rememberHazeState()
     val scheme = if (dark) {
         darkColorScheme(
             primary = colors.accent,
@@ -110,17 +101,10 @@ fun AuroroTheme(settings: AppSettings = AppSettings(), content: @Composable () -
             outline = colors.glassRimDark,
         )
     }
-    val hazePerformance = when (settings.glassQuality) {
-        GlassQuality.FULL -> HazePerformanceMode.Quality
-        GlassQuality.BALANCED -> HazePerformanceMode.Balanced
-        GlassQuality.REDUCED -> HazePerformanceMode.Performance
-    }
     CompositionLocalProvider(
         LocalAero provides colors,
         LocalReducedMotion provides reducedMotion,
-        LocalAeroHazeState provides hazeState,
-        LocalHazePerformanceMode provides hazePerformance,
-        LocalGlassAccessibilitySettings provides GlassAccessibilitySettings(
+        LocalGlassAccessibility provides AeroGlassAccessibility(
             reduceTransparency = settings.reduceTransparency,
             increaseContrast = settings.increaseContrast,
             showBorders = settings.increaseContrast || settings.reduceTransparency,

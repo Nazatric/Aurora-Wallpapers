@@ -92,7 +92,7 @@ fun WallpaperGrid(
         columns = StaggeredGridCells.Adaptive(minSize = 148.dp),
         state = state,
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 5.dp, bottom = 18.dp),
+        contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 5.dp, bottom = 118.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalItemSpacing = 10.dp,
     ) {

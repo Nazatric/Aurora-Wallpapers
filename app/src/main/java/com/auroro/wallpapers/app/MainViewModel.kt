@@ -122,6 +122,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     private var pager: FeedPager? = null
     private var feedJob: Job? = null
     private var feedPreparationJob: Job? = null
+    private var discoveryContinuationJob: Job? = null
+    private var consecutiveEmptyContinuations = 0
     private var activeFeedScope = FeedScope.HOME
     private var feedInitialized = false
     private val feedSessions = FeedSessionCache()
@@ -170,7 +172,6 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     private fun AppSettings.enabledSources(): Set<WallpaperSource> = buildSet {
         if (wallhavenEnabled) add(WallpaperSource.WALLHAVEN)
         if (nasaApodEnabled) add(WallpaperSource.NASA_APOD)
-        if (artInstituteEnabled) add(WallpaperSource.ART_INSTITUTE)
     }
 
     fun openHome(
@@ -277,6 +278,9 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         recentlySeenKeys: Set<String>,
     ) {
         feedJob?.cancel()
+        discoveryContinuationJob?.cancel()
+        discoveryContinuationJob = null
+        consecutiveEmptyContinuations = 0
         pager = null
         activeFeedScope = FeedScope.HOME
         currentTab = HomeTab.FOR_YOU
@@ -297,7 +301,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
             items = safeInitial,
             loading = true,
             initialLoadFinished = safeInitial.isNotEmpty(),
-            endReached = true,
+            endReached = safeInitial.isEmpty(),
             forYouLabel = "Multi-source discovery",
             discoverySession = session,
             discoveryRotationEnabled = prefs.rotateDiscoveryHourly,
@@ -321,7 +325,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                             items = visibleItems,
                             loading = progress.loading,
                             initialLoadFinished = visibleItems.isNotEmpty() || current.initialLoadFinished,
-                            endReached = true,
+                            endReached = visibleItems.isEmpty(),
                             pageError = null,
                             discoveryValidatedRecipeCount = progress.sections.size,
                             cacheNotice = if (progress.sections.any { it.fromCache }) "Restoring validated on-device results…" else null,
@@ -348,7 +352,7 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
                     statuses = result.statuses,
                     loading = false,
                     initialLoadFinished = true,
-                    endReached = true,
+                    endReached = finalItems.isEmpty(),
                     pageError = message.takeIf { hasError },
                     appendCount = if (finalItems.isNotEmpty()) 1 else 0,
                     forYouLabel = "Multi-source discovery",
@@ -515,6 +519,8 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
         feedPreparationJob = null
         feedJob?.cancel()
         feedJob = null
+        discoveryContinuationJob?.cancel()
+        discoveryContinuationJob = null
         discoveryGeneration.begin()
         activeFeedScope = scope
         feedInitialized = true
@@ -534,18 +540,121 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
     }
 
     fun loadMore() {
-        if (_feed.value.loading || _feed.value.endReached || _feed.value.discoverySession != null) return
+        val state = _feed.value
+        if (state.loading) return
+        if (state.discoverySession != null) {
+            // For You is a planned mix, not a keyed pager: continuation fetches the next
+            // discovery batch (fresh recipes, already-seen keys excluded) and appends it.
+            if (activeFeedScope == FeedScope.HOME && currentTab == HomeTab.FOR_YOU &&
+                !state.endReached && state.items.isNotEmpty()
+            ) {
+                continueDiscoveryFeed()
+            }
+            return
+        }
+        if (state.endReached) return
         if (pager == null) {
-            startFeed(_feed.value.request, _feed.value.forYouLabel, activeFeedScope)
+            startFeed(state.request, state.forYouLabel, activeFeedScope)
             return
         }
         feedJob = viewModelScope.launch { loadPage() }
+    }
+
+    /**
+     * Appends another discovery batch to the visible For You mix. The session identity shown to
+     * the UI stays the same (grid scroll state keys off it); only the engine receives the freshly
+     * planned batch session. Existing items are preserved even when the batch fails, and the feed
+     * only declares itself finished after [MAX_EMPTY_CONTINUATIONS] consecutive batches fail to
+     * add a single new, unseen wallpaper.
+     */
+    private fun continueDiscoveryFeed() {
+        val base = _feed.value
+        val session = base.discoverySession ?: return
+        if (discoveryContinuationJob?.isActive == true) return
+        if (activeFeedScope != FeedScope.HOME || currentTab != HomeTab.FOR_YOU) return
+        _feed.value = base.copy(loading = true, pageError = null)
+        discoveryContinuationJob = viewModelScope.launch {
+            val generation = discoveryGeneration.current()
+            try {
+                val prefs = app.settings.current()
+                val now = System.currentTimeMillis()
+                val excludeKeys = _feed.value.items.mapTo(hashSetOf()) { it.key }
+                val seen = if (prefs.avoidRecentlySeen) {
+                    app.discoveryCache.recentlySeen(now, prefs.repeatAfterHours)
+                } else emptySet()
+                val recentRecipeIds = app.discoveryPools
+                    .recentlyUsedRecipeIds(now, prefs.repeatAfterHours) + session.candidateRecipeIds
+                val batchSession = DiscoverySessionPlanner.newRandomSession(
+                    nowMillis = now,
+                    rotateHourly = false,
+                    refreshOrdinal = session.refreshOrdinal,
+                    recentRecipeIds = recentRecipeIds,
+                    preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.preferredDiscoveryStyleIds),
+                    excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
+                )
+                app.discoveryPools.recordSessionRecipeIds(batchSession.candidateRecipeIds, now)
+                val result = app.discoveryEngine.discover(
+                    session = batchSession,
+                    generation = generation,
+                    preferences = prefs,
+                    recentlySeenKeys = seen + excludeKeys,
+                )
+                if (!isCurrentDiscovery(session.sessionId, generation)) return@launch
+                val current = _feed.value
+                val fresh = result.items.filterNot { it.key in excludeKeys }
+                if (fresh.isNotEmpty()) {
+                    consecutiveEmptyContinuations = 0
+                    app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+                    _feed.value = current.copy(
+                        items = current.items + fresh,
+                        statuses = result.statuses,
+                        loading = false,
+                        initialLoadFinished = true,
+                        endReached = false,
+                        pageError = null,
+                        appendCount = current.appendCount + 1,
+                        discoveryValidatedRecipeCount = current.discoveryValidatedRecipeCount + result.sections.size,
+                        cacheNotice = null,
+                    )
+                } else {
+                    consecutiveEmptyContinuations += 1
+                    val exhausted = consecutiveEmptyContinuations >= MAX_EMPTY_CONTINUATIONS
+                    _feed.value = current.copy(
+                        statuses = result.statuses,
+                        loading = false,
+                        initialLoadFinished = true,
+                        endReached = exhausted,
+                        pageError = if (exhausted) null else result.message()
+                            ?: "That pass added nothing new. Scroll again or load a different mix.",
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Throwable) {
+                if (isCurrentDiscovery(session.sessionId, generation)) {
+                    consecutiveEmptyContinuations += 1
+                    val exhausted = consecutiveEmptyContinuations >= MAX_EMPTY_CONTINUATIONS
+                    _feed.value = _feed.value.copy(
+                        loading = false,
+                        endReached = exhausted,
+                        pageError = if (exhausted) null else failure.message ?: "Could not load more images.",
+                    )
+                }
+            }
+        }
     }
 
     fun retryFeed() {
         val current = _feed.value
         val discoverySession = current.discoverySession
         if (discoverySession != null) {
+            if (current.items.isNotEmpty()) {
+                // Keep the already-loaded mix and retry by appending another batch instead of
+                // throwing away what the user has scrolled through.
+                consecutiveEmptyContinuations = 0
+                continueDiscoveryFeed()
+                return
+            }
             val expectedGeneration = discoveryGeneration.current()
             viewModelScope.launch {
                 val preferences = app.settings.current()
@@ -899,6 +1008,13 @@ class MainViewModel(val app: AppContainer) : ViewModel() {
 
     companion object {
         const val APPLY_DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000L
+
+        /**
+         * How many consecutive For You continuation batches may add nothing new before the feed
+         * reports a genuine end. Bounds retries so a cooling-down or exhausted catalogue cannot
+         * loop forever, while a single empty pass never truncates an otherwise healthy mix.
+         */
+        const val MAX_EMPTY_CONTINUATIONS = 2
     }
 }
 

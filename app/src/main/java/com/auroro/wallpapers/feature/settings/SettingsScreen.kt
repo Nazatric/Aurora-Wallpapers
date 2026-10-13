@@ -78,7 +78,7 @@ fun SettingsScreen(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 118.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         item { HeaderBar("Settings", "Personalise your wallpaper space", onMenu = onMenu) }

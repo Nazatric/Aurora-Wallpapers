@@ -47,7 +47,7 @@ fun CategoriesScreen(onMenu: () -> Unit, onSearch: (String) -> Unit) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 158.dp),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 20.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 118.dp),
             horizontalArrangement = Arrangement.spacedBy(11.dp),
             verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {

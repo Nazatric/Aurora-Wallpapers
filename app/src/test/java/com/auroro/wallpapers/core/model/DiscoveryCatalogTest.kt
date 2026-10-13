@@ -11,17 +11,12 @@ class DiscoveryCatalogTest {
     @Test fun catalogueHasAtLeastEightyDistinctProviderMappedRecipes() {
         assertTrue(DiscoveryCatalog.recipes.size >= 80)
         assertEquals(DiscoveryCatalog.recipes.size, DiscoveryCatalog.allIds.size)
-        assertEquals(
-            setOf("abstract-geometry", "botanical-illustration", "celestial-art", "stained-glass-art", "art-nouveau-botanical", "scientific-illustration"),
-            DiscoveryCatalog.artInstituteRecipeIds,
-        )
+        // The Art Institute lane was retired in 1.3.0; no recipe may map it anymore.
+        assertTrue(DiscoveryCatalog.recipes.none { WallpaperSource.ART_INSTITUTE in it.sourceQueries })
         DiscoveryCatalog.recipes.forEach { recipe ->
             assertTrue(recipe.id.matches(Regex("[a-z0-9][a-z0-9-]*")))
             assertTrue(WallpaperSource.WALLHAVEN in recipe.sourceQueries)
             assertTrue(recipe.sourceQueries.getValue(WallpaperSource.WALLHAVEN).phrases.all(String::isNotBlank))
-            recipe.sourceQueries[WallpaperSource.ART_INSTITUTE]?.let { query ->
-                assertTrue(query.phrases.isNotEmpty() && query.phrases.all(String::isNotBlank))
-            }
         }
     }
 
@@ -44,7 +39,6 @@ class DiscoveryCatalogTest {
         assertNotEquals(first.candidateRecipeIds, next.candidateRecipeIds)
         assertEquals(12, first.candidateRecipeIds.size)
         assertTrue(first.recipes.map { it.family }.distinct().size >= 8)
-        assertTrue(first.recipes.any { WallpaperSource.ART_INSTITUTE in it.sourceQueries })
         assertEquals(DiscoveryRotation.bucketAt(now), first.hourBucket)
     }
 
@@ -59,17 +53,6 @@ class DiscoveryCatalogTest {
         )
         assertTrue(session.candidateRecipeIds.none { it in recent })
         assertTrue(session.candidateRecipeIds.none { it in excluded })
-    }
-
-    @Test fun recentHistoryCannotSilentlyRemoveEveryMappedMuseumSearch() {
-        val museumRecipeIds = DiscoveryCatalog.artInstituteRecipeIds
-        assertTrue(museumRecipeIds.isNotEmpty())
-        val session = DiscoverySessionPlanner.newSession(
-            seed = 31L,
-            nowMillis = 1_800_000_000_000L,
-            recentRecipeIds = museumRecipeIds,
-        )
-        assertTrue(session.candidateRecipeIds.any { it in museumRecipeIds })
     }
 
     @Test fun eachLargeSessionIncludesANonrecentQualityAnchorAndStillVariesItsMix() {

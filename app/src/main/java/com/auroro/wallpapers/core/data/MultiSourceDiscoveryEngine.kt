@@ -89,7 +89,7 @@ data class MultiSourceDiscoveryResult(
 
 /**
  * Runs one query engine per searchable catalogue plus explicit archive lanes. A source failure is
- * isolated; Wallhaven, AIC and NASA never inherit one another's query syntax, rights or dimensions.
+ * isolated; Wallhaven and NASA never inherit one another's query syntax, rights or dimensions.
  */
 class MultiSourceDiscoveryEngine(
     private val searchEngines: List<DiscoveryEngine>,
@@ -105,7 +105,9 @@ class MultiSourceDiscoveryEngine(
         require(sourceOrder.size == searchEngines.size + archiveProviders.size) {
             "A source can have only one discovery lane in a session."
         }
-        require(searchEngines.all { it.source in setOf(WallpaperSource.WALLHAVEN, WallpaperSource.ART_INSTITUTE) })
+        require(searchEngines.all { it.source == WallpaperSource.WALLHAVEN }) {
+            "Wallhaven is the only searchable catalogue since the Art Institute lane was retired."
+        }
         require(archiveProviders.all { it.source == WallpaperSource.NASA_APOD }) {
             "Only the dated NASA APOD archive is currently configured as a non-keyword lane."
         }
@@ -142,10 +144,7 @@ class MultiSourceDiscoveryEngine(
                     val eligible = session.candidateRecipeIds.filter { id ->
                         DiscoveryCatalog.find(id)?.sourceQueries?.containsKey(engine.source) == true
                     }
-                    // AIC metadata lookups are per image; one actual museum search is enough for a
-                    // bounded discovery pass and avoids multiplying IIIF traffic across 88 recipes.
-                    val sourceRecipeIds = if (engine.source == WallpaperSource.ART_INSTITUTE) eligible.take(1) else eligible
-                    val sourceSession = session.copy(candidateRecipeIds = sourceRecipeIds)
+                    val sourceSession = session.copy(candidateRecipeIds = eligible)
                     val result = try {
                         engine.discover(sourceSession, generation, preferences, recentlySeenKeys) { progress ->
                             updatePreview(engine.source, progress.sections, progress.items)

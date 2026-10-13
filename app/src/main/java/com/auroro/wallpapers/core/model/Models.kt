@@ -6,6 +6,12 @@ import androidx.compose.runtime.Immutable
 enum class WallpaperSource(val id: String, val displayName: String, val siteUrl: String) {
     WALLHAVEN("wallhaven", "Wallhaven", "https://wallhaven.cc"),
     NASA_APOD("nasa-apod", "NASA APOD", "https://science.nasa.gov/apod/"),
+    /**
+     * Retired in 1.3.0: the catalogue's search results repeatedly arrived without image
+     * dimensions or displayable files ("Preview unavailable" tiles) and contributed no usable
+     * discovery results. The enum entry stays so previously saved records keep their CC0
+     * attribution; the provider, API client and discovery lane are removed.
+     */
     ART_INSTITUTE("art-institute", "Art Institute of Chicago", "https://www.artic.edu/"),
     /** Approved in principle; hidden until official Reddit API authorization is available. */
     REDDIT("reddit", "Reddit", "https://www.reddit.com/"),
@@ -17,7 +23,7 @@ enum class WallpaperSource(val id: String, val displayName: String, val siteUrl:
     val isIntegrated: Boolean get() = this in integrated
 
     companion object {
-        val integrated: List<WallpaperSource> = listOf(WALLHAVEN, NASA_APOD, ART_INSTITUTE)
+        val integrated: List<WallpaperSource> = listOf(WALLHAVEN, NASA_APOD)
         fun fromId(id: String): WallpaperSource? = entries.firstOrNull { it.id == id }
     }
 }

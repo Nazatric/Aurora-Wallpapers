@@ -1,6 +1,24 @@
 # Changelog
 
-Notable changes to Auroro Wallpapers are recorded here. Version 1.2.0 is prepared but is **not a published production release**; production distribution requires a configured signing key and verified release APK. The published `v1.0.0` and `v1.1.0` releases predate this Compose rebuild and shipped debug artifacts; `1.2.0` continues from `v1.1.0` and retires the earlier internal `0.1` version plan without ever tagging it.
+Notable changes to Auroro Wallpapers are recorded here. `v1.0.0`, `v1.1.0` and `v1.2.0` shipped as debug-signed artifacts (the `v1.2.0` GitHub release is explicitly labelled "debug build"); production distribution still requires a configured signing key and verified release APK. `1.3.0` continues from `v1.2.0`.
+
+## [1.3.0] — pending CI verification (debug build)
+
+### Fixed
+
+- **For You no longer stops after the first batch.** The discovery mix previously hard-set `endReached` after one bounded pass — as few as 2 cards when providers were quiet — and `loadMore()` ignored discovery feeds entirely, so the grid silently ended with no spinner, no button and no error. Scrolling near the end now plans a fresh continuation batch (new recipes, already-shown and recently-seen keys excluded), appends only genuinely new validated wallpapers, and keeps the session identity stable so grid scroll position survives batches. Loaded items are preserved when a batch fails; retries are bounded — the feed reports an honest end only after two consecutive batches add nothing new, and Retry starts another batch instead of discarding the mix.
+- **"Preview unavailable" tiles eliminated at the source.** Art Institute of Chicago records repeatedly arrived with `0x0` dimensions and non-image categories (every CI discovery run logged AIC `usable=0` and search counts of 0), consumed a bounded discovery request slot per mix, and rendered as broken tiles in Search. AIC is retired: provider, API client, discovery lane, recipe mappings, settings toggle and search/source registration removed; the enum entry remains so previously saved records keep their CC0 attribution and stay readable. Visible grids now contain only Wallhaven (source-reported dimensions) and NASA APOD (view-only, honest unknown dimensions) results.
+
+### Changed
+
+- **Liquid glass on the Kyant0 backdrop engine (replaces Haze).** `io.github.kyant0:backdrop:2.0.1` (Apache-2.0) now renders live glass; the Haze dependencies are removed. Auroro's glue (`core/design/LiquidGlass.kt`) is clean-room: the GPL-3.0 BitChord app was studied for architecture only (page-level opaque recording, glass chrome mounted outside the recorded subtree, saturation → blur → lens stack) and no BitChord code is copied; the Frutiger Aero aqua tint and specular rims are kept. The bottom bar and drawer sheet sample one page-level recording of the NavHost (ambient gradient painted as its opaque base), detail/crop floating controls sample screen-local hero recordings, and pages now scroll behind the floating bar so the glass refracts real artwork. In-content panels keep the lightweight Aero treatment by design (no self-sampling, no per-card captures).
+- Glass quality semantics: **Full** = saturation lift + 12 dp blur + API-33 lens refraction; **Balanced** = blur/saturation without the refraction shader; **Reduced effects** or **Reduce transparency** = no capture at all with an opaque fallback. Blur requires API 31+, lens API 33+; older devices use the same fallback.
+- Scrollable screens carry their own bottom content padding (content flows behind the floating bar); the retired `art_institute_enabled` preference key is dropped on the next settings write.
+- Emulator smoke updated: a new deep-scroll assertion fails if For You ever reaches its end without attempting a continuation (or showing an explicit retry/end state); AIC search assertions were replaced with "retired source must not appear in Search choices"; the Sources screen now asserts the visible retired status card.
+
+### Verification status
+
+- Pending: unit tests, lint, debug/release assembly and the hosted-emulator UI smoke (with cold-start and `gfxinfo` frame metrics) will be recorded here once the CI run for this commit completes. No performance claim is made before those measurements exist.
 
 ## [1.2.0] — pending verification and signed release
 

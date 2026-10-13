@@ -86,7 +86,7 @@ fun OfflineScreen(
             LazyVerticalStaggeredGrid(
                 columns = StaggeredGridCells.Adaptive(164.dp),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 8.dp, bottom = 118.dp),
                 horizontalArrangement = Arrangement.spacedBy(11.dp),
                 verticalItemSpacing = 12.dp,
             ) {
@@ -120,7 +120,7 @@ fun OfflineScreen(
             val failed = rows.filter { it.download.status == DownloadStatus.FAILED.name || it.download.status == DownloadStatus.CANCELED.name }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 8.dp, bottom = 118.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item { HeaderBar("Download queue", "Active and interrupted original saves", onMenu = onMenu) }
@@ -152,7 +152,7 @@ fun OfflineScreen(
         OfflineTab.HISTORY -> {
             LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 15.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 8.dp, bottom = 118.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {

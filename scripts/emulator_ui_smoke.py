@@ -501,6 +501,57 @@ def main() -> None:
         REPORT["checks"].append({"name": "For You exposes an honest empty/error state when enabled sources return no cards", "result": "passed"})
     screenshot("01-home.png")
 
+    # 1.3.0 feed fix: the For You mix must keep loading on scroll (continuation batches)
+    # instead of silently stopping after the first bounded discovery pass.
+    if home_cards:
+        home_size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
+        hw, hh = map(int, home_size.groups()) if home_size else (1080, 2400)
+        seen_keys = set(home_cards)
+        continuation_seen = False
+        feed_error_seen = False
+        bottom_reached = False
+        previous_visible: set[str] = set()
+        for _ in range(10):
+            adb("shell", "input", "swipe", str(hw // 2), str(int(hh * 0.78)),
+                str(hw // 2), str(int(hh * 0.24)), "420")
+            time.sleep(2.0)
+            ui = dump_hierarchy()
+            if find_nodes(ui, text="Loading images…"):
+                continuation_seen = True
+                try:
+                    ui = wait_until(
+                        lambda x: not find_nodes(x, text="Loading images…"),
+                        "For You continuation batch settled", timeout=150,
+                    )
+                except AssertionError:
+                    REPORT["for_you_continuation_note"] = (
+                        "A continuation batch was still loading when the scroll budget expired."
+                    )
+                    break
+            if find_nodes(ui, description="Retry"):
+                feed_error_seen = True
+            visible = set(wallpaper_descriptions(ui))
+            seen_keys |= visible
+            if visible and visible == previous_visible and not find_nodes(ui, text="Loading images…"):
+                bottom_reached = True
+                break
+            previous_visible = visible
+        REPORT["for_you_distinct_seen"] = len(seen_keys)
+        if bottom_reached and not continuation_seen and not feed_error_seen:
+            raise AssertionError(
+                "For You reached its end without ever attempting a continuation batch; "
+                "the feed must keep loading on scroll or show an explicit retry/end state."
+            )
+        REPORT["checks"].append({
+            "name": "For You keeps loading on scroll (continuation batch, honest retry, or deep feed)",
+            "result": "passed",
+            "continuation_observed": continuation_seen,
+            "bottom_reached": bottom_reached,
+            "distinct_wallpapers_seen": len(seen_keys),
+        })
+        screenshot("01b-home-deep-scroll.png")
+        scroll_to_navigation_header(dump_hierarchy(), "Home")
+
     tap_text("Search", prefer_bottom=True)
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Subject, place, artist…")), "Search screen field", timeout=30)
     field = find_nodes(root, text="Subject, place, artist…")[0]
@@ -841,7 +892,9 @@ def main() -> None:
     else:
         REPORT["nasa_apod_note"] = "The app showed an honest APOD empty/error state; inspect its provider status and screenshot."
 
-    # Search a supported museum query and verify the item's retained CC0 status when available.
+    # Re-run a query so the combined All-sources check starts from an active search. The Art
+    # Institute of Chicago source was retired in 1.3.0 (metadata-only records produced
+    # "Preview unavailable" tiles); it must no longer appear as a selectable search source.
     search = scroll_to_navigation_header(dump_hierarchy(), "Search")
     query_fields = find_nodes(search, text="Subject, place, artist…")
     if not query_fields:
@@ -851,27 +904,8 @@ def main() -> None:
     wait_until(lambda ui: bool(find_nodes(ui, text="ocean")), "exact search query text", timeout=20)
     adb("shell", "input", "keyevent", "66")
     time.sleep(1)
-    search = scroll_horizontal_choice_into_view(
-        dump_hierarchy(),
-        "Art Institute of Chicago",
-        ("All", "Wallhaven", "NASA APOD", "Art Institute of Chicago"),
-    )
-    tap_text("Art Institute of Chicago", timeout=20)
-    artic_root = wait_for_feed_content("Art Institute public-domain search", timeout=120)
-    REPORT["art_institute_result_count"] = len(wallpaper_descriptions(artic_root))
-    screenshot("11-art-institute-search.png")
-    artic_tiles = wallpaper_nodes(artic_root)
-    if artic_tiles:
-        tap_node(clickable_target(artic_root, artic_tiles[0]))
-        artic_detail = wait_until(
-            lambda ui: bool(find_nodes(ui, text="Art Institute of Chicago"))
-            and bool(find_nodes(ui, text="CC0-1.0")),
-            "Art Institute detail retains CC0 attribution", timeout=60,
-        )
-        screenshot("12-art-institute-detail.png")
-        adb("shell", "input", "keyevent", "4")
-    else:
-        REPORT["art_institute_note"] = "The app showed an honest museum empty/error state; inspect its provider status and screenshot."
+    if find_nodes(dump_hierarchy(), text="Art Institute of Chicago"):
+        raise AssertionError("The retired Art Institute source must not appear in Search source choices")
 
     # Finally exercise All Sources and return to Home, keeping any provider failures visible in the report.
     search_size = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size").stdout)
@@ -1039,7 +1073,9 @@ def main() -> None:
         time.sleep(0.7)
         sources = dump_hierarchy()
     if not find_nodes(sources, text="Art Institute of Chicago"):
-        raise AssertionError("The Sources screen did not expose the Art Institute catalogue after scrolling")
+        raise AssertionError("The Sources screen did not expose the retired Art Institute status card after scrolling")
+    if not find_nodes(sources, text="Retired in 1.3.0", contains=True):
+        raise AssertionError("The Art Institute card must be visibly retired, not an enabled catalogue toggle")
     screenshot("26-source-settings.png")
     for _ in range(8):
         if find_nodes(sources, text="Paused · authorized API access is not configured"):

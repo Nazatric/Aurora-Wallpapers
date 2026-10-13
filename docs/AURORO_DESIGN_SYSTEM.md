@@ -5,7 +5,7 @@
 ## 1. Product and visual principles
 
 1. **The wallpaper is the product.** Artwork stays untinted and preserves source proportions. Chrome is quiet around image grids; provider, rights, dimensions, and actions appear on the detail page.
-2. **Glass must sample its backdrop.** Use the existing Haze source/effect path for foreground chrome where it improves hierarchy. A translucent fill or gradient by itself is not the glass treatment. Keep a high-contrast opaque fallback for accessibility, reduced rendering, and unsupported renderers.
+2. **Glass must sample its backdrop.** Use the existing Kyant0 backdrop recording/effect path for foreground chrome where it improves hierarchy. A translucent fill or gradient by itself is not the glass treatment. Keep a high-contrast opaque fallback for accessibility, reduced rendering, and unsupported renderers.
 3. **Three coherent design languages, two modes each.** Basic mode is `Follow system` (default), `Light`, or `Dark`. Independently choose `Material 3`, `Frutiger Aero`, or `Frutiger Zen`; fresh installs select Frutiger Aero to follow the supplied glass-forward direction. All three design languages use the selected mode; no design language silently overrides it.
 4. **Source truth over decoration.** Do not display fabricated result counts, image dimensions, attribution, license, or provider availability. Unknown metadata is labelled unknown or omitted. One failed catalogue must not blank working catalogues.
 5. **Access is part of the design.** Touch targets are at least 48 dp where practical, selected states are not colour-only, text scales with Android accessibility settings, focus is visible, and images have useful semantics.
@@ -27,7 +27,7 @@ The implementation stores semantic tokens in `core/design/Color.kt`. Figma/Penpo
 | Token | Use |
 |---|---|
 | `backdrop.top / mid / bottom` | Screen atmosphere behind cards; palette-specific and non-interactive |
-| `glass.tint` | Stable Haze tint, distinct from wallpaper art |
+| `glass.tint` | Stable glass tint, distinct from wallpaper art |
 | `glass.rim.light / dark` | Directional edge separation; never the only contrast cue |
 | `glass.highlight` | Restrained top-edge specular highlight |
 | `text.primary / secondary / tertiary` | Text hierarchy; confirm contrast in both modes |
@@ -39,7 +39,7 @@ The implementation stores semantic tokens in `core/design/Color.kt`. Figma/Penpo
 ### Design-theme directions
 
 - **Material 3:** neutral cool gray/lavender surface family, conventional elevation and control hierarchy; restrained indigo/blue seed, teal/green secondary. Light and dark use M3 surface contrast rather than a high-glow background.
-- **Frutiger Aero:** clear sky/cyan, fresh green, water-like glow and source-aware Haze glass. Light mode stays near-white; dark mode uses deep ocean shades. Keep glass behind controls, never over the artwork.
+- **Frutiger Aero:** clear sky/cyan, fresh green, water-like glow and source-aware liquid glass. Light mode stays near-white; dark mode uses deep ocean shades. Keep glass behind controls, never over the artwork.
 - **Frutiger Zen:** sage, quiet sea-glass, warm stone and calmer contrast. Less saturated glow, softer density, and the same legible source-aware surface behavior.
 - **Dark mode:** dark text is never used on dark glass. AMOLED black is an optional dark-mode surface preference, not another theme.
 - The current accent selector is a three-choice accent seed (Aqua, Emerald, Sky blue); it may adjust accent tokens but does not change the selected design language or mode.
@@ -50,7 +50,7 @@ Create these as Figma/Penpot components with the indicated properties. Compose c
 
 - `TopBar`: title, optional subtitle, leading menu/back, optional trailing actions; 48 dp icon targets; title truncates before actions.
 - `BottomNavItem`: selected/unselected, optional badge only for a real count, icon + label, 48 dp minimum.
-- `GlassPanel`: regular/clear, selected, full/balanced/reduced, reduced-transparency fallback, increased-contrast border. Live variants use Haze source sampling; fallback is opaque enough for text.
+- `GlassPanel`: regular/clear, selected, full/balanced/reduced, reduced-transparency fallback, increased-contrast border. Live variants sample a Kyant0 backdrop recording; fallback is opaque enough for text.
 - `WallpaperTile`: loading/loaded/error; source-neutral; image uses fit and true aspect ratio; title/count not overlaid on art; click opens detail.
 - `FilterChip`: selected/unselected/disabled; 44–48 dp high; accessible label includes active state.
 - `SourceStatusRow`: enabled/loading/success/partial error/disabled-by-user; names the source and its real status.
@@ -75,7 +75,7 @@ Create these as Figma/Penpot components with the indicated properties. Compose c
 - Search input at top, 56 dp minimum, clear action and keyboard submit. Recent terms are local-only, capped, removable, and do not submit until chosen.
 - Source tabs: All plus only integrated catalogues; unsupported/disabled sources show their actual state rather than a fake selectable result.
 - Filters open a dedicated sheet/screen: source, source-specific category/colour/purity behavior, orientation, exact ratio, minimum dimensions when supported, and sort. Unknown dimensions never satisfy a positive minimum by assumption.
-- Filter controls describe source ownership; Wallhaven category/purity options must not be presented as global filters for NASA or the Art Institute.
+- Filter controls describe source ownership; Wallhaven category/purity options must not be presented as global filters for NASA APOD.
 - Debounce may start a new request only after a normalized query change. Cancel the previous job immediately on query/filter changes. Preserve existing results while loading the next request and label them as previous only if the UI could confuse them with current results.
 - Results count is the count of currently displayable, deduplicated rows, not the provider's raw JSON row count. End-of-results and “load more” are explicit.
 
@@ -131,7 +131,7 @@ Create these as Figma/Penpot components with the indicated properties. Compose c
 
 - Motion is brief and purposeful (roughly 120–220 ms), uses one shared easing curve, and is disabled under Reduce motion. Do not animate the entire wallpaper grid on every state update.
 - Coil image requests share URL-based memory/disk cache keys; request only thumbnails in grids, defer original downloads to the explicit Download/Set path, cancel obsolete requests, and keep saved files outside the disposable cache.
-- Haze effects must be benchmarked on an identified physical device with OS/build, display mode, refresh rate, image load state, and settings recorded. Report frame timing and dropped frames; do not claim 120 Hz performance from simulator output.
+- Glass effects must be benchmarked on an identified physical device with OS/build, display mode, refresh rate, image load state, and settings recorded. Report frame timing and dropped frames; do not claim 120 Hz performance from simulator output.
 - Visual QA: 320/360/411 dp widths, 1.0×/1.3× font scale, light/dark/system transition while app is foregrounded, talkback labels, high contrast/reduced transparency, offline/cache states, slow image, provider error, zero results, and partial success.
 - Provider QA: source-specific filters/pagination, true metadata and rights, cancellation, rate-limit persistence, deduplication and usable-result counts. Test against mocked fixtures and approved public endpoints; never use fabricated success as production evidence.
 - Release QA: build the actual release variant, verify the configured production certificate (debug signing is not production signing), install/launch, run smoke routes, and publish only an independently verified signed APK. Refuse to overwrite an existing release.
@@ -140,7 +140,7 @@ Create these as Figma/Penpot components with the indicated properties. Compose c
 
 - Theme model and persisted migration: `core/data/SettingsRepository.kt` (`ThemeMode` + `DesignTheme`).
 - Semantic tokens and palettes: `core/design/Color.kt`; live system-mode resolution and Material scheme: `core/design/Theme.kt`.
-- Backdrop and Haze-backed material components: `core/design/Glass.kt` and app root `AmbientBackdrop` source.
+- Backdrop and liquid-glass material components: `core/design/Glass.kt`, `core/design/LiquidGlass.kt` and the app-root page recording.
 - Settings controls and preview cards: `feature/settings/SettingsScreen.kt`.
 - Screen flows: `feature/home`, `feature/search`, `feature/wallpaper`, `feature/collections`, `feature/offline`, and `app/AuroroRoot.kt`.
 

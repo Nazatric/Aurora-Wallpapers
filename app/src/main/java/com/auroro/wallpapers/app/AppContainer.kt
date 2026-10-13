@@ -26,7 +26,6 @@ import com.auroro.wallpapers.core.data.WallpaperAggregator
 import com.auroro.wallpapers.core.data.WallpaperStore
 import com.auroro.wallpapers.core.data.ProviderPageCache
 import com.auroro.wallpapers.core.data.NasaApodProvider
-import com.auroro.wallpapers.core.data.ArtInstituteProvider
 import com.auroro.wallpapers.core.data.WallhavenProvider
 import com.auroro.wallpapers.core.data.download.AppStorageSaver
 import com.auroro.wallpapers.core.data.download.DownloadExecutor
@@ -41,8 +40,6 @@ import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.core.network.HttpClients
 import com.auroro.wallpapers.core.network.SlidingWindowLimiter
 import com.auroro.wallpapers.core.network.nasa.NasaApodApi
-import com.auroro.wallpapers.core.network.artic.ArtInstituteApi
-import com.auroro.wallpapers.core.network.artic.ArtInstituteIiifApi
 import com.auroro.wallpapers.core.network.wallhaven.WallhavenApi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -103,8 +100,6 @@ class AppContainer(context: Context) {
 
     private val wallhavenApi: WallhavenApi = retrofit(WallhavenApi.BASE_URL).create(WallhavenApi::class.java)
     private val nasaApodApi: NasaApodApi = retrofit(NasaApodApi.BASE_URL).create(NasaApodApi::class.java)
-    private val artInstituteApi: ArtInstituteApi = retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java)
-    private val artInstituteIiifApi: ArtInstituteIiifApi = retrofit(ArtInstituteApi.IMAGE_BASE_URL).create(ArtInstituteIiifApi::class.java)
 
     val wallhaven = WallhavenProvider(
         api = wallhavenApi,
@@ -134,33 +129,10 @@ class AppContainer(context: Context) {
         ),
     )
 
-    val artInstitute = ArtInstituteProvider(
-        api = artInstituteApi,
-        iiifApi = artInstituteIiifApi,
-        limiter = SlidingWindowLimiter(
-            maxEvents = 24,
-            windowMs = 60_000,
-            preferences = bootPrefs,
-            storageKey = "art_institute_api_events",
-        ),
-        isEnabled = { settings.current().artInstituteEnabled },
-        pageCache = ProviderPageCache(
-            source = WallpaperSource.ART_INSTITUTE,
-            preferences = providerPagePrefs,
-            wallpapers = wallpaperStore,
-            ttlMillis = 24L * 60 * 60 * 1_000,
-        ),
-    )
-
-    val aggregator = WallpaperAggregator(listOf(wallhaven, nasaApod, artInstitute))
+    val aggregator = WallpaperAggregator(listOf(wallhaven, nasaApod))
     private val wallhavenDiscovery = DiscoveryEngine(wallhaven, discoveryPools)
-    private val artInstituteDiscovery = DiscoveryEngine(
-        provider = artInstitute,
-        pools = discoveryPools,
-        maxRequestsPerSession = 1,
-    )
     val discoveryEngine = MultiSourceDiscoveryEngine(
-        searchEngines = listOf(wallhavenDiscovery, artInstituteDiscovery),
+        searchEngines = listOf(wallhavenDiscovery),
         archiveProviders = listOf(nasaApod),
     )
 
@@ -179,6 +151,8 @@ class AppContainer(context: Context) {
     private fun downloadClient(source: WallpaperSource) = when (source) {
         WallpaperSource.WALLHAVEN -> wallhavenDownloadClient
         WallpaperSource.OPENVERSE -> officialMediaDownloadClient // Legacy rows have no allowed network URL.
+        // ART_INSTITUTE is retired as a live source; the mapping stays so previously
+        // downloaded/saved records keep resolving through the official-media client.
         WallpaperSource.NASA_APOD, WallpaperSource.ART_INSTITUTE -> officialMediaDownloadClient
         WallpaperSource.REDDIT, WallpaperSource.ARCHIVED -> officialMediaDownloadClient
     }
