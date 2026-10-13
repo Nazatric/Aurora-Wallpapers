@@ -139,6 +139,10 @@ def scroll_to_navigation_header(root: ET.Element, screen_label: str, attempts: i
             str(width // 2), str(int(height * 0.82)), "350")
         time.sleep(0.5)
         root = dump_hierarchy()
+    # Re-check the final dump: reaching the top exactly on the last swipe is a success,
+    # not a timeout (this off-by-one failed run 38436315038 with the header visibly present).
+    if find_nodes(root, description="Open navigation menu"):
+        return root
     visible = [node_text(node) for node in root.iter("node") if node_text(node)]
     raise AssertionError(f"{screen_label} top bar did not return after scrolling to the top; visible labels: {visible[:100]}")
 
@@ -550,7 +554,7 @@ def main() -> None:
             "distinct_wallpapers_seen": len(seen_keys),
         })
         screenshot("01b-home-deep-scroll.png")
-        scroll_to_navigation_header(dump_hierarchy(), "Home")
+        scroll_to_navigation_header(dump_hierarchy(), "Home", attempts=16)
 
     tap_text("Search", prefer_bottom=True)
     root = wait_until(lambda ui: bool(find_nodes(ui, text="Subject, place, artist…")), "Search screen field", timeout=30)
