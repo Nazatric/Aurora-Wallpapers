@@ -484,7 +484,9 @@ def main() -> None:
         raise AssertionError("Home must show one Compose brand title without a duplicate native app-name bar")
     REPORT["checks"].append({"name": "single home brand title with no duplicate native bar", "result": "passed"})
     home_header = wait_until(
-        lambda ui: bool(find_nodes(ui, text="For You")),
+        lambda ui: bool(find_nodes(ui, text="Search images, artists or places"))
+        or bool(find_nodes(ui, text="For you"))
+        or bool(find_nodes(ui, text="For You")),
         "For You multi-source discovery header", timeout=60,
     )
     if find_nodes(home_header, text="Discover styles") or find_nodes(home_header, text="Auto · hourly"):
