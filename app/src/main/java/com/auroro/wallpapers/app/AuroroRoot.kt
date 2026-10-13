@@ -330,15 +330,17 @@ fun AuroroRoot(vm: MainViewModel, incomingRoute: String? = null) {
                         backdrop = rootBackdrop,
                     )
                 },
-            ) { _ ->
-                // No Scaffold bottom padding: pages scroll behind the floating glass bar, which
-                // is what makes the liquid glass read as real material. Every scrollable screen
-                // carries its own bottom content padding to keep the last row reachable.
+            ) { padding ->
+                // Only the top padding is consumed: the bottom stays free so pages scroll behind
+                // the floating glass bar, which is what makes the liquid glass read as real
+                // material. Every scrollable screen carries its own bottom content padding to
+                // keep the last row reachable.
                 NavHost(
                     navController = nav,
                     startDestination = "home",
                     modifier = Modifier.fillMaxSize()
                         .recordAuroraBackdrop(if (isImmersive) null else rootBackdrop)
+                        .padding(top = padding.calculateTopPadding())
                         .windowInsetsPadding(
                             if (route.startsWith("crop/") || route.startsWith("wallpaper/")) {
                                 WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)
