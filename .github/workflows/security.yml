@@ -1,8 +1,11 @@
 name: Security scans
 
 on:
+  pull_request:
   workflow_dispatch:
   schedule:
+    # Schedule and dispatch only fire once this workflow is on the default branch;
+    # until then the pull_request trigger provides the coverage.
     - cron: "24 3 * * 1"
 
 permissions:

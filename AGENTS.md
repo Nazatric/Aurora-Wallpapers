@@ -22,7 +22,7 @@ shell APK. A new UI is expected to be built from scratch on top of this layer.
 - `scripts/live_source_smoke.sh` — curl-based live provider checks (no app or UI involved)
 - `.github/workflows/android.yml` — CI: unit tests, Android lint, debug/release assembly,
   `apksigner` verification, tag-triggered release artifacts
-- `.github/workflows/security.yml` — scheduled/on-demand CodeQL analysis (build-less Kotlin)
+- `.github/workflows/security.yml` — CodeQL analysis (build-less Kotlin) on pull requests, weekly and on demand; the schedule/dispatch triggers only fire once the workflow is on the default branch
 
 ## Hard rules
 
