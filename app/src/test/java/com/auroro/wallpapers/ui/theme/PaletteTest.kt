@@ -18,7 +18,7 @@ class PaletteTest {
         amoled: Boolean = false,
         contrast: Boolean = false,
         accent: AccentTheme = AccentTheme.AQUA,
-        design: DesignTheme = DesignTheme.FRUTIGER_AERO,
+        design: DesignTheme = DesignTheme.LIQUID_GLASS,
     ) = auroroPalette(dark, amoled, contrast, accent, design)
 
     @Test
@@ -66,7 +66,7 @@ class PaletteTest {
         assertNotEquals(emerald, violet)
         // Material 3 keeps its own identity regardless of accent choice.
         assertEquals(violet, palette(design = DesignTheme.MATERIAL_3, accent = AccentTheme.SKY).accent)
-        assertEquals(Color(0xFF9CB8A4), palette(design = DesignTheme.FRUTIGER_ZEN).accent)
+        assertEquals(violet, palette(design = DesignTheme.MATERIAL_3, accent = AccentTheme.EMERALD).accent)
     }
 
     @Test

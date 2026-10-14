@@ -60,7 +60,7 @@ import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.artAspect
-import com.auroro.wallpapers.ui.components.resolutionLabel
+import com.auroro.wallpapers.ui.components.wallpaperMeta
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.rememberBounceScale
@@ -237,11 +237,8 @@ fun CoverFlowScreen(
                         )
                         Spacer(Modifier.size(2.dp))
                         Text(
-                            text = buildList {
-                                wallpaper.category?.takeIf { it.isNotBlank() }?.let { add(it) }
-                                resolutionLabel(wallpaper)?.let { add(it) }
-                                add(wallpaper.source.displayName)
-                            }.joinToString(" · "),
+                            text = listOf(wallpaperMeta(wallpaper), wallpaper.source.displayName)
+                                .joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall,
                             color = AuroroPal.textSecondary,
                             maxLines = 1,

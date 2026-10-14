@@ -34,7 +34,7 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
             amoled = settings?.amoled == true,
             increaseContrast = settings?.increaseContrast == true,
             accent = settings?.accent ?: com.auroro.wallpapers.core.data.AccentTheme.AQUA,
-            design = settings?.designTheme ?: com.auroro.wallpapers.core.data.DesignTheme.FRUTIGER_AERO,
+            design = settings?.designTheme ?: com.auroro.wallpapers.core.data.DesignTheme.LIQUID_GLASS,
         )
     }
     val scheme = if (dark) {

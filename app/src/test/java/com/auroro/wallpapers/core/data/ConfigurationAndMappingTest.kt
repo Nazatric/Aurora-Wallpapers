@@ -149,29 +149,29 @@ class ConfigurationAndMappingTest {
         assertTrue(settings.recentlyUsedDiscoveryRecipeIds(now + 1, 24).isEmpty())
     }
 
-    @Test fun appearanceDefaultsToFollowSystemAndFrutigerAero() = runBlocking {
+    @Test fun appearanceDefaultsToFollowSystemAndLiquidGlass() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "appearance-defaults.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null).current()
 
         assertEquals(ThemeMode.SYSTEM, settings.themeMode)
         assertEquals("Follow system", settings.themeMode.label)
-        assertEquals(DesignTheme.FRUTIGER_AERO, settings.designTheme)
-        assertEquals(listOf(DesignTheme.FRUTIGER_AERO, DesignTheme.MATERIAL_3, DesignTheme.FRUTIGER_ZEN), DesignTheme.entries)
+        assertEquals(DesignTheme.LIQUID_GLASS, settings.designTheme)
+        assertEquals(listOf(DesignTheme.LIQUID_GLASS, DesignTheme.MATERIAL_3), DesignTheme.entries)
     }
 
     @Test fun basicModeAndAdvancedThemePersistIndependently() = runBlocking {
         val store = PreferenceDataStoreFactory.create(produceFile = { File(temp.root, "separate-themes.preferences_pb") })
         val settings = SettingsRepository(store, bootPrefs = null)
-        settings.update { it.copy(themeMode = ThemeMode.DARK, designTheme = DesignTheme.FRUTIGER_ZEN) }
+        settings.update { it.copy(themeMode = ThemeMode.DARK, designTheme = DesignTheme.MATERIAL_3) }
         assertEquals(ThemeMode.DARK, settings.current().themeMode)
-        assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
+        assertEquals(DesignTheme.MATERIAL_3, settings.current().designTheme)
 
         settings.update { it.copy(themeMode = ThemeMode.SYSTEM) }
         assertEquals(ThemeMode.SYSTEM, settings.current().themeMode)
-        assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
-        settings.update { it.copy(designTheme = DesignTheme.FRUTIGER_AERO) }
+        assertEquals(DesignTheme.MATERIAL_3, settings.current().designTheme)
+        settings.update { it.copy(designTheme = DesignTheme.LIQUID_GLASS) }
         assertEquals(ThemeMode.SYSTEM, settings.current().themeMode)
-        assertEquals(DesignTheme.FRUTIGER_AERO, settings.current().designTheme)
+        assertEquals(DesignTheme.LIQUID_GLASS, settings.current().designTheme)
     }
 
     @Test fun legacyCombinedAppearanceAndStylePreferencesRemainReadableWithoutExposingRetiredPreset() = runBlocking {
@@ -193,7 +193,7 @@ class ConfigurationAndMappingTest {
             store.data.first()
         }
         assertEquals(ThemeMode.LIGHT, settings.current().themeMode)
-        assertEquals(DesignTheme.FRUTIGER_ZEN, settings.current().designTheme)
+        assertEquals(DesignTheme.MATERIAL_3, settings.current().designTheme)
         assertFalse(migrated.contains(legacyAppearance))
         assertEquals(setOf("surreal", "frutiger-flower"), migrated[oldPreferred])
         assertEquals(setOf("weirdcore"), migrated[oldHidden])
@@ -213,7 +213,7 @@ class ConfigurationAndMappingTest {
         settings.update {
             it.copy(
                 themeMode = ThemeMode.DARK,
-                designTheme = DesignTheme.FRUTIGER_ZEN,
+                designTheme = DesignTheme.MATERIAL_3,
                 accent = AccentTheme.EMERALD,
                 fontChoice = FontChoice.SYSTEM,
                 fontScale = 1.2f,
@@ -229,7 +229,7 @@ class ConfigurationAndMappingTest {
         }
         val saved = settings.current()
         assertEquals(ThemeMode.DARK, saved.themeMode)
-        assertEquals(DesignTheme.FRUTIGER_ZEN, saved.designTheme)
+        assertEquals(DesignTheme.MATERIAL_3, saved.designTheme)
         assertEquals(AccentTheme.EMERALD, saved.accent)
         assertEquals(FontChoice.SYSTEM, saved.fontChoice)
         assertEquals(1.2f, saved.fontScale, 0.001f)

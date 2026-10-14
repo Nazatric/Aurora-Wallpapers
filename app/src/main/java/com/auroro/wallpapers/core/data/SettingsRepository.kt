@@ -25,9 +25,15 @@ import java.util.Locale
 enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"), DARK("Dark") }
 enum class AccentTheme(val label: String) { AQUA("Aurora violet"), EMERALD("Emerald"), SKY("Sky blue") }
 enum class DesignTheme(val label: String, val description: String) {
-    FRUTIGER_AERO("Frutiger Aero", "Luminous sky, water, glass and optimistic greens"),
+    LIQUID_GLASS("Liquid Glass", "Frosted depth, blur and light — renderer ships in its own run"),
     MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),
-    FRUTIGER_ZEN("Frutiger Zen", "Quiet sea-glass, sage and warm stone"),
+}
+
+/** Home feed arrangement: stacked cards, two-column grid or a compact list. */
+enum class FeedLayout(val label: String) {
+    CARDS("Cards"),
+    GRID("Grid"),
+    LIST("List"),
 }
 enum class FontChoice(val label: String, val description: String) {
     OPEN_SANS("Open Sans", "Bundled humanist sans · works offline"),
@@ -62,8 +68,9 @@ data class AppSettings(
     /** Basic colour mode; system changes remain live while SYSTEM is selected. */
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     /** Independent design language; it never overrides the basic colour mode. */
-    val designTheme: DesignTheme = DesignTheme.FRUTIGER_AERO,
+    val designTheme: DesignTheme = DesignTheme.LIQUID_GLASS,
     val accent: AccentTheme = AccentTheme.AQUA,
+    val feedLayout: FeedLayout = FeedLayout.CARDS,
     val fontChoice: FontChoice = FontChoice.OPEN_SANS,
     val fontScale: Float = 1f,
     val glassQuality: GlassQuality = GlassQuality.BALANCED,
@@ -333,6 +340,7 @@ class SettingsRepository(
             committed = next
             prefs[THEME] = next.themeMode.name
             prefs[DESIGN_THEME] = next.designTheme.name
+            prefs[FEED_LAYOUT] = next.feedLayout.name
             prefs.remove(LEGACY_APPEARANCE)
             prefs[ACCENT] = next.accent.name
             prefs[FONT_CHOICE] = next.fontChoice.name
@@ -386,14 +394,22 @@ class SettingsRepository(
                 else -> enumOr(this[THEME], defaults.themeMode)
             }
         } else enumOr(this[THEME], defaults.themeMode)
-        val designTheme = this[DESIGN_THEME]?.let { enumOr(it, defaults.designTheme) } ?: when (legacyAppearance) {
-            "FRUTIGER_AERO", "DARK_AERO", "AQUA_DAY", "SYSTEM" -> DesignTheme.FRUTIGER_AERO
-            "FRUTIGER_FLOWER", "FRUTIGER_ZEN" -> DesignTheme.FRUTIGER_ZEN
+        val designTheme = this[DESIGN_THEME]?.let { raw ->
+            // Legacy names migrate forward: aero becomes Liquid Glass, zen folds into M3.
+            when (raw) {
+                "FRUTIGER_AERO", "DARK_AERO", "AQUA_DAY" -> DesignTheme.LIQUID_GLASS
+                "FRUTIGER_FLOWER", "FRUTIGER_ZEN" -> DesignTheme.MATERIAL_3
+                else -> enumOr(raw, defaults.designTheme)
+            }
+        } ?: when (legacyAppearance) {
+            "FRUTIGER_AERO", "DARK_AERO", "AQUA_DAY", "SYSTEM" -> DesignTheme.LIQUID_GLASS
+            "FRUTIGER_FLOWER", "FRUTIGER_ZEN" -> DesignTheme.MATERIAL_3
             else -> defaults.designTheme
         }
         return AppSettings(
             themeMode = themeMode,
             designTheme = designTheme,
+            feedLayout = enumOr(this[FEED_LAYOUT], defaults.feedLayout),
             accent = enumOr(this[ACCENT], defaults.accent),
             fontChoice = enumOr(this[FONT_CHOICE], defaults.fontChoice),
             fontScale = (this[FONT_SCALE] ?: defaults.fontScale).coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE),
@@ -463,6 +479,7 @@ class SettingsRepository(
         private val LAST_MANUAL_DISCOVERY_REFRESH = longPreferencesKey("last_manual_discovery_refresh")
         private val THEME = stringPreferencesKey("theme_mode")
         private val DESIGN_THEME = stringPreferencesKey("design_theme")
+        private val FEED_LAYOUT = stringPreferencesKey("feed_layout")
         private val LEGACY_APPEARANCE = stringPreferencesKey("appearance_preset")
         private val ACCENT = stringPreferencesKey("accent")
         private val FONT_CHOICE = stringPreferencesKey("font_choice")

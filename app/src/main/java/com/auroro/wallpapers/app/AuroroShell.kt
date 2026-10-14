@@ -111,8 +111,8 @@ fun AuroroShell() {
             when (currentTab) {
                 ShellTab.HOME -> HomeScreen(
                     state = homeState,
-                    onSelectStyle = homeViewModel::selectStyle,
                     onSelectMode = homeViewModel::selectMode,
+                    onOrientation = homeViewModel::setOrientation,
                     onReload = { homeViewModel.reload() },
                     onLoadMore = homeViewModel::loadMore,
                     onToggleFavorite = homeViewModel::toggleFavorite,

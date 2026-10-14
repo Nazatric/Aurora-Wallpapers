@@ -12,11 +12,14 @@ import com.auroro.wallpapers.core.data.SourceStatus
 import com.auroro.wallpapers.core.data.download.ApplyResult
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.data.download.NormalizedCrop
+import com.auroro.wallpapers.core.data.FeedLayout
 import com.auroro.wallpapers.core.model.DiscoverySession
-import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.core.model.FeedRequest
+import com.auroro.wallpapers.core.model.LocalFilter
+import com.auroro.wallpapers.core.model.Orientation
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.WallpaperFilter
+
 import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
 import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -54,8 +57,9 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         val error: String? = null,
         val notice: String? = null,
         val endReached: Boolean = false,
-        val style: DiscoveryStyle? = null,
         val mode: FeedMode = FeedMode.FOR_YOU,
+        val orientation: Orientation = Orientation.ANY,
+        val layout: FeedLayout = FeedLayout.CARDS,
         val favoriteKeys: Set<String> = emptySet(),
     )
 
@@ -72,7 +76,16 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     private var moreJob: Job? = null
     private var shuffleJob: Job? = null
     private var sortPager: FeedPager? = null
+    private var rawItems: List<Wallpaper> = emptyList()
     private var emptyStreak = 0
+
+    /** Orientation filter is applied locally over the loaded batch (honest, instant). */
+    private fun filtered(list: List<Wallpaper>): List<Wallpaper> {
+        val orientation = _state.value.orientation
+        if (orientation == Orientation.ANY) return list
+        val filter = WallpaperFilter(orientation = orientation)
+        return list.filter { LocalFilter.matches(it, filter) }
+    }
 
     init {
         viewModelScope.launch {
@@ -80,19 +93,24 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 _state.update { it.copy(favoriteKeys = keys) }
             }
         }
+        viewModelScope.launch {
+            app.settings.settings.collect { settings ->
+                _state.update { it.copy(layout = settings.feedLayout) }
+            }
+        }
         reload()
     }
 
-    fun reload(style: DiscoveryStyle? = _state.value.style) {
+    fun reload() {
         if (_state.value.mode != FeedMode.FOR_YOU) {
-            loadSorted(_state.value.mode, style)
+            loadSorted(_state.value.mode)
             return
         }
         loadJob?.cancel()
         moreJob?.cancel()
         val gen = generation.incrementAndGet()
         _state.update {
-            it.copy(items = emptyList(), loading = true, loadingMore = false, error = null, notice = null, endReached = false, style = style)
+            it.copy(items = emptyList(), loading = true, loadingMore = false, error = null, notice = null, endReached = false)
         }
         loadJob = viewModelScope.launch {
             val prefs = app.settings.current()
@@ -102,7 +120,6 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 rotateHourly = prefs.rotateDiscoveryHourly,
                 refreshOrdinal = session?.refreshOrdinal?.plus(1) ?: 0,
                 recentRecipeIds = app.settings.recentlyUsedDiscoveryRecipeIds(now, prefs.repeatAfterHours),
-                preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(setOfNotNull(style?.id)),
                 excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
             )
             session = planned
@@ -119,18 +136,20 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 recentlySeenKeys = seen,
             ) { progress ->
                 if (gen == generation.get()) {
-                    _state.update { it.copy(items = progress.items, loading = progress.loading) }
+                    rawItems = progress.items
+                    _state.update { it.copy(items = filtered(progress.items), loading = progress.loading) }
                 }
             }
             if (gen != generation.get()) return@launch
             emptyStreak = 0
             val items = result.items
+            rawItems = items
             if (items.isNotEmpty()) {
                 app.settings.recordDiscoverySeen(items.map { it.key }, System.currentTimeMillis())
             }
             _state.update {
                 it.copy(
-                    items = items,
+                    items = filtered(items),
                     loading = false,
                     endReached = items.isEmpty(),
                     error = if (items.isEmpty()) result.message() ?: GENERIC_ERROR else null,
@@ -164,7 +183,6 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 rotateHourly = prefs.rotateDiscoveryHourly,
                 refreshOrdinal = session?.refreshOrdinal?.plus(1) ?: 0,
                 recentRecipeIds = app.settings.recentlyUsedDiscoveryRecipeIds(now, prefs.repeatAfterHours),
-                preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(setOfNotNull(_state.value.style?.id)),
                 excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
             )
             session = planned
@@ -185,10 +203,11 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
             val fresh = result.items
             when {
                 fresh.isNotEmpty() -> {
+                    rawItems = fresh
                     app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
                     _state.update {
                         it.copy(
-                            items = fresh,
+                            items = filtered(fresh),
                             loading = false,
                             endReached = false,
                             notice = if (result.staleCacheUsed) result.message() else null,
@@ -221,7 +240,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         moreJob = viewModelScope.launch {
             val prefs = app.settings.current()
             val now = System.currentTimeMillis()
-            val excludeKeys = _state.value.items.mapTo(hashSetOf()) { it.key }
+            val excludeKeys = rawItems.mapTo(hashSetOf()) { it.key }
             val seen = if (prefs.avoidRecentlySeen) {
                 app.settings.recentlySeenDiscoveryKeys(now, prefs.repeatAfterHours)
             } else {
@@ -233,7 +252,6 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 refreshOrdinal = base.refreshOrdinal,
                 recentRecipeIds = app.settings.recentlyUsedDiscoveryRecipeIds(now, prefs.repeatAfterHours) +
                     base.candidateRecipeIds,
-                preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(setOfNotNull(_state.value.style?.id)),
                 excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
             )
             app.discoveryPools.recordSessionRecipeIds(batch.candidateRecipeIds, now)
@@ -251,10 +269,11 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
             val fresh = result.items.filterNot { it.key in excludeKeys }
             if (fresh.isNotEmpty()) {
                 emptyStreak = 0
+                rawItems = rawItems + fresh
                 app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
                 _state.update {
                     it.copy(
-                        items = it.items + fresh,
+                        items = filtered(rawItems),
                         loadingMore = false,
                         notice = null,
                     )
@@ -284,13 +303,13 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         if (mode == FeedMode.FOR_YOU) reload() else loadSorted(mode)
     }
 
-    /** Style chips stay available in every mode; in sorted modes they become a tag query. */
-    fun selectStyle(style: DiscoveryStyle?) {
-        if (style == _state.value.style) return
-        if (_state.value.mode == FeedMode.FOR_YOU) reload(style) else loadSorted(_state.value.mode, style)
+    /** Icon-only orientation filter on the feed header; re-filters the loaded batch instantly. */
+    fun setOrientation(orientation: Orientation) {
+        if (orientation == _state.value.orientation) return
+        _state.update { it.copy(orientation = orientation, items = filtered(rawItems)) }
     }
 
-    private fun buildSortedPager(mode: FeedMode, style: DiscoveryStyle?): FeedPager {
+    private fun buildSortedPager(mode: FeedMode): FeedPager {
         val sort = when (mode) {
             FeedMode.TRENDING -> SortOption.POPULAR
             FeedMode.NEWEST -> SortOption.NEWEST
@@ -299,36 +318,34 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         }
         return FeedPager(
             providers = listOf(app.wallhaven, app.nasaApod),
-            request = FeedRequest(
-                query = style?.label ?: "",
-                filter = WallpaperFilter(sort = sort),
-            ),
+            request = FeedRequest(filter = WallpaperFilter(sort = sort)),
         )
     }
 
-    private fun loadSorted(mode: FeedMode, style: DiscoveryStyle? = _state.value.style) {
+    private fun loadSorted(mode: FeedMode) {
         loadJob?.cancel()
         moreJob?.cancel()
         val gen = generation.incrementAndGet()
         _state.update {
             it.copy(
                 items = emptyList(), loading = true, loadingMore = false,
-                error = null, notice = null, endReached = false, style = style, mode = mode,
+                error = null, notice = null, endReached = false, mode = mode,
             )
         }
         loadJob = viewModelScope.launch {
-            val pager = buildSortedPager(mode, style)
+            val pager = buildSortedPager(mode)
             sortPager = pager
             val result = pager.loadNext()
             if (gen != generation.get()) return@launch
             val seen = hashSetOf<String>()
             val fresh = result.items.filter { seen.add(it.key) }
+            rawItems = fresh
             if (fresh.isNotEmpty()) {
                 app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
             }
             _state.update {
                 it.copy(
-                    items = fresh,
+                    items = filtered(fresh),
                     loading = false,
                     endReached = result.endReached,
                     error = if (fresh.isEmpty()) {
@@ -350,14 +367,15 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         moreJob = viewModelScope.launch {
             val result = pager.loadNext()
             if (gen != generation.get()) return@launch
-            val existing = _state.value.items.mapTo(hashSetOf()) { it.key }
+            val existing = rawItems.mapTo(hashSetOf()) { it.key }
             val fresh = result.items.filter { existing.add(it.key) }
+            rawItems = rawItems + fresh
             if (fresh.isNotEmpty()) {
                 app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
             }
             _state.update {
                 it.copy(
-                    items = it.items + fresh,
+                    items = filtered(rawItems),
                     loadingMore = false,
                     endReached = result.endReached,
                     notice = statusNotice(result.statuses),
@@ -375,7 +393,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         val gen = generation.incrementAndGet()
         _state.update { it.copy(loading = true, loadingMore = false, error = null, notice = null) }
         shuffleJob = viewModelScope.launch {
-            val pager = buildSortedPager(mode, _state.value.style)
+            val pager = buildSortedPager(mode)
             sortPager = pager
             val result = pager.loadNext()
             if (gen != generation.get()) return@launch
@@ -383,9 +401,10 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
             val fresh = result.items.filter { seen.add(it.key) }
             when {
                 fresh.isNotEmpty() -> {
+                    rawItems = fresh
                     app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
                     _state.update {
-                        it.copy(items = fresh, loading = false, endReached = result.endReached, notice = null)
+                        it.copy(items = filtered(fresh), loading = false, endReached = result.endReached, notice = null)
                     }
                 }
                 else -> _state.update {

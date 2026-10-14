@@ -3,6 +3,7 @@ package com.auroro.wallpapers.ui.components
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,15 +47,29 @@ import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.rememberBounceScale
 
 /**
- * Container aspect follows the provider's real dimensions; only extreme ratios are trimmed
- * by the clamp. Art is drawn with [ContentScale.Crop] so it always fills its true-aspect
- * container — when a CDN frame disagrees with the metadata the card crops a hair instead
- * of showing letterbox bars. Cards decode through a 1440 px cap with a crossfade: 4K
- * originals never pay full decode cost in the feed, while detail keeps full resolution.
+ * Cards show the WHOLE artwork: the front layer is [ContentScale.Fit] inside the true-aspect
+ * container, so a 1920x3970 portrait is never cropped to a square. Behind it the same image
+ * is drawn cropped and heavily dimmed, which turns any residual letterbox area (metadata
+ * disagreeing with the delivered frame) into a seamless ambient edge instead of hard bars.
+ * Decoding is capped at [CARD_DECODE_MAX_PX] — above any phone panel's pixel count, so cards
+ * stay pixel-perfect while a 4K bitmap never costs full memory in a scrolling feed.
  */
 fun artAspect(wallpaper: Wallpaper): Float =
     wallpaper.aspectRatio.takeIf { wallpaper.hasKnownDimensions && it.isFinite() && it > 0f }
-        ?.coerceIn(0.5f, 2.4f) ?: 1f
+        ?.coerceIn(0.4f, 2.6f) ?: 1f
+
+/**
+ * Card meta line: real provider tags first (the useful "abstract", "oled"-style descriptors),
+ * then the honest resolution tag. Wallhaven's `category` is "general" for ~90% of uploads,
+ * so it only appears as a last resort.
+ */
+fun wallpaperMeta(wallpaper: Wallpaper): String = buildList {
+    wallpaper.tags.take(2).forEach { tag -> add(tag.name) }
+    resolutionLabel(wallpaper)?.let { add(it) }
+    if (isEmpty()) {
+        wallpaper.category?.takeIf { it.isNotBlank() }?.let { add(it) } ?: add(wallpaper.source.displayName)
+    }
+}.joinToString(" · ").ifBlank { wallpaper.source.displayName }
 
 /** Honest resolution tag derived from real pixel dimensions; never invented. */
 fun resolutionLabel(wallpaper: Wallpaper): String? {
@@ -68,8 +83,8 @@ fun resolutionLabel(wallpaper: Wallpaper): String? {
     }
 }
 
-/** Feed cards never decode above ~1440p; the detail screen keeps the full original. */
-private const val CARD_DECODE_MAX_PX = 1440
+/** Feed decode cap: above any phone panel, below 4K memory cost. Detail keeps the original. */
+private const val CARD_DECODE_MAX_PX = 2560
 
 fun wallpaperDescription(wallpaper: Wallpaper): String =
     if (wallpaper.hasKnownDimensions) {
@@ -169,21 +184,28 @@ fun WallpaperArt(
         ImageRequest.Builder(context)
             .data(wallpaper.previewUrl)
             .size(CARD_DECODE_MAX_PX, CARD_DECODE_MAX_PX)
-            .crossfade(true)
             .build()
     }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatioSafe(aspect)
+            .shadow(elevation = 12.dp, shape = shape, clip = false)
             .clip(shape)
             .background(AuroroPal.surface)
             .clickable(role = Role.Button, onClick = onClick),
     ) {
+        // Ambient fill: same art cropped + dimmed, so empty ratios read as depth, not bars.
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0.35f },
+        )
         AsyncImage(
             model = request,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
         )
         Box(
@@ -207,11 +229,7 @@ fun WallpaperArt(
                     maxLines = 1,
                 )
             }
-            val meta = buildList {
-                wallpaper.category?.takeIf { it.isNotBlank() }?.let { add(it) }
-                resolutionLabel(wallpaper)?.let { add(it) }
-                if (isEmpty()) add(wallpaper.source.displayName)
-            }.joinToString(" · ")
+            val meta = wallpaperMeta(wallpaper)
             Text(
                 text = meta,
                 style = MaterialTheme.typography.labelSmall,

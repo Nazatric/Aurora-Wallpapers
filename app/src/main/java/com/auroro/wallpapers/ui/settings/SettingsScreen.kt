@@ -39,10 +39,10 @@ import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.data.AccentTheme
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.DesignTheme
+import com.auroro.wallpapers.core.data.FeedLayout
 import com.auroro.wallpapers.core.data.SaveLocation
 import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.data.download.StorageInfo
-import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.formatBytes
 import kotlin.math.roundToInt
@@ -162,6 +162,22 @@ fun SettingsScreen(
             )
         }
         SettingsCard(title = androidx.compose.ui.res.stringResource(R.string.section_discovery)) {
+            // Feed arrangement on Home: stacked cards, two-column grid or compact list.
+            SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_feed_layout))
+            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                FeedLayout.entries.forEach { layout ->
+                    AuroraChip(
+                        label = layout.label,
+                        active = settings.feedLayout == layout,
+                        onClick = { onUpdate { it.copy(feedLayout = layout) } },
+                        icon = when (layout) {
+                            FeedLayout.CARDS -> R.drawable.ic_view_stream
+                            FeedLayout.GRID -> R.drawable.ic_view_module
+                            FeedLayout.LIST -> R.drawable.ic_view_list
+                        },
+                    )
+                }
+            }
             SwitchRow(
                 title = androidx.compose.ui.res.stringResource(R.string.set_rotate),
                 subtitle = androidx.compose.ui.res.stringResource(R.string.set_rotate_sub),
@@ -197,35 +213,6 @@ fun SettingsScreen(
                         activeTrackColor = AuroroPal.accent,
                     ),
                 )
-            }
-            Text(
-                text = androidx.compose.ui.res.stringResource(R.string.set_hidden),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 18.dp, top = 6.dp),
-            )
-            Text(
-                text = androidx.compose.ui.res.stringResource(R.string.set_hidden_sub),
-                style = MaterialTheme.typography.labelSmall,
-                color = AuroroPal.textTertiary,
-                modifier = Modifier.padding(start = 18.dp),
-            )
-            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                DiscoveryStyle.entries.forEach { style ->
-                    AuroraChip(
-                        label = style.label,
-                        active = style.id in settings.hiddenDiscoveryStyleIds,
-                        onClick = {
-                            onUpdate { s ->
-                                val hidden = if (style.id in s.hiddenDiscoveryStyleIds) {
-                                    s.hiddenDiscoveryStyleIds - style.id
-                                } else {
-                                    s.hiddenDiscoveryStyleIds + style.id
-                                }
-                                s.copy(hiddenDiscoveryStyleIds = hidden)
-                            }
-                        },
-                    )
-                }
             }
             SwitchRow(
                 title = androidx.compose.ui.res.stringResource(R.string.set_wallhaven),
@@ -381,7 +368,11 @@ private fun SettingsCard(title: String, content: @Composable ColumnScope.() -> U
             color = AuroroPal.accent,
             modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
         )
-        Surface(shape = RoundedCornerShape(24.dp), color = AuroroPal.surface) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = AuroroPal.surface,
+            shadowElevation = 3.dp,
+        ) {
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), content = content)
         }
     }

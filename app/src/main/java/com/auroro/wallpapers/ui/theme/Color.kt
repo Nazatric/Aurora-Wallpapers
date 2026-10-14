@@ -48,8 +48,7 @@ fun auroroPalette(
 ): AuroroPalette {
     val accentColor = when (design) {
         DesignTheme.MATERIAL_3 -> Color(0xFF8B7CF6)
-        DesignTheme.FRUTIGER_ZEN -> Color(0xFF9CB8A4)
-        DesignTheme.FRUTIGER_AERO -> when (accent) {
+        DesignTheme.LIQUID_GLASS -> when (accent) {
             AccentTheme.AQUA -> Color(0xFF8B7CF6) // launch "Aurora" hue
             AccentTheme.EMERALD -> Color(0xFF34D399)
             AccentTheme.SKY -> Color(0xFF38BDF8)
@@ -99,7 +98,7 @@ val LocalAuroroPalette = staticCompositionLocalOf {
         amoled = false,
         increaseContrast = false,
         accent = AccentTheme.AQUA,
-        design = DesignTheme.FRUTIGER_AERO,
+        design = DesignTheme.LIQUID_GLASS,
     )
 }
 

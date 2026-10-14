@@ -1,147 +1,127 @@
 package com.auroro.wallpapers.ui.home
 
-import com.auroro.wallpapers.ui.theme.AuroroMotion
-import com.auroro.wallpapers.ui.theme.AuroroPal
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items as staggeredItems
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
-import com.auroro.wallpapers.core.model.DiscoveryStyle
+import com.auroro.wallpapers.core.data.FeedLayout
+import com.auroro.wallpapers.core.model.Orientation
+import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.FeedEmptyState
 import com.auroro.wallpapers.ui.components.FeedFooterState
 import com.auroro.wallpapers.ui.components.FeedLoadingState
 import com.auroro.wallpapers.ui.components.HeroPager
+import com.auroro.wallpapers.ui.components.WallpaperArt
 import com.auroro.wallpapers.ui.components.WallpaperCard
+import com.auroro.wallpapers.ui.components.artAspect
+import com.auroro.wallpapers.ui.components.wallpaperMeta
+import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.AuroroPal
 
 private const val HERO_COUNT = 4
 private const val NEAR_END_THRESHOLD = 3
 
 /**
- * Slice-1 Home: brand header, style chips, a hero pager over the first items and a stacked
- * card feed with honest loading / empty / error / end states. Continuation batches are
- * requested when the list is scrolled near its end.
+ * Slice-6 home: brand header with an icon-only orientation filter, one row of feed-mode
+ * chips, and three honest layouts (stacked cards / 2-column grid / compact list) chosen in
+ * Settings. Every layout shows whole artwork and pages in more batches near its end.
  */
 @Composable
 fun HomeScreen(
     state: HomeViewModel.UiState,
-    onSelectStyle: (DiscoveryStyle?) -> Unit,
     onSelectMode: (FeedMode) -> Unit,
+    onOrientation: (Orientation) -> Unit,
     onReload: () -> Unit,
     onLoadMore: () -> Unit,
-    onToggleFavorite: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
-    onOpen: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
+    onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
-    // Feed-level entrance: whenever the mode or style changes the whole feed fades and
-    // rises in on the M3 emphasized curve — the "borrowed" pattern from nowinandroid-style
-    // list swaps, cheap (one graphicsLayer) and never competes with the artwork.
+    // Feed-level entrance: whenever mode or orientation changes the whole feed fades and
+    // rises in on the M3 emphasized curve — cheap (one graphicsLayer), never competes
+    // with the artwork.
     val feedEntry = remember { Animatable(1f) }
-    LaunchedEffect(state.mode, state.style) {
+    LaunchedEffect(state.mode, state.orientation, state.layout) {
         feedEntry.snapTo(0f)
-        feedEntry.animateTo(1f, tween(420, easing = AuroroMotion.EmphasizedDecelerate))
+        feedEntry.animateTo(1f, tween(360, easing = AuroroMotion.EmphasizedDecelerate))
     }
-    val nearEnd by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            info.visibleItemsInfo.lastOrNull()?.let { it.index >= info.totalItemsCount - NEAR_END_THRESHOLD } ?: false
-        }
-    }
-    LaunchedEffect(nearEnd) {
-        if (nearEnd) onLoadMore()
-    }
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize().graphicsLayer {
-            alpha = feedEntry.value
-            translationY = (1f - feedEntry.value) * 28f
-        },
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(bottom = 118.dp),
-    ) {
-        item(key = "header") {
-            HomeHeader(onSearch = onSearch)
-        }
-        item(key = "modes") {
-            ModeChips(selected = state.mode, onSelect = onSelectMode)
-        }
-        item(key = "chips") {
-            StyleChips(selected = state.style, onSelect = onSelectStyle)
-        }
-        when {
-            state.loading && state.items.isEmpty() -> item(key = "loading") { FeedLoadingState() }
-            state.items.isEmpty() -> item(key = "empty") {
-                FeedEmptyState(error = state.error, onRetry = onReload)
-            }
-            else -> {
-                val hero = state.items.take(HERO_COUNT)
-                val rest = state.items.drop(HERO_COUNT)
-                item(key = "hero") {
-                    HeroPager(
-                        items = hero,
-                        favoriteKeys = state.favoriteKeys,
-                        onToggleFavorite = onToggleFavorite,
-                        onOpen = onOpen,
-                    )
-                }
-                items(rest, key = { it.key }) { wallpaper ->
-                    WallpaperCard(
-                        wallpaper = wallpaper,
-                        favorite = wallpaper.key in state.favoriteKeys,
-                        onToggleFavorite = onToggleFavorite,
-                        onClick = onOpen,
-                        modifier = Modifier.animateItem(),
-                    )
-                }
-                item(key = "footer") {
-                    FeedFooterState(
-                        loadingMore = state.loadingMore,
-                        notice = state.notice,
-                        endReached = state.endReached,
-                        onRetryMore = onLoadMore,
-                    )
-                }
-            }
-        }
+    Column(modifier = modifier.fillMaxSize()) {
+        HomeHeader(
+            orientation = state.orientation,
+            onOrientation = onOrientation,
+            onSearch = onSearch,
+        )
+        ModeChips(selected = state.mode, onSelect = onSelectMode)
+        FeedBody(
+            state = state,
+            onReload = onReload,
+            onLoadMore = onLoadMore,
+            onToggleFavorite = onToggleFavorite,
+            onOpen = onOpen,
+            modifier = Modifier
+                .weight(1f)
+                .graphicsLayer {
+                    alpha = feedEntry.value
+                    translationY = (1f - feedEntry.value) * 24f
+                },
+        )
     }
 }
 
 @Composable
-private fun HomeHeader(onSearch: () -> Unit) {
+private fun HomeHeader(
+    orientation: Orientation,
+    onOrientation: (Orientation) -> Unit,
+    onSearch: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 10.dp),
-        verticalAlignment = Alignment.Top,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
             modifier = Modifier.weight(1f).padding(start = 20.dp),
@@ -160,6 +140,8 @@ private fun HomeHeader(onSearch: () -> Unit) {
                 color = AuroroPal.textSecondary,
             )
         }
+        OrientationSegmented(selected = orientation, onSelect = onOrientation)
+        Spacer(Modifier.size(6.dp))
         IconButton(onClick = onSearch, modifier = Modifier.padding(end = 8.dp)) {
             Icon(
                 painter = painterResource(R.drawable.ic_search_outlined),
@@ -168,6 +150,49 @@ private fun HomeHeader(onSearch: () -> Unit) {
                 modifier = Modifier.size(22.dp),
             )
         }
+    }
+}
+
+/** Icon-only Any / Portrait / Landscape filter — same pill language as cover flow. */
+@Composable
+private fun OrientationSegmented(selected: Orientation, onSelect: (Orientation) -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AuroroPal.surfaceBright)
+            .padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OrientationButton(Orientation.ANY, R.drawable.ic_aspect_ratio, R.string.coverflow_orient_all, selected, onSelect)
+        OrientationButton(Orientation.PORTRAIT, R.drawable.ic_crop_portrait, R.string.coverflow_orient_portrait, selected, onSelect)
+        OrientationButton(Orientation.LANDSCAPE, R.drawable.ic_crop_landscape, R.string.coverflow_orient_landscape, selected, onSelect)
+    }
+}
+
+@Composable
+private fun OrientationButton(
+    value: Orientation,
+    icon: Int,
+    labelRes: Int,
+    selected: Orientation,
+    onSelect: (Orientation) -> Unit,
+) {
+    val active = value == selected
+    val label = stringResource(labelRes)
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(if (active) AuroroPal.accent.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent, CircleShape)
+            .clickable(role = Role.RadioButton, onClickLabel = label) { onSelect(value) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = label,
+            tint = if (active) AuroroPal.accent else AuroroPal.textTertiary,
+            modifier = Modifier.size(17.dp),
+        )
     }
 }
 
@@ -191,25 +216,225 @@ private fun ModeChips(selected: FeedMode, onSelect: (FeedMode) -> Unit) {
 }
 
 @Composable
-private fun StyleChips(selected: DiscoveryStyle?, onSelect: (DiscoveryStyle?) -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun FeedBody(
+    state: HomeViewModel.UiState,
+    onReload: () -> Unit,
+    onLoadMore: () -> Unit,
+    onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when {
+        state.loading && state.items.isEmpty() -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            FeedLoadingState()
+        }
+
+        state.items.isEmpty() -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            FeedEmptyState(error = state.error, onRetry = onReload)
+        }
+
+        else -> when (state.layout) {
+            FeedLayout.CARDS -> CardsFeed(state, onLoadMore, onToggleFavorite, onOpen, modifier)
+            FeedLayout.GRID -> GridFeed(state, onLoadMore, onToggleFavorite, onOpen, modifier)
+            FeedLayout.LIST -> ListFeed(state, onLoadMore, onToggleFavorite, onOpen, modifier)
+        }
+    }
+}
+
+@Composable
+private fun CardsFeed(
+    state: HomeViewModel.UiState,
+    onLoadMore: () -> Unit,
+    onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    NearEndEffect(listState) { onLoadMore() }
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(top = 6.dp, bottom = 118.dp),
     ) {
-        Spacer(Modifier.size(16.dp, 1.dp))
-        AuroraChip(
-            label = stringResource(R.string.chip_all_styles),
-            active = selected == null,
-            onClick = { onSelect(null) },
-        )
-        DiscoveryStyle.entries.forEach { style ->
-            AuroraChip(
-                label = style.label,
-                active = selected == style,
-                onClick = { onSelect(style) },
+        val hero = state.items.take(HERO_COUNT)
+        val rest = state.items.drop(HERO_COUNT)
+        item(key = "hero") {
+            HeroPager(
+                items = hero,
+                favoriteKeys = state.favoriteKeys,
+                onToggleFavorite = onToggleFavorite,
+                onOpen = onOpen,
             )
         }
-        Spacer(Modifier.size(16.dp, 1.dp))
+        items(rest, key = { it.key }) { wallpaper ->
+            WallpaperCard(
+                wallpaper = wallpaper,
+                favorite = wallpaper.key in state.favoriteKeys,
+                onToggleFavorite = onToggleFavorite,
+                onClick = onOpen,
+                modifier = Modifier.animateItem(),
+            )
+        }
+        item(key = "footer") { FeedFooter(state, onLoadMore) }
+    }
+}
+
+@Composable
+private fun GridFeed(
+    state: HomeViewModel.UiState,
+    onLoadMore: () -> Unit,
+    onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val gridState = rememberLazyStaggeredGridState()
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = gridState.layoutInfo
+            info.visibleItemsInfo.lastOrNull()?.index >= info.totalItemsCount - NEAR_END_THRESHOLD
+        }
+    }
+    LaunchedEffect(nearEnd) {
+        if (nearEnd) onLoadMore()
+    }
+    LazyVerticalStaggeredGrid(
+        state = gridState,
+        columns = StaggeredGridCells.Fixed(2),
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 118.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalItemSpacing = 10.dp,
+    ) {
+        staggeredItems(state.items, key = { it.key }) { wallpaper ->
+            WallpaperArt(
+                wallpaper = wallpaper,
+                aspect = artAspect(wallpaper),
+                corner = 20.dp,
+                favorite = wallpaper.key in state.favoriteKeys,
+                onToggleFavorite = onToggleFavorite,
+                onClick = { onOpen(wallpaper) },
+                modifier = Modifier.fillMaxWidth().animateItem(),
+            )
+        }
+        item(key = "footer", span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
+            FeedFooter(state, onLoadMore)
+        }
+    }
+}
+
+@Composable
+private fun ListFeed(
+    state: HomeViewModel.UiState,
+    onLoadMore: () -> Unit,
+    onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    NearEndEffect(listState) { onLoadMore() }
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(top = 6.dp, bottom = 118.dp),
+    ) {
+        items(state.items, key = { it.key }) { wallpaper ->
+            ListRow(
+                wallpaper = wallpaper,
+                favorite = wallpaper.key in state.favoriteKeys,
+                onToggleFavorite = onToggleFavorite,
+                onOpen = onOpen,
+                modifier = Modifier.animateItem(),
+            )
+        }
+        item(key = "footer") { FeedFooter(state, onLoadMore) }
+    }
+}
+
+@Composable
+private fun ListRow(
+    wallpaper: Wallpaper,
+    favorite: Boolean,
+    onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 14.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(AuroroPal.surface)
+            .clickable(role = Role.Button) { onOpen(wallpaper) }
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(AuroroPal.surfaceBright),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = wallpaper.previewUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        Spacer(Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = wallpaper.title?.takeIf { it.isNotBlank() } ?: wallpaperMeta(wallpaper),
+                style = MaterialTheme.typography.labelLarge,
+                color = AuroroPal.textPrimary,
+                maxLines = 1,
+            )
+            Spacer(Modifier.size(2.dp))
+            Text(
+                text = wallpaperMeta(wallpaper),
+                style = MaterialTheme.typography.labelSmall,
+                color = AuroroPal.textTertiary,
+                maxLines = 1,
+            )
+        }
+        IconButton(onClick = { onToggleFavorite(wallpaper) }) {
+            Icon(
+                painter = painterResource(
+                    if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_outlined,
+                ),
+                contentDescription = stringResource(
+                    if (favorite) R.string.favorite_remove else R.string.favorite_add,
+                ),
+                tint = if (favorite) androidx.compose.ui.graphics.Color(0xFFFF6B81) else AuroroPal.textTertiary,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeedFooter(state: HomeViewModel.UiState, onRetryMore: () -> Unit) {
+    FeedFooterState(
+        loadingMore = state.loadingMore,
+        notice = state.notice,
+        endReached = state.endReached,
+        onRetryMore = onRetryMore,
+    )
+}
+
+/** Fires [onNearEnd] once the list is scrolled within [NEAR_END_THRESHOLD] items of its end. */
+@Composable
+private fun NearEndEffect(listState: androidx.compose.foundation.lazy.LazyListState, onNearEnd: () -> Unit) {
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            info.visibleItemsInfo.lastOrNull()?.index >= info.totalItemsCount - NEAR_END_THRESHOLD
+        }
+    }
+    LaunchedEffect(nearEnd) {
+        if (nearEnd) onNearEnd()
     }
 }

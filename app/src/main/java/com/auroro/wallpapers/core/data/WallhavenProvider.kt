@@ -189,8 +189,9 @@ object WallhavenMapper {
         if (!UrlPolicy.isAllowedForNetwork(dto.path)) return null
         // Use Wallhaven's own original-size preview for gallery cells; the detail view and downloads
         // retain the full media URL. Never trust a thumbnail URL outside the provider's HTTPS hosts.
-        // Cards and carousels use Wallhaven's large thumb (<= ~2K, typically 1280-1920 px)
-        // instead of the full 4K original: same visual quality at a fraction of the bytes.
+        // Cards keep the small/large thumbs only as a fallback; the preview the UI shows is
+        // the full original so artwork is never soft. Speed comes from Coil's disk cache and
+        // the decode cap in WallpaperArt, not from serving smaller bytes.
         val cardPreview = sequenceOf(dto.thumbs.large, dto.thumbs.original)
             .firstOrNull(UrlPolicy::isAllowedForNetwork)
             ?: dto.path
@@ -202,7 +203,7 @@ object WallhavenMapper {
             sourceId = dto.id,
             pageUrl = page,
             thumbUrl = cardPreview,
-            previewUrl = cardPreview,
+            previewUrl = dto.path,
             originalUrl = dto.path,
             width = dto.dimensionX,
             height = dto.dimensionY,

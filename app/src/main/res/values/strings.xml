@@ -90,6 +90,7 @@
     <string name="dl_filter_empty_title">Nothing in this filter</string>
     <string name="dl_filter_empty_body">No downloads match the selected filter right now.</string>
     <string name="set_font_scale">Font scale · %1$d%%</string>
+    <string name="set_feed_layout">Feed layout</string>
     <string name="set_amoled_sub">Pure black surfaces in dark mode (OLED friendly)</string>
     <string name="set_contrast_sub">Stronger text and outlines for readability</string>
     <string name="lib_storage_line">%1$d saved · %2$s on device · %3$s free</string>

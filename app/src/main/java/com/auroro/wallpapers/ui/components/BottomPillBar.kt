@@ -107,7 +107,10 @@ fun BottomPillBar(
                 launch { indicatorW.animateTo(target.width, AuroroMotion.BouncyFloat) }
             }
         }
-        Box {
+        // Indicator and tabs share ONE padded box: measured tab bounds are in the Row's
+        // coordinate space, so the sliding pill must live inside the same padding or it
+        // renders offset from the icon it highlights.
+        Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             if (active != null) {
                 Box(
                     modifier = Modifier
@@ -120,7 +123,6 @@ fun BottomPillBar(
                 )
             }
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
