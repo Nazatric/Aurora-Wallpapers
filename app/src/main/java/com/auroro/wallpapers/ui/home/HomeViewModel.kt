@@ -54,6 +54,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     private var session: DiscoverySession? = null
     private var loadJob: Job? = null
     private var moreJob: Job? = null
+    private var shuffleJob: Job? = null
     private var emptyStreak = 0
 
     init {
@@ -114,6 +115,68 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                     error = if (items.isEmpty()) result.message() ?: GENERIC_ERROR else null,
                     notice = if (items.isNotEmpty() && result.staleCacheUsed) result.message() else null,
                 )
+            }
+        }
+    }
+
+    /**
+     * Magic-button shuffle: plans a fresh session (next ordinal, current mix excluded) but
+     * keeps showing the current items until the new batch actually arrives — one shuffle at
+     * a time, so rapid taps can never cancel a batch mid-flight and leave the screen empty.
+     */
+    fun shuffle() {
+        if (shuffleJob?.isActive == true) return
+        loadJob?.cancel()
+        moreJob?.cancel()
+        val gen = generation.incrementAndGet()
+        _state.update { it.copy(loading = true, loadingMore = false, error = null, notice = null) }
+        shuffleJob = viewModelScope.launch {
+            val prefs = app.settings.current()
+            val now = System.currentTimeMillis()
+            val currentKeys = _state.value.items.mapTo(hashSetOf()) { it.key }
+            val planned = DiscoverySessionPlanner.newRandomSession(
+                nowMillis = now,
+                rotateHourly = prefs.rotateDiscoveryHourly,
+                refreshOrdinal = session?.refreshOrdinal?.plus(1) ?: 0,
+                recentRecipeIds = app.settings.recentlyUsedDiscoveryRecipeIds(now, prefs.repeatAfterHours),
+                preferredRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(setOfNotNull(_state.value.style?.id)),
+                excludedRecipeIds = DiscoveryStylePreferenceMapping.recipeIds(prefs.hiddenDiscoveryStyleIds),
+            )
+            session = planned
+            app.discoveryPools.recordSessionRecipeIds(planned.candidateRecipeIds, now)
+            val seen = if (prefs.avoidRecentlySeen) {
+                app.settings.recentlySeenDiscoveryKeys(now, prefs.repeatAfterHours)
+            } else {
+                emptySet()
+            }
+            val result = app.discoveryEngine.discover(
+                session = planned,
+                generation = gen,
+                preferences = prefs,
+                recentlySeenKeys = seen + currentKeys,
+            ) { _ -> }
+            if (gen != generation.get()) return@launch
+            emptyStreak = 0
+            val fresh = result.items
+            when {
+                fresh.isNotEmpty() -> {
+                    app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+                    _state.update {
+                        it.copy(
+                            items = fresh,
+                            loading = false,
+                            endReached = false,
+                            notice = if (result.staleCacheUsed) result.message() else null,
+                        )
+                    }
+                }
+                // Nothing new came back: keep the mix the user is looking at and say so.
+                else -> _state.update {
+                    it.copy(
+                        loading = false,
+                        notice = result.message() ?: "That shuffle came back empty — keeping your current mix.",
+                    )
+                }
             }
         }
     }

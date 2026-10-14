@@ -35,7 +35,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,20 +53,25 @@ import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.artAspect
+import com.auroro.wallpapers.ui.components.rememberBounceScale
 import com.auroro.wallpapers.ui.components.resolutionLabel
-import com.auroro.wallpapers.ui.theme.rememberBounceScale
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroAccent
 import com.auroro.wallpapers.ui.theme.AuroroBackground
 import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.AuroroSurface
 import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
 import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
+import com.auroro.wallpapers.ui.theme.rememberBounceScale
 import kotlin.math.abs
 
 /**
  * Cover-flow browser opened by the pill bar's magic button: the current discovery mix as a
  * rotating carousel. Side pages tilt away on the Y axis and shrink/fade with distance while
  * the centre card sits flat — pure graphicsLayer math, no bitmaps, cheap on the GPU.
+ *
+ * Cards fill their frame with [ContentScale.Crop]: a browsing carousel shows a full-bleed
+ * crop (never letterboxed bars), while the detail screen keeps the honest whole-image view.
  */
 @Composable
 fun CoverFlowScreen(
@@ -84,8 +89,16 @@ fun CoverFlowScreen(
     val current = pagerState.currentPage.coerceIn(0, (items.size - 1).coerceAtLeast(0))
     val currentItem = items.getOrNull(current)
 
+    // A fresh shuffle replaces the list: start the carousel back at the first card so the
+    // new mix is what you see, not a stale page index.
+    LaunchedEffect(items) {
+        if (items.isNotEmpty() && pagerState.currentPage != 0) {
+            pagerState.scrollToPage(0)
+        }
+    }
+
     Box(
-        modifier = modifier.fillMaxSize().background(AuroroBackground.copy(alpha = 0.96f)),
+        modifier = modifier.fillMaxSize().background(AuroroBackground),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -154,8 +167,8 @@ fun CoverFlowScreen(
                 else -> HorizontalPager(
                     state = pagerState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 54.dp),
-                    pageSpacing = (-10).dp,
+                    contentPadding = PaddingValues(horizontal = 30.dp),
+                    pageSpacing = (-6).dp,
                     verticalAlignment = Alignment.CenterVertically,
                 ) { page ->
                     val wallpaper = items[page]
@@ -172,7 +185,7 @@ fun CoverFlowScreen(
                             .graphicsLayer {
                                 rotationY = offset.coerceIn(-1f, 1f) * 38f
                                 cameraDistance = 16f * density.density
-                                val scale = lerp(0.74f, 1f, 1f - distance)
+                                val scale = lerp(0.78f, 1f, 1f - distance)
                                 scaleX = scale
                                 scaleY = scale
                                 alpha = lerp(0.38f, 1f, 1f - distance)
@@ -188,11 +201,11 @@ fun CoverFlowScreen(
                         fadeOut(tween(180, easing = AuroroMotion.EmphasizedAccelerate))
                 },
                 label = "coverflowCaption",
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 14.dp),
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 10.dp),
             ) { wallpaper ->
                 if (wallpaper != null) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
@@ -214,7 +227,7 @@ fun CoverFlowScreen(
                             color = AuroroTextSecondary,
                             maxLines = 1,
                         )
-                        Spacer(Modifier.size(12.dp))
+                        Spacer(Modifier.size(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
                                 onClick = { onOpen(wallpaper) },
@@ -232,7 +245,7 @@ fun CoverFlowScreen(
                         }
                     }
                 } else {
-                    Spacer(Modifier.height(96.dp))
+                    Spacer(Modifier.height(84.dp))
                 }
             }
         }
@@ -251,16 +264,17 @@ private fun CoverFlowCard(
     val heartScale = rememberBounceScale(favorite)
     Box(
         modifier = modifier
-            .padding(horizontal = 8.dp, vertical = 14.dp)
-            .aspectRatio(artAspect(wallpaper).coerceIn(0.55f, 1.7f))
+            .padding(horizontal = 4.dp, vertical = 10.dp)
+            .aspectRatio(artAspect(wallpaper).coerceIn(0.46f, 2.1f))
             .clip(shape)
+            .background(AuroroSurface, shape)
             .clickable(role = Role.Button, onClick = { onOpen(wallpaper) }),
     ) {
         AsyncImage(
             model = wallpaper.previewUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize().background(Color.Black),
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
         )
         IconButton(
             onClick = { onToggleFavorite(wallpaper) },

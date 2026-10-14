@@ -85,7 +85,7 @@ fun DetailScreen(
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         AsyncImage(
-            model = wallpaper.previewUrl,
+            model = wallpaper.originalUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),

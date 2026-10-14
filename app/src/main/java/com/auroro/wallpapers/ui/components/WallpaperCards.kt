@@ -167,7 +167,7 @@ fun WallpaperArt(
             .clickable(role = Role.Button, onClick = onClick),
     ) {
         AsyncImage(
-            model = wallpaper.thumbUrl,
+            model = wallpaper.previewUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),

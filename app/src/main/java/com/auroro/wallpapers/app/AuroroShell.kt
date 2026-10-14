@@ -29,7 +29,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.model.Wallpaper
-import com.auroro.wallpapers.ui.PlaceholderScreen
 import com.auroro.wallpapers.ui.components.BottomPillBar
 import com.auroro.wallpapers.ui.components.ShellTab
 import com.auroro.wallpapers.ui.coverflow.CoverFlowScreen
@@ -37,6 +36,10 @@ import com.auroro.wallpapers.ui.crop.CropScreen
 import com.auroro.wallpapers.ui.detail.DetailScreen
 import com.auroro.wallpapers.ui.home.HomeScreen
 import com.auroro.wallpapers.ui.home.HomeViewModel
+import com.auroro.wallpapers.ui.library.LibraryScreen
+import com.auroro.wallpapers.ui.library.LibraryViewModel
+import com.auroro.wallpapers.ui.settings.SettingsScreen
+import com.auroro.wallpapers.ui.settings.SettingsViewModel
 import com.auroro.wallpapers.ui.search.SearchScreen
 import com.auroro.wallpapers.ui.search.SearchViewModel
 import com.auroro.wallpapers.ui.theme.AuroroBackground
@@ -63,10 +66,17 @@ fun AuroroShell() {
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
     val searchViewModel: SearchViewModel = viewModel(factory = SearchViewModel.factory(container))
     val searchState by searchViewModel.state.collectAsStateWithLifecycle()
+    val libraryViewModel: LibraryViewModel = viewModel(factory = LibraryViewModel.factory(container))
+    val libraryState by libraryViewModel.state.collectAsStateWithLifecycle()
+    val settingsViewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.factory(container))
+    val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(homeViewModel) {
         homeViewModel.messages.collect { message -> snackbarHostState.showSnackbar(message) }
+    }
+    LaunchedEffect(settingsViewModel) {
+        settingsViewModel.messages.collect { message -> snackbarHostState.showSnackbar(message) }
     }
 
     val detailWallpaper = detail
@@ -109,7 +119,20 @@ fun AuroroShell() {
                     onOpen = { wallpaper -> detail = wallpaper },
                 )
 
-                else -> PlaceholderScreen(currentTab)
+                ShellTab.LIBRARY -> LibraryScreen(
+                    state = libraryState,
+                    onToggleFavorite = libraryViewModel::toggleFavorite,
+                    onOpen = { wallpaper -> detail = wallpaper },
+                    onCancel = libraryViewModel::cancel,
+                    onRetry = libraryViewModel::retry,
+                    onDelete = libraryViewModel::delete,
+                )
+
+                ShellTab.SETTINGS -> SettingsScreen(
+                    state = settingsState,
+                    onUpdate = settingsViewModel::update,
+                    onClearCaches = settingsViewModel::clearCaches,
+                )
             }
         }
         if (!anyOverlay) {
@@ -118,7 +141,7 @@ fun AuroroShell() {
                 onSelect = { tab = it },
                 onCenterAction = {
                     coverFlow = true
-                    homeViewModel.reload()
+                    homeViewModel.shuffle()
                 },
                 centerActionLabel = R.string.action_shuffle,
                 centerActionIcon = R.drawable.ic_auto_awesome,
@@ -142,7 +165,7 @@ fun AuroroShell() {
                 favoriteKeys = homeState.favoriteKeys,
                 onToggleFavorite = homeViewModel::toggleFavorite,
                 onOpen = { wallpaper -> detail = wallpaper },
-                onShuffle = { homeViewModel.reload() },
+                onShuffle = { homeViewModel.shuffle() },
                 onClose = { coverFlow = false },
             )
         }
