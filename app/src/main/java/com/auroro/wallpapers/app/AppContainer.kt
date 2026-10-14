@@ -181,9 +181,6 @@ class AppContainer(context: Context) {
             .coerceIn(50, 2_000)
         ImageLoader.Builder(appContext)
             .crossfade(160)
-            // Repeat visits (back from detail, tab switches) must hit disk, not network:
-            // ignore server no-cache headers for immutable CDN artwork.
-            .respectCacheHeaders(false)
             .memoryCache {
                 MemoryCache.Builder()
                     .maxSizePercent(appContext, 0.2)

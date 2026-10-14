@@ -292,7 +292,8 @@ private fun GridFeed(
     val nearEnd by remember {
         derivedStateOf {
             val info = gridState.layoutInfo
-            info.visibleItemsInfo.lastOrNull()?.index >= info.totalItemsCount - NEAR_END_THRESHOLD
+            info.visibleItemsInfo.lastOrNull()
+                ?.let { it.index >= info.totalItemsCount - NEAR_END_THRESHOLD } ?: false
         }
     }
     LaunchedEffect(nearEnd) {
@@ -431,7 +432,8 @@ private fun NearEndEffect(listState: androidx.compose.foundation.lazy.LazyListSt
     val nearEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
-            info.visibleItemsInfo.lastOrNull()?.index >= info.totalItemsCount - NEAR_END_THRESHOLD
+            info.visibleItemsInfo.lastOrNull()
+                ?.let { it.index >= info.totalItemsCount - NEAR_END_THRESHOLD } ?: false
         }
     }
     LaunchedEffect(nearEnd) {
