@@ -1,6 +1,5 @@
 package com.auroro.wallpapers.ui.home
 
-import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -24,15 +23,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** One-off UI messages surfaced as snackbars by the shell. */
-sealed interface UiEvent {
-    /** Message from app resources; [arg] fills a single `%1$s` placeholder when present. */
-    data class Message(@StringRes val res: Int, val arg: String? = null) : UiEvent
-
-    /** Verbatim message owned by the data layer (e.g. an apply-failure reason). */
-    data class Raw(val text: String) : UiEvent
-}
-
 /**
  * Slice-1 home feed state: one discovery session per selection, honest loading/error/end
  * states, and continuation batches when the first pass is consumed. The engine and planners
@@ -55,8 +45,9 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    private val _events = MutableSharedFlow<UiEvent>(extraBufferCapacity = 4)
-    val events: SharedFlow<UiEvent> = _events.asSharedFlow()
+    /** One-off UI messages (resource-resolved here, or verbatim data-layer text) for snackbars. */
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages.asSharedFlow()
 
     private val generation = AtomicLong(0L)
     private var session: DiscoverySession? = null
@@ -201,13 +192,13 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     fun download(wallpaper: Wallpaper) {
         viewModelScope.launch {
             if (!wallpaper.downloadAllowed) {
-                _events.emit(UiEvent.Message(R.string.download_blocked_rights))
+                _messages.emit(app.appContext.getString(R.string.download_blocked_rights))
                 return@launch
             }
             runCatching { app.downloads.enqueue(wallpaper) }
-                .onSuccess { _events.emit(UiEvent.Message(R.string.download_started)) }
+                .onSuccess { _messages.emit(app.appContext.getString(R.string.download_started)) }
                 .onFailure {
-                    _events.emit(UiEvent.Raw(it.message ?: "The download could not be queued."))
+                    _messages.emit(it.message ?: "The download could not be queued.")
                 }
         }
     }
@@ -217,21 +208,23 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         viewModelScope.launch {
             when {
                 !wallpaper.downloadAllowed ->
-                    _events.emit(UiEvent.Message(R.string.download_blocked_rights))
+                    _messages.emit(app.appContext.getString(R.string.download_blocked_rights))
 
                 !wallpaper.setWallpaperAllowed ->
-                    _events.emit(UiEvent.Message(R.string.apply_blocked_licence))
+                    _messages.emit(app.appContext.getString(R.string.apply_blocked_licence))
 
                 else -> runCatching {
                     val original = app.wallpaperApplyRepository.prepare(wallpaper)
                     app.wallpaperApplier.apply(original.uri, target)
                 }.onSuccess { result ->
                     when (result) {
-                        ApplyResult.Success -> _events.emit(UiEvent.Message(R.string.apply_success))
-                        is ApplyResult.Failure -> _events.emit(UiEvent.Raw(result.message))
+                        ApplyResult.Success ->
+                            _messages.emit(app.appContext.getString(R.string.apply_success))
+
+                        is ApplyResult.Failure -> _messages.emit(result.message)
                     }
                 }.onFailure {
-                    _events.emit(UiEvent.Raw(it.message ?: "The wallpaper could not be set."))
+                    _messages.emit(it.message ?: "The wallpaper could not be set.")
                 }
             }
         }

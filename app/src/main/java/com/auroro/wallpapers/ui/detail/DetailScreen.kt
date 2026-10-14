@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.data.download.ApplyTarget
@@ -258,7 +259,7 @@ private fun InfoSheet(wallpaper: Wallpaper, onDismiss: () -> Unit) {
                         context.startActivity(
                             android.content.Intent(
                                 android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(wallpaper.pageUrl),
+                                wallpaper.pageUrl.toUri(),
                             ),
                         )
                     }

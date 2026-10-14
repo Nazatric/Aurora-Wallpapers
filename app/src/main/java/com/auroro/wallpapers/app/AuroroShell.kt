@@ -29,7 +29,6 @@ import com.auroro.wallpapers.ui.components.ShellTab
 import com.auroro.wallpapers.ui.detail.DetailScreen
 import com.auroro.wallpapers.ui.home.HomeScreen
 import com.auroro.wallpapers.ui.home.HomeViewModel
-import com.auroro.wallpapers.ui.home.UiEvent
 import com.auroro.wallpapers.ui.theme.AuroroBackground
 
 /**
@@ -46,19 +45,9 @@ fun AuroroShell() {
     val homeViewModel: HomeViewModel = viewModel(factory = HomeViewModel.factory(container))
     val homeState by homeViewModel.state.collectAsStateWithLifecycle()
 
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(homeViewModel) {
-        homeViewModel.events.collect { event ->
-            val text = when (event) {
-                is UiEvent.Message ->
-                    if (event.arg != null) context.getString(event.res, event.arg)
-                    else context.getString(event.res)
-
-                is UiEvent.Raw -> event.text
-            }
-            snackbarHostState.showSnackbar(text)
-        }
+        homeViewModel.messages.collect { message -> snackbarHostState.showSnackbar(message) }
     }
 
     val detailWallpaper = detail
