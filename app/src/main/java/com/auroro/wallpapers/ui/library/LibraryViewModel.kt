@@ -27,6 +27,7 @@ class LibraryViewModel(private val app: AppContainer) : ViewModel() {
         val favorites: List<Wallpaper> = emptyList(),
         val favoriteKeys: Set<String> = emptySet(),
         val downloads: List<DownloadRow> = emptyList(),
+        val recent: List<Wallpaper> = emptyList(),
         val storage: StorageInfo? = null,
     )
 
@@ -46,6 +47,11 @@ class LibraryViewModel(private val app: AppContainer) : ViewModel() {
                 _state.update {
                     it.copy(downloads = entities.map { entity -> DownloadRow(entity, byKey[entity.wallpaperKey]) })
                 }
+            }
+        }
+        viewModelScope.launch {
+            app.history.observeRecent().collect { list ->
+                _state.update { it.copy(recent = list) }
             }
         }
         viewModelScope.launch { refreshStorage() }

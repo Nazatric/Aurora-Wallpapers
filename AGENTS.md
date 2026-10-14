@@ -5,7 +5,8 @@
 Work in progress. The entire old application UI was removed in October 2026 (git history
 around `versionName 1.4.0`); all GitHub releases and tags were deleted at the same time.
 A new UI is being rebuilt slice by slice on top of the validated data/domain layer.
-Slices 1–4 (Home feed, shell pill navigation, fullscreen detail/preview, search with
+Slices 1–5 (Home feed + mode chips, shell pill navigation with sliding indicator,
+fullscreen detail/preview + HDR, crop editor with rotation, search with
 FeedPager + staggered grid, cover-flow browser, crop editor, Library favorites/downloads,
 Settings) are implemented under `app/src/main/java/com/auroro/wallpapers/ui/`.
 Feed cards use `ContentScale.Fit` inside a true-aspect container — never crop artwork to
@@ -16,7 +17,10 @@ Cover-flow cards use `ContentScale.Crop` (browsing carousel); every orientation-
 surface (Home/Search/Library cards, detail) uses `Fit` inside true-aspect containers.
 Shuffles go through `HomeViewModel.shuffle()` — one at a time, current mix kept until the
 new batch lands. Settings rows must map to real AppSettings fields the data layer
-consumes; unimplemented visuals are disabled rows with a "later slice" note.
+consumes; the settings palette (theme mode, design, accent, AMOLED, contrast, font
+scale) is live via `AuroroPal` composition-local colours; only the Liquid-Glass renderer
+and typeface swap remain disabled rows with a "later slice" note. Feed cards decode at a
+1440 px cap; detail/apply use originals; history recording happens on deliberate opens.
 Keep slices small and land each with green CI.
 
 ## Layout

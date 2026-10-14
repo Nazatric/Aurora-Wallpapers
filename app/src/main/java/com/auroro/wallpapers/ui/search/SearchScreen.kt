@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.search
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,10 +47,6 @@ import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.WallpaperArt
 import com.auroro.wallpapers.ui.components.artAspect
-import com.auroro.wallpapers.ui.theme.AuroroAccent
-import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 private const val NEAR_END_THRESHOLD = 4
 
@@ -110,7 +107,7 @@ fun SearchScreen(
             Text(
                 text = message,
                 style = MaterialTheme.typography.labelSmall,
-                color = AuroroTextTertiary,
+                color = AuroroPal.textTertiary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
             )
         }
@@ -120,12 +117,12 @@ fun SearchScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                CircularProgressIndicator(color = AuroroAccent, strokeWidth = 2.5.dp, modifier = Modifier.size(30.dp))
+                CircularProgressIndicator(color = AuroroPal.accent, strokeWidth = 2.5.dp, modifier = Modifier.size(30.dp))
                 Spacer(Modifier.size(12.dp))
                 Text(
                     text = stringResource(R.string.search_searching),
                     style = MaterialTheme.typography.bodySmall,
-                    color = AuroroTextSecondary,
+                    color = AuroroPal.textSecondary,
                 )
             }
 
@@ -146,7 +143,7 @@ fun SearchScreen(
                 Text(
                     text = stringResource(R.string.search_no_results_body),
                     style = MaterialTheme.typography.bodySmall,
-                    color = AuroroTextSecondary,
+                    color = AuroroPal.textSecondary,
                     modifier = Modifier.padding(horizontal = 40.dp),
                 )
                 Spacer(Modifier.size(14.dp))
@@ -178,13 +175,13 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                             horizontalArrangement = Arrangement.Center,
                         ) {
-                            CircularProgressIndicator(color = AuroroAccent, strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp))
+                            CircularProgressIndicator(color = AuroroPal.accent, strokeWidth = 2.5.dp, modifier = Modifier.size(24.dp))
                         }
                     } else if (state.endReached) {
                         Text(
                             text = stringResource(R.string.search_end_reached),
                             style = MaterialTheme.typography.labelSmall,
-                            color = AuroroTextTertiary,
+                            color = AuroroPal.textTertiary,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         )
@@ -201,7 +198,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
     val focusManager = LocalFocusManager.current
     Surface(
         shape = RoundedCornerShape(26.dp),
-        color = AuroroSurfaceBright,
+        color = AuroroPal.surfaceBright,
         modifier = modifier,
     ) {
         Row(
@@ -211,7 +208,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
             Icon(
                 painter = painterResource(R.drawable.ic_search_outlined),
                 contentDescription = null,
-                tint = AuroroTextTertiary,
+                tint = AuroroPal.textTertiary,
                 modifier = Modifier.size(20.dp),
             )
             Spacer(Modifier.size(10.dp))
@@ -220,7 +217,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
                 onValueChange = onQueryChange,
                 singleLine = true,
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
-                cursorBrush = SolidColor(AuroroAccent),
+                cursorBrush = SolidColor(AuroroPal.accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(
                     onSearch = {
@@ -234,7 +231,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
                         Text(
                             text = stringResource(R.string.search_field_hint),
                             style = MaterialTheme.typography.bodyLarge,
-                            color = AuroroTextTertiary,
+                            color = AuroroPal.textTertiary,
                         )
                     }
                     innerTextField()
@@ -245,7 +242,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
                         contentDescription = stringResource(R.string.search_clear),
-                        tint = AuroroTextSecondary,
+                        tint = AuroroPal.textSecondary,
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -261,11 +258,11 @@ private fun SearchIdleState(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Surface(shape = RoundedCornerShape(28.dp), color = AuroroSurfaceBright) {
+        Surface(shape = RoundedCornerShape(28.dp), color = AuroroPal.surfaceBright) {
             Icon(
                 painter = painterResource(R.drawable.ic_search_outlined),
                 contentDescription = null,
-                tint = AuroroAccent,
+                tint = AuroroPal.accent,
                 modifier = Modifier.padding(20.dp).size(30.dp),
             )
         }
@@ -275,7 +272,7 @@ private fun SearchIdleState(modifier: Modifier = Modifier) {
         Text(
             text = stringResource(R.string.search_idle_body),
             style = MaterialTheme.typography.bodySmall,
-            color = AuroroTextSecondary,
+            color = AuroroPal.textSecondary,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(horizontal = 44.dp),
         )

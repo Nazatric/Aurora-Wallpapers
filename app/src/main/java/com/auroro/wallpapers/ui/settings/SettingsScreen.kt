@@ -1,6 +1,10 @@
 package com.auroro.wallpapers.ui.settings
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -27,20 +31,20 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
+import com.auroro.wallpapers.core.data.AccentTheme
 import com.auroro.wallpapers.core.data.AppSettings
+import com.auroro.wallpapers.core.data.DesignTheme
 import com.auroro.wallpapers.core.data.SaveLocation
+import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.data.download.StorageInfo
 import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.formatBytes
-import com.auroro.wallpapers.ui.theme.AuroroAccent
-import com.auroro.wallpapers.ui.theme.AuroroSurface
-import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 import kotlin.math.roundToInt
 
 /**
@@ -74,21 +78,65 @@ fun SettingsScreen(
             return@Column
         }
         SettingsCard(title = androidx.compose.ui.res.stringResource(R.string.section_appearance)) {
-            ComingSoonRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_theme_mode),
-                value = settings.themeMode.label,
-                note = androidx.compose.ui.res.stringResource(R.string.soon_theming),
-            )
-            ComingSoonRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_design_theme),
-                value = settings.designTheme.label,
-                note = androidx.compose.ui.res.stringResource(R.string.soon_glass),
-            )
-            ComingSoonRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_accent),
-                value = settings.accent.label,
-                note = androidx.compose.ui.res.stringResource(R.string.soon_theming),
-            )
+            // Theme mode: Light / Dark / Follow system — drives the real colour scheme.
+            SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_theme_mode))
+            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                ThemeMode.entries.forEach { mode ->
+                    AuroraChip(
+                        label = mode.label,
+                        active = settings.themeMode == mode,
+                        onClick = { onUpdate { it.copy(themeMode = mode) } },
+                    )
+                }
+            }
+            // Design language: live palette presets (the glass rendering itself lands later).
+            SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_design_theme))
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                DesignTheme.entries.forEach { design ->
+                    DesignThemeCard(
+                        design = design,
+                        selected = settings.designTheme == design,
+                        onClick = { onUpdate { it.copy(designTheme = design) } },
+                    )
+                }
+            }
+            // Accent hue recolours brand, chips, buttons and indicators everywhere.
+            SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_accent))
+            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                AccentTheme.entries.forEach { accent ->
+                    AuroraChip(
+                        label = accent.label,
+                        active = settings.accent == accent,
+                        onClick = { onUpdate { it.copy(accent = accent) } },
+                    )
+                }
+            }
+            // Font scale: applied through LocalDensity in the theme, so every screen obeys it.
+            Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
+                Text(
+                    text = androidx.compose.ui.res.stringResource(
+                        R.string.set_font_scale,
+                        (settings.fontScale * 100).roundToInt(),
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+                Slider(
+                    value = settings.fontScale,
+                    onValueChange = { v ->
+                        val stepped = (v / 0.05f).roundToInt() * 0.05f
+                        onUpdate { it.copy(fontScale = stepped.coerceIn(0.85f, 1.3f)) }
+                    },
+                    valueRange = 0.85f..1.3f,
+                    steps = 8,
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = AuroroPal.accent,
+                        activeTrackColor = AuroroPal.accent,
+                    ),
+                )
+            }
             ComingSoonRow(
                 title = androidx.compose.ui.res.stringResource(R.string.set_typeface),
                 value = settings.fontChoice.label,
@@ -99,15 +147,17 @@ fun SettingsScreen(
                 value = settings.glassQuality.label,
                 note = androidx.compose.ui.res.stringResource(R.string.soon_glass),
             )
-            ComingSoonRow(
+            SwitchRow(
                 title = androidx.compose.ui.res.stringResource(R.string.set_amoled),
-                value = if (settings.amoled) onLabel() else offLabel(),
-                note = androidx.compose.ui.res.stringResource(R.string.soon_theming),
+                subtitle = androidx.compose.ui.res.stringResource(R.string.set_amoled_sub),
+                checked = settings.amoled,
+                onCheckedChange = { v -> onUpdate { it.copy(amoled = v) } },
             )
-            ComingSoonRow(
+            SwitchRow(
                 title = androidx.compose.ui.res.stringResource(R.string.set_contrast),
-                value = if (settings.increaseContrast) onLabel() else offLabel(),
-                note = androidx.compose.ui.res.stringResource(R.string.soon_theming),
+                subtitle = androidx.compose.ui.res.stringResource(R.string.set_contrast_sub),
+                checked = settings.increaseContrast,
+                onCheckedChange = { v -> onUpdate { it.copy(increaseContrast = v) } },
                 last = true,
             )
         }
@@ -132,7 +182,7 @@ fun SettingsScreen(
                 Text(
                     text = androidx.compose.ui.res.stringResource(R.string.set_repeat_sub),
                     style = MaterialTheme.typography.labelSmall,
-                    color = AuroroTextTertiary,
+                    color = AuroroPal.textTertiary,
                 )
                 Slider(
                     value = settings.repeatAfterHours.toFloat(),
@@ -143,8 +193,8 @@ fun SettingsScreen(
                     valueRange = 6f..72f,
                     steps = 10,
                     colors = androidx.compose.material3.SliderDefaults.colors(
-                        thumbColor = AuroroAccent,
-                        activeTrackColor = AuroroAccent,
+                        thumbColor = AuroroPal.accent,
+                        activeTrackColor = AuroroPal.accent,
                     ),
                 )
             }
@@ -156,7 +206,7 @@ fun SettingsScreen(
             Text(
                 text = androidx.compose.ui.res.stringResource(R.string.set_hidden_sub),
                 style = MaterialTheme.typography.labelSmall,
-                color = AuroroTextTertiary,
+                color = AuroroPal.textTertiary,
                 modifier = Modifier.padding(start = 18.dp),
             )
             ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -207,7 +257,7 @@ fun SettingsScreen(
             Text(
                 text = settings.saveLocation.description,
                 style = MaterialTheme.typography.labelSmall,
-                color = AuroroTextTertiary,
+                color = AuroroPal.textTertiary,
                 modifier = Modifier.padding(start = 18.dp),
             )
             SwitchRow(
@@ -238,7 +288,7 @@ fun SettingsScreen(
             Text(
                 text = androidx.compose.ui.res.stringResource(R.string.set_cache_sub),
                 style = MaterialTheme.typography.labelSmall,
-                color = AuroroTextTertiary,
+                color = AuroroPal.textTertiary,
                 modifier = Modifier.padding(start = 18.dp),
             )
             ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
@@ -252,7 +302,7 @@ fun SettingsScreen(
             }
             Button(
                 onClick = onClearCaches,
-                colors = ButtonDefaults.buttonColors(containerColor = AuroroSurfaceBright),
+                colors = ButtonDefaults.buttonColors(containerColor = AuroroPal.surfaceBright),
                 shape = RoundedCornerShape(50),
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
             ) {
@@ -275,7 +325,7 @@ fun SettingsScreen(
                 Text(
                     text = androidx.compose.ui.res.stringResource(R.string.set_about_note),
                     style = MaterialTheme.typography.labelSmall,
-                    color = AuroroTextTertiary,
+                    color = AuroroPal.textTertiary,
                 )
             }
         }
@@ -284,10 +334,43 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun onLabel(): String = androidx.compose.ui.res.stringResource(R.string.set_on)
+private fun SettingsRowTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier.padding(start = 18.dp, top = 10.dp, bottom = 2.dp),
+    )
+}
 
 @Composable
-private fun offLabel(): String = androidx.compose.ui.res.stringResource(R.string.set_off)
+private fun DesignThemeCard(design: DesignTheme, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (selected) AuroroPal.accent.copy(alpha = 0.16f) else AuroroPal.surfaceBright)
+            .clickable(role = Role.RadioButton, onClickLabel = design.label, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = design.label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) AuroroPal.textPrimary else AuroroPal.textSecondary,
+            )
+            Text(text = design.description, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
+        }
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .size(10.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(AuroroPal.accent),
+            )
+        }
+    }
+}
 
 @Composable
 private fun SettingsCard(title: String, content: @Composable ColumnScope.() -> Unit) {
@@ -295,10 +378,10 @@ private fun SettingsCard(title: String, content: @Composable ColumnScope.() -> U
         Text(
             text = title,
             style = MaterialTheme.typography.labelSmall,
-            color = AuroroAccent,
+            color = AuroroPal.accent,
             modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
         )
-        Surface(shape = RoundedCornerShape(24.dp), color = AuroroSurface) {
+        Surface(shape = RoundedCornerShape(24.dp), color = AuroroPal.surface) {
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), content = content)
         }
     }
@@ -321,14 +404,14 @@ private fun ColumnScope.SwitchRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(text = title, style = MaterialTheme.typography.labelLarge)
             subtitle?.let {
-                Text(text = it, style = MaterialTheme.typography.labelSmall, color = AuroroTextTertiary)
+                Text(text = it, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
             }
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedTrackColor = AuroroAccent,
+                checkedTrackColor = AuroroPal.accent,
                 checkedThumbColor = Color.White,
             ),
         )
@@ -351,12 +434,12 @@ private fun ColumnScope.ComingSoonRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.labelLarge,
-                color = AuroroTextSecondary,
+                color = AuroroPal.textSecondary,
                 modifier = Modifier.weight(1f),
             )
-            Text(text = value, style = MaterialTheme.typography.labelSmall, color = AuroroTextTertiary)
+            Text(text = value, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
         }
-        Text(text = note, style = MaterialTheme.typography.labelSmall, color = AuroroTextTertiary)
+        Text(text = note, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
     }
 }
 

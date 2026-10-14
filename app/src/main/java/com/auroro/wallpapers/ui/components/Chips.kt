@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.components
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -15,10 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import com.auroro.wallpapers.ui.theme.AuroroAccent
 import com.auroro.wallpapers.ui.theme.AuroroMotion
-import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
 
 /**
  * Shared pill chip with Material Expressive feedback: colour animates between resting and
@@ -40,7 +38,7 @@ fun AuroraChip(
         label = "chipPress",
     )
     val background by animateColorAsState(
-        targetValue = if (active) AuroroAccent else AuroroSurfaceBright,
+        targetValue = if (active) AuroroPal.accent else AuroroPal.surfaceBright,
         animationSpec = AuroroMotion.ColorCalm,
         label = "chipBackground",
     )
@@ -48,7 +46,7 @@ fun AuroraChip(
         targetValue = if (active) {
             MaterialTheme.colorScheme.onPrimary
         } else {
-            AuroroTextSecondary
+            AuroroPal.textSecondary
         },
         animationSpec = AuroroMotion.ColorCalm,
         label = "chipContent",

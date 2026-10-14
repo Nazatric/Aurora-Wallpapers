@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.map
 import java.util.Locale
 
 enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"), DARK("Dark") }
-enum class AccentTheme(val label: String) { AQUA("Aqua"), EMERALD("Emerald"), SKY("Sky blue") }
+enum class AccentTheme(val label: String) { AQUA("Aurora violet"), EMERALD("Emerald"), SKY("Sky blue") }
 enum class DesignTheme(val label: String, val description: String) {
     FRUTIGER_AERO("Frutiger Aero", "Luminous sky, water, glass and optimistic greens"),
     MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),

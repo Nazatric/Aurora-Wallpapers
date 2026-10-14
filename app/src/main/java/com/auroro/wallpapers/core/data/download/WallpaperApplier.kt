@@ -3,6 +3,7 @@ package com.auroro.wallpapers.core.data.download
 import android.app.WallpaperManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
 import android.graphics.Rect
@@ -57,6 +58,21 @@ object CropMath {
     /** Centered crop with the aspect ratio of the screen. */
     fun centerCrop(imageW: Int, imageH: Int, screenW: Int, screenH: Int): NormalizedCrop =
         visibleRect(imageW, imageH, screenW.toFloat(), screenH.toFloat(), 1f, 0f, 0f)
+
+    /**
+     * Maps a crop rect expressed in the space of an image rotated clockwise by
+     * [rotationDegrees] (0/90/180/270) back into the original image's normalized space,
+     * so the applier can region-decode the original and rotate only the cropped result.
+     * Derivation for 90° CW: original (x, y) -> rotated (1 - y, x); inverting gives
+     * left = top', top = 1 - right', right = bottom', bottom = 1 - left'.
+     */
+    fun rotateRectBack(c: NormalizedCrop, rotationDegrees: Int): NormalizedCrop =
+        when (((rotationDegrees % 360) + 360) % 360) {
+            90 -> NormalizedCrop(left = c.top, top = 1f - c.right, right = c.bottom, bottom = 1f - c.left)
+            180 -> NormalizedCrop(left = 1f - c.right, top = 1f - c.bottom, right = 1f - c.left, bottom = 1f - c.top)
+            270 -> NormalizedCrop(left = 1f - c.bottom, top = c.left, right = 1f - c.top, bottom = c.right)
+            else -> c
+        }
 }
 
 sealed interface ApplyResult {
@@ -83,7 +99,12 @@ class WallpaperApplier(private val context: Context) {
     }
 
     @Suppress("DEPRECATION")
-    suspend fun apply(uri: String, target: ApplyTarget, crop: NormalizedCrop? = null): ApplyResult = withContext(Dispatchers.IO) {
+    suspend fun apply(
+        uri: String,
+        target: ApplyTarget,
+        crop: NormalizedCrop? = null,
+        rotationDegrees: Int = 0,
+    ): ApplyResult = withContext(Dispatchers.IO) {
         val caps = capabilities()
         caps.unavailableReason?.let { return@withContext ApplyResult.Failure(it) }
         var bitmap: Bitmap? = null
@@ -92,7 +113,13 @@ class WallpaperApplier(private val context: Context) {
             val dm = context.resources.displayMetrics
             val screenW = min(dm.widthPixels, dm.heightPixels)
             val screenH = max(dm.widthPixels, dm.heightPixels)
-            val c = crop ?: CropMath.centerCrop(iw, ih, screenW, screenH)
+            // The crop arrives in the rotated image's space (that's what the editor shows);
+            // map it back so the region decode reads the original pixels directly.
+            val rot = ((rotationDegrees % 360) + 360) % 360
+            val swapped = rot == 90 || rot == 270
+            val effW = if (swapped) ih else iw
+            val effH = if (swapped) iw else ih
+            val c = CropMath.rotateRectBack(crop ?: CropMath.centerCrop(effW, effH, screenW, screenH), rot)
             val region = Rect(
                 (c.left * iw).roundToInt().coerceIn(0, iw - 1),
                 (c.top * ih).roundToInt().coerceIn(0, ih - 1),
@@ -117,6 +144,12 @@ class WallpaperApplier(private val context: Context) {
                     decoder.recycle()
                 }
             } ?: return@withContext ApplyResult.Failure("The image couldn't be decoded.")
+            if (rot != 0) {
+                val matrix = Matrix().apply { postRotate(rot.toFloat()) }
+                val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                if (rotated != bitmap) bitmap.recycle()
+                bitmap = rotated
+            }
 
             val wm = WallpaperManager.getInstance(context)
             val flags = when (target) {

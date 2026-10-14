@@ -1,15 +1,22 @@
 package com.auroro.wallpapers.ui.home
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.app.AppContainer
+import com.auroro.wallpapers.core.data.FeedPager
+import com.auroro.wallpapers.core.data.SourceState
+import com.auroro.wallpapers.core.data.SourceStatus
 import com.auroro.wallpapers.core.data.download.ApplyResult
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.data.download.NormalizedCrop
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoveryStyle
+import com.auroro.wallpapers.core.model.FeedRequest
+import com.auroro.wallpapers.core.model.SortOption
+import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
 import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -30,6 +37,14 @@ import kotlinx.coroutines.launch
  * live in the data layer; this ViewModel only sequences them and exposes immutable UI state.
  * Slice 2 adds detail actions (download, set wallpaper) routed through the rights gates.
  */
+/** Top-level home feed modes; each maps to a real catalogue sort or the curated engine. */
+enum class FeedMode(@param:StringRes val labelRes: Int) {
+    FOR_YOU(R.string.chip_for_you),
+    TRENDING(R.string.mode_trending),
+    NEWEST(R.string.mode_newest),
+    RANDOM(R.string.mode_random),
+}
+
 class HomeViewModel(private val app: AppContainer) : ViewModel() {
 
     data class UiState(
@@ -40,6 +55,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         val notice: String? = null,
         val endReached: Boolean = false,
         val style: DiscoveryStyle? = null,
+        val mode: FeedMode = FeedMode.FOR_YOU,
         val favoriteKeys: Set<String> = emptySet(),
     )
 
@@ -55,6 +71,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     private var loadJob: Job? = null
     private var moreJob: Job? = null
     private var shuffleJob: Job? = null
+    private var sortPager: FeedPager? = null
     private var emptyStreak = 0
 
     init {
@@ -67,6 +84,10 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     }
 
     fun reload(style: DiscoveryStyle? = _state.value.style) {
+        if (_state.value.mode != FeedMode.FOR_YOU) {
+            loadSorted(_state.value.mode, style)
+            return
+        }
         loadJob?.cancel()
         moreJob?.cancel()
         val gen = generation.incrementAndGet()
@@ -125,6 +146,10 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
      * a time, so rapid taps can never cancel a batch mid-flight and leave the screen empty.
      */
     fun shuffle() {
+        if (_state.value.mode != FeedMode.FOR_YOU) {
+            shuffleSorted()
+            return
+        }
         if (shuffleJob?.isActive == true) return
         loadJob?.cancel()
         moreJob?.cancel()
@@ -185,6 +210,10 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     fun loadMore() {
         val current = _state.value
         if (current.loading || current.loadingMore || current.endReached || current.items.isEmpty()) return
+        if (current.mode != FeedMode.FOR_YOU) {
+            loadMoreSorted()
+            return
+        }
         if (moreJob?.isActive == true) return
         val base = session ?: return
         val gen = generation.get()
@@ -248,8 +277,149 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         }
     }
 
+    /** Switches the top-level feed mode: curated discovery or a real catalogue sort. */
+    fun selectMode(mode: FeedMode) {
+        if (mode == _state.value.mode) return
+        _state.update { it.copy(mode = mode) }
+        if (mode == FeedMode.FOR_YOU) reload() else loadSorted(mode)
+    }
+
+    /** Style chips stay available in every mode; in sorted modes they become a tag query. */
+    fun selectStyle(style: DiscoveryStyle?) {
+        if (style == _state.value.style) return
+        if (_state.value.mode == FeedMode.FOR_YOU) reload(style) else loadSorted(_state.value.mode, style)
+    }
+
+    private fun buildSortedPager(mode: FeedMode, style: DiscoveryStyle?): FeedPager {
+        val sort = when (mode) {
+            FeedMode.TRENDING -> SortOption.POPULAR
+            FeedMode.NEWEST -> SortOption.NEWEST
+            FeedMode.RANDOM -> SortOption.RANDOM
+            FeedMode.FOR_YOU -> SortOption.SOURCE_DEFAULT
+        }
+        return FeedPager(
+            providers = listOf(app.wallhaven, app.nasaApod),
+            request = FeedRequest(
+                query = style?.label ?: "",
+                filter = WallpaperFilter(sort = sort),
+            ),
+        )
+    }
+
+    private fun loadSorted(mode: FeedMode, style: DiscoveryStyle? = _state.value.style) {
+        loadJob?.cancel()
+        moreJob?.cancel()
+        val gen = generation.incrementAndGet()
+        _state.update {
+            it.copy(
+                items = emptyList(), loading = true, loadingMore = false,
+                error = null, notice = null, endReached = false, style = style, mode = mode,
+            )
+        }
+        loadJob = viewModelScope.launch {
+            val pager = buildSortedPager(mode, style)
+            sortPager = pager
+            val result = pager.loadNext()
+            if (gen != generation.get()) return@launch
+            val seen = hashSetOf<String>()
+            val fresh = result.items.filter { seen.add(it.key) }
+            if (fresh.isNotEmpty()) {
+                app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+            }
+            _state.update {
+                it.copy(
+                    items = fresh,
+                    loading = false,
+                    endReached = result.endReached,
+                    error = if (fresh.isEmpty()) {
+                        "The catalogues returned nothing for this mode right now. Try again shortly."
+                    } else {
+                        null
+                    },
+                    notice = if (fresh.isNotEmpty()) statusNotice(result.statuses) else null,
+                )
+            }
+        }
+    }
+
+    private fun loadMoreSorted() {
+        val pager = sortPager ?: return
+        if (moreJob?.isActive == true) return
+        val gen = generation.get()
+        _state.update { it.copy(loadingMore = true, notice = null) }
+        moreJob = viewModelScope.launch {
+            val result = pager.loadNext()
+            if (gen != generation.get()) return@launch
+            val existing = _state.value.items.mapTo(hashSetOf()) { it.key }
+            val fresh = result.items.filter { existing.add(it.key) }
+            if (fresh.isNotEmpty()) {
+                app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+            }
+            _state.update {
+                it.copy(
+                    items = it.items + fresh,
+                    loadingMore = false,
+                    endReached = result.endReached,
+                    notice = statusNotice(result.statuses),
+                )
+            }
+        }
+    }
+
+    /** Magic button in a sorted mode: rebuilds the pager (fresh random seed) and swaps atomically. */
+    private fun shuffleSorted() {
+        if (shuffleJob?.isActive == true) return
+        loadJob?.cancel()
+        moreJob?.cancel()
+        val mode = _state.value.mode
+        val gen = generation.incrementAndGet()
+        _state.update { it.copy(loading = true, loadingMore = false, error = null, notice = null) }
+        shuffleJob = viewModelScope.launch {
+            val pager = buildSortedPager(mode, _state.value.style)
+            sortPager = pager
+            val result = pager.loadNext()
+            if (gen != generation.get()) return@launch
+            val seen = hashSetOf<String>()
+            val fresh = result.items.filter { seen.add(it.key) }
+            when {
+                fresh.isNotEmpty() -> {
+                    app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+                    _state.update {
+                        it.copy(items = fresh, loading = false, endReached = result.endReached, notice = null)
+                    }
+                }
+                else -> _state.update {
+                    it.copy(
+                        loading = false,
+                        notice = statusNotice(result.statuses)
+                            ?: "That shuffle came back empty — keeping your current mix.",
+                    )
+                }
+            }
+        }
+    }
+
+    /** Honest, per-source explanation text; null when every source delivered. */
+    private fun statusNotice(statuses: List<SourceStatus>): String? {
+        val notes = statuses.mapNotNull { status ->
+            when (val state = status.state) {
+                is SourceState.Skipped -> "${status.source.displayName}: ${state.reason}"
+                is SourceState.Failed ->
+                    "${status.source.displayName}: ${state.error.message ?: "unavailable right now"}"
+
+                else -> null
+            }
+        }
+        return notes.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+    }
+
     fun toggleFavorite(wallpaper: Wallpaper) {
         viewModelScope.launch { app.favorites.toggle(wallpaper) }
+    }
+
+    /** Opening a detail screen counts as a deliberate view: it feeds the Library history. */
+    fun recordHistory(wallpaper: Wallpaper) {
+        viewModelScope.launch { app.history.record(wallpaper) }
     }
 
     /** Queues the original download through the rights-gated data layer. */
@@ -271,7 +441,12 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
      * Fetches the original and applies it via WallpaperManager; honours both rights gates.
      * [crop] comes from the crop editor; null lets the applier center-crop to the screen.
      */
-    fun setWallpaper(wallpaper: Wallpaper, target: ApplyTarget, crop: NormalizedCrop? = null) {
+    fun setWallpaper(
+        wallpaper: Wallpaper,
+        target: ApplyTarget,
+        crop: NormalizedCrop? = null,
+        rotationDegrees: Int = 0,
+    ) {
         viewModelScope.launch {
             when {
                 !wallpaper.downloadAllowed ->
@@ -290,7 +465,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                     } else {
                         runCatching {
                             val original = app.wallpaperApplyRepository.prepare(wallpaper)
-                            app.wallpaperApplier.apply(original.uri, target, crop)
+                            app.wallpaperApplier.apply(original.uri, target, crop, rotationDegrees)
                         }.onSuccess { result ->
                             when (result) {
                                 ApplyResult.Success ->

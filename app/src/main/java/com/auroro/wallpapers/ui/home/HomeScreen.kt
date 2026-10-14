@@ -1,5 +1,7 @@
 package com.auroro.wallpapers.ui.home
 
+import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -18,6 +20,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -26,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -37,8 +42,6 @@ import com.auroro.wallpapers.ui.components.FeedFooterState
 import com.auroro.wallpapers.ui.components.FeedLoadingState
 import com.auroro.wallpapers.ui.components.HeroPager
 import com.auroro.wallpapers.ui.components.WallpaperCard
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 private const val HERO_COUNT = 4
 private const val NEAR_END_THRESHOLD = 3
@@ -52,6 +55,7 @@ private const val NEAR_END_THRESHOLD = 3
 fun HomeScreen(
     state: HomeViewModel.UiState,
     onSelectStyle: (DiscoveryStyle?) -> Unit,
+    onSelectMode: (FeedMode) -> Unit,
     onReload: () -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
@@ -60,6 +64,14 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    // Feed-level entrance: whenever the mode or style changes the whole feed fades and
+    // rises in on the M3 emphasized curve — the "borrowed" pattern from nowinandroid-style
+    // list swaps, cheap (one graphicsLayer) and never competes with the artwork.
+    val feedEntry = remember { Animatable(1f) }
+    LaunchedEffect(state.mode, state.style) {
+        feedEntry.snapTo(0f)
+        feedEntry.animateTo(1f, tween(420, easing = AuroroMotion.EmphasizedDecelerate))
+    }
     val nearEnd by remember {
         derivedStateOf {
             val info = listState.layoutInfo
@@ -71,12 +83,18 @@ fun HomeScreen(
     }
     LazyColumn(
         state = listState,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().graphicsLayer {
+            alpha = feedEntry.value
+            translationY = (1f - feedEntry.value) * 28f
+        },
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(bottom = 118.dp),
     ) {
         item(key = "header") {
             HomeHeader(onSearch = onSearch)
+        }
+        item(key = "modes") {
+            ModeChips(selected = state.mode, onSelect = onSelectMode)
         }
         item(key = "chips") {
             StyleChips(selected = state.style, onSelect = onSelectStyle)
@@ -103,6 +121,7 @@ fun HomeScreen(
                         favorite = wallpaper.key in state.favoriteKeys,
                         onToggleFavorite = onToggleFavorite,
                         onClick = onOpen,
+                        modifier = Modifier.animateItem(),
                     )
                 }
                 item(key = "footer") {
@@ -131,11 +150,14 @@ private fun HomeHeader(onSearch: () -> Unit) {
             Text(
                 text = stringResource(R.string.brand_name),
                 style = MaterialTheme.typography.headlineLarge,
+                // Brand word takes the live accent: visible in every theme, recolours with
+                // the accent setting instead of inheriting a default (black) content colour.
+                color = AuroroPal.accent,
             )
             Text(
                 text = stringResource(R.string.app_tagline),
                 style = MaterialTheme.typography.bodySmall,
-                color = AuroroTextSecondary,
+                color = AuroroPal.textSecondary,
             )
         }
         IconButton(onClick = onSearch, modifier = Modifier.padding(end = 8.dp)) {
@@ -150,6 +172,25 @@ private fun HomeHeader(onSearch: () -> Unit) {
 }
 
 @Composable
+private fun ModeChips(selected: FeedMode, onSelect: (FeedMode) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(Modifier.size(16.dp, 1.dp))
+        FeedMode.entries.forEach { mode ->
+            AuroraChip(
+                label = stringResource(mode.labelRes),
+                active = selected == mode,
+                onClick = { onSelect(mode) },
+            )
+        }
+        Spacer(Modifier.size(16.dp, 1.dp))
+    }
+}
+
+@Composable
 private fun StyleChips(selected: DiscoveryStyle?, onSelect: (DiscoveryStyle?) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -158,7 +199,7 @@ private fun StyleChips(selected: DiscoveryStyle?, onSelect: (DiscoveryStyle?) ->
     ) {
         Spacer(Modifier.size(16.dp, 1.dp))
         AuroraChip(
-            label = stringResource(R.string.chip_for_you),
+            label = stringResource(R.string.chip_all_styles),
             active = selected == null,
             onClick = { onSelect(null) },
         )

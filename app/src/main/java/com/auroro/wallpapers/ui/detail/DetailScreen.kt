@@ -1,5 +1,8 @@
 package com.auroro.wallpapers.ui.detail
 
+import android.app.Activity
+import android.content.Intent
+import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -26,10 +29,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,22 +54,20 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
-import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.components.resolutionLabel
 import com.auroro.wallpapers.ui.components.wallpaperDescription
-import com.auroro.wallpapers.ui.theme.AuroroAccent
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.rememberBounceScale
-import com.auroro.wallpapers.ui.theme.AuroroSurface
-import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 /**
  * Slice-2 fullscreen preview: the artwork is shown whole (ContentScale.Fit on black) so no
  * orientation is ever cropped or misrepresented. Actions honour the data-layer rights gates:
  * `downloadAllowed` controls saving the original, `setWallpaperAllowed` controls applying it.
+ * On HDR-capable displays the window switches to HDR colour mode while this screen is open
+ * (Ultra HDR sources render with real headroom; SDR sources are unaffected), and the Set
+ * action goes straight to the crop editor, which now owns the Home / Lock / Both choice.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,14 +77,26 @@ fun DetailScreen(
     onBack: () -> Unit,
     onToggleFavorite: () -> Unit,
     onDownload: () -> Unit,
-    onApply: (ApplyTarget) -> Unit,
+    onApply: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val shareSuffix = stringResource(R.string.share_suffix)
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
-    var showApply by remember(wallpaper.key) { mutableStateOf(false) }
     var chromeVisible by remember(wallpaper.key) { mutableStateOf(false) }
     val heartScale = rememberBounceScale(favorite)
     LaunchedEffect(wallpaper.key) { chromeVisible = true }
+    // HDR: ask the window for HDR headroom only when the display actually supports it.
+    DisposableEffect(wallpaper.key) {
+        val window = (context as? Activity)?.window
+        @Suppress("DEPRECATION")
+        val display = (context as? Activity)?.windowManager?.defaultDisplay
+        val hdrCapable = display?.hdrCapabilities?.supportedHdrTypes?.isNotEmpty() == true
+        if (window != null && hdrCapable) window.colorMode = ActivityInfo.COLOR_MODE_HDR
+        onDispose {
+            if (window != null && hdrCapable) window.colorMode = ActivityInfo.COLOR_MODE_DEFAULT
+        }
+    }
     BackHandler { onBack() }
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
@@ -101,16 +117,6 @@ fun DetailScreen(
             ) {
                 CircleButton(icon = R.drawable.ic_arrow_back, label = stringResource(R.string.detail_back), onClick = onBack)
                 Spacer(Modifier.weight(1f))
-                CircleButton(
-                    icon = if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_outlined,
-                    label = stringResource(if (favorite) R.string.favorite_remove else R.string.favorite_add),
-                    tint = if (favorite) Color(0xFFFF6B81) else Color.White,
-                    onClick = onToggleFavorite,
-                    modifier = Modifier.graphicsLayer {
-                        scaleX = heartScale
-                        scaleY = heartScale
-                    },
-                )
             }
         }
         AnimatedVisibility(
@@ -119,65 +125,88 @@ fun DetailScreen(
             enter = fadeIn(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) +
                 slideInVertically(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) { it / 3 },
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 20.dp, top = 40.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly,
+            Column(
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+                    .padding(bottom = 20.dp, top = 40.dp, start = 24.dp, end = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                DetailAction(
-                    icon = R.drawable.ic_info_outlined,
-                    label = stringResource(R.string.detail_info),
-                    emphasized = false,
-                    onClick = { showInfo = true },
-                )
-                DetailAction(
-                    icon = R.drawable.ic_download,
-                    label = stringResource(R.string.detail_download),
-                    emphasized = true,
-                    onClick = onDownload,
-                )
-                DetailAction(
-                    icon = R.drawable.ic_stat_auroro,
-                    label = stringResource(R.string.detail_set_wallpaper),
-                    emphasized = false,
-                    onClick = { showApply = true },
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    DetailAction(
+                        icon = if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_outlined,
+                        label = stringResource(if (favorite) R.string.favorite_remove else R.string.favorite_add),
+                        tint = if (favorite) Color(0xFFFF6B81) else null,
+                        emphasized = false,
+                        onClick = onToggleFavorite,
+                        iconModifier = Modifier.graphicsLayer {
+                            scaleX = heartScale
+                            scaleY = heartScale
+                        },
+                    )
+                    DetailAction(
+                        icon = R.drawable.ic_share,
+                        label = stringResource(R.string.detail_share),
+                        emphasized = false,
+                        onClick = {
+                            val title = wallpaper.title?.takeIf { it.isNotBlank() }
+                            val text = buildString {
+                                if (title != null) {
+                                    append(title)
+                                    append(" — ")
+                                }
+                                append(shareSuffix)
+                                append(wallpaper.pageUrl)
+                            }
+                            runCatching {
+                                context.startActivity(
+                                    Intent.createChooser(
+                                        Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, text)
+                                        },
+                                        null,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                    DetailAction(
+                        icon = R.drawable.ic_download,
+                        label = stringResource(R.string.detail_download),
+                        emphasized = true,
+                        onClick = onDownload,
+                    )
+                    DetailAction(
+                        icon = R.drawable.ic_info_outlined,
+                        label = stringResource(R.string.detail_info),
+                        emphasized = false,
+                        onClick = { showInfo = true },
+                    )
+                }
+                Button(
+                    onClick = onApply,
+                    colors = ButtonDefaults.buttonColors(containerColor = AuroroPal.accent),
+                    shape = RoundedCornerShape(50),
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_stat_auroro),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(stringResource(R.string.detail_set_wallpaper))
+                }
             }
         }
     }
 
     if (showInfo) {
         InfoSheet(wallpaper = wallpaper, onDismiss = { showInfo = false })
-    }
-    if (showApply) {
-        ModalBottomSheet(onDismissRequest = { showApply = false }, containerColor = AuroroSurface) {
-            Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)) {
-                Text(text = stringResource(R.string.apply_sheet_title), style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = stringResource(R.string.apply_sheet_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AuroroTextSecondary,
-                )
-                Spacer(Modifier.height(10.dp))
-                ApplyTarget.entries.forEach { target ->
-                    TextButton(
-                        onClick = {
-                            showApply = false
-                            onApply(target)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text = target.label,
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(vertical = 6.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(18.dp))
-            }
-        }
     }
 }
 
@@ -191,7 +220,7 @@ private fun CircleButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(44.dp).clip(CircleShape).background(AuroroSurface.copy(alpha = 0.72f), CircleShape),
+        modifier = modifier.size(44.dp).clip(CircleShape).background(AuroroPal.surface.copy(alpha = 0.72f), CircleShape),
     ) {
         Icon(
             painter = painterResource(icon),
@@ -203,23 +232,30 @@ private fun CircleButton(
 }
 
 @Composable
-private fun DetailAction(icon: Int, label: String, emphasized: Boolean, onClick: () -> Unit) {
+private fun DetailAction(
+    icon: Int,
+    label: String,
+    emphasized: Boolean,
+    onClick: () -> Unit,
+    tint: Color? = null,
+    iconModifier: Modifier = Modifier,
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         IconButton(
             onClick = onClick,
-            modifier = Modifier
-                .size(58.dp)
+            modifier = iconModifier
+                .size(54.dp)
                 .clip(CircleShape)
                 .background(
-                    if (emphasized) AuroroAccent else AuroroSurface.copy(alpha = 0.78f),
+                    if (emphasized) AuroroPal.accent else AuroroPal.surface.copy(alpha = 0.78f),
                     CircleShape,
                 ),
         ) {
             Icon(
                 painter = painterResource(icon),
                 contentDescription = label,
-                tint = if (emphasized) MaterialTheme.colorScheme.onPrimary else Color.White,
-                modifier = Modifier.size(23.dp),
+                tint = tint ?: if (emphasized) MaterialTheme.colorScheme.onPrimary else Color.White,
+                modifier = Modifier.size(22.dp),
             )
         }
         Text(
@@ -234,7 +270,7 @@ private fun DetailAction(icon: Int, label: String, emphasized: Boolean, onClick:
 @Composable
 private fun InfoSheet(wallpaper: Wallpaper, onDismiss: () -> Unit) {
     val context = LocalContext.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AuroroSurface) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = AuroroPal.surface) {
         Column(
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -263,7 +299,7 @@ private fun InfoSheet(wallpaper: Wallpaper, onDismiss: () -> Unit) {
                 Text(
                     text = stringResource(R.string.info_tags),
                     style = MaterialTheme.typography.labelSmall,
-                    color = AuroroTextTertiary,
+                    color = AuroroPal.textTertiary,
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -273,10 +309,10 @@ private fun InfoSheet(wallpaper: Wallpaper, onDismiss: () -> Unit) {
                         Text(
                             text = tag.name,
                             style = MaterialTheme.typography.labelSmall,
-                            color = AuroroTextSecondary,
+                            color = AuroroPal.textSecondary,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(AuroroSurfaceBright)
+                                .background(AuroroPal.surfaceBright)
                                 .padding(horizontal = 10.dp, vertical = 5.dp),
                         )
                     }
@@ -310,7 +346,7 @@ private fun InfoSheet(wallpaper: Wallpaper, onDismiss: () -> Unit) {
 @Composable
 private fun InfoRow(label: String, value: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = AuroroTextTertiary)
-        Text(text = value, style = MaterialTheme.typography.bodySmall, color = AuroroTextSecondary)
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
+        Text(text = value, style = MaterialTheme.typography.bodySmall, color = AuroroPal.textSecondary)
     }
 }

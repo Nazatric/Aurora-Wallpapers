@@ -1,17 +1,26 @@
 package com.auroro.wallpapers.ui.components
 
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.annotation.StringRes
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -19,29 +28,34 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
-import com.auroro.wallpapers.ui.theme.AuroroAccent
 import com.auroro.wallpapers.ui.theme.AuroroMotion
-import com.auroro.wallpapers.ui.theme.AuroroSurface
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
+import com.auroro.wallpapers.ui.theme.AuroroPal
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
-/** The five shell destinations; only Home is implemented in slice 1. */
+/** The shell destinations around the centred magic action. */
 enum class ShellTab(
     @param:StringRes val labelRes: Int,
     @param:DrawableRes val iconFilled: Int,
@@ -54,8 +68,9 @@ enum class ShellTab(
 }
 
 /**
- * Floating Material-Expressive style pill navigation: four labelled destinations around a
- * centred accent action. Kept deliberately dumb — the shell owns tab state.
+ * Floating Material-Expressive pill navigation. The selection indicator is a single sliding
+ * pill (measured tab bounds + bouncy spring — the pattern from M3's NavigationBar primary
+ * indicator), icons crossfade filled/outlined, and the centre action keeps its press spring.
  */
 @Composable
 fun BottomPillBar(
@@ -71,39 +86,69 @@ fun BottomPillBar(
             .navigationBarsPadding()
             .padding(bottom = 14.dp),
         shape = RoundedCornerShape(34.dp),
-        color = AuroroSurface,
+        color = AuroroPal.surface,
         shadowElevation = 10.dp,
         tonalElevation = 2.dp,
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            PillItem(ShellTab.HOME, selected, onSelect)
-            PillItem(ShellTab.SEARCH, selected, onSelect)
-            CenterAction(
-                onClick = onCenterAction,
-                label = stringResource(centerActionLabel),
-                icon = centerActionIcon,
-            )
-            PillItem(ShellTab.LIBRARY, selected, onSelect)
-            PillItem(ShellTab.SETTINGS, selected, onSelect)
+        val bounds = remember { mutableStateMapOf<ShellTab, Rect>() }
+        val active = bounds[selected]
+        val density = LocalDensity.current
+        val indicatorX = remember { Animatable(0f) }
+        val indicatorW = remember { Animatable(0f) }
+        var placed by remember { mutableStateOf(false) }
+        LaunchedEffect(active) {
+            val target = active ?: return@LaunchedEffect
+            if (!placed) {
+                placed = true
+                indicatorX.snapTo(target.left)
+                indicatorW.snapTo(target.width)
+            } else {
+                launch { indicatorX.animateTo(target.left, AuroroMotion.BouncyFloat) }
+                launch { indicatorW.animateTo(target.width, AuroroMotion.BouncyFloat) }
+            }
+        }
+        Box {
+            if (active != null) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(indicatorX.value.roundToInt(), active.top.roundToInt())
+                        }
+                        .width(with(density) { indicatorW.value.toDp() })
+                        .height(with(density) { active.height.toDp() })
+                        .background(AuroroPal.accent.copy(alpha = 0.22f), RoundedCornerShape(20.dp)),
+                )
+            }
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                PillItem(ShellTab.HOME, selected, onSelect) { bounds[ShellTab.HOME] = it }
+                PillItem(ShellTab.SEARCH, selected, onSelect) { bounds[ShellTab.SEARCH] = it }
+                CenterAction(
+                    onClick = onCenterAction,
+                    label = stringResource(centerActionLabel),
+                    icon = centerActionIcon,
+                )
+                PillItem(ShellTab.LIBRARY, selected, onSelect) { bounds[ShellTab.LIBRARY] = it }
+                PillItem(ShellTab.SETTINGS, selected, onSelect) { bounds[ShellTab.SETTINGS] = it }
+            }
         }
     }
 }
 
 @Composable
-private fun PillItem(tab: ShellTab, selected: ShellTab, onSelect: (ShellTab) -> Unit) {
+private fun PillItem(
+    tab: ShellTab,
+    selected: ShellTab,
+    onSelect: (ShellTab) -> Unit,
+    onPosition: (Rect) -> Unit,
+) {
     val active = tab == selected
     val label = stringResource(tab.labelRes)
-    val indicatorColor by animateColorAsState(
-        targetValue = if (active) AuroroAccent.copy(alpha = 0.22f) else AuroroAccent.copy(alpha = 0f),
-        animationSpec = AuroroMotion.ColorCalm,
-        label = "pillIndicator",
-    )
     val iconTint by animateColorAsState(
-        targetValue = if (active) MaterialTheme.colorScheme.primary else AuroroTextTertiary,
+        targetValue = if (active) MaterialTheme.colorScheme.primary else AuroroPal.textTertiary,
         animationSpec = AuroroMotion.ColorCalm,
         label = "pillIconTint",
     )
@@ -113,12 +158,13 @@ private fun PillItem(tab: ShellTab, selected: ShellTab, onSelect: (ShellTab) -> 
         label = "pillIconScale",
     )
     val labelColor by animateColorAsState(
-        targetValue = if (active) AuroroTextSecondary else AuroroTextTertiary,
+        targetValue = if (active) AuroroPal.textSecondary else AuroroPal.textTertiary,
         animationSpec = AuroroMotion.ColorCalm,
         label = "pillLabel",
     )
     Column(
         modifier = Modifier
+            .onGloballyPositioned { onPosition(it.boundsInParent()) }
             .clip(RoundedCornerShape(20.dp))
             .clickable(role = Role.Tab, onClickLabel = label) { onSelect(tab) }
             .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -127,20 +173,20 @@ private fun PillItem(tab: ShellTab, selected: ShellTab, onSelect: (ShellTab) -> 
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(indicatorColor, CircleShape),
+            modifier = Modifier.size(34.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                painter = painterResource(if (active) tab.iconFilled else tab.iconOutlined),
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(21.dp).graphicsLayer {
-                    scaleX = iconScale
-                    scaleY = iconScale
-                },
-            )
+            Crossfade(targetState = active, animationSpec = tween(200), label = "pillIcon") { activeNow ->
+                Icon(
+                    painter = painterResource(if (activeNow) tab.iconFilled else tab.iconOutlined),
+                    contentDescription = null,
+                    tint = iconTint,
+                    modifier = Modifier.size(21.dp).graphicsLayer {
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    },
+                )
+            }
         }
         Text(
             text = label,
@@ -168,7 +214,7 @@ private fun CenterAction(onClick: () -> Unit, label: String, @DrawableRes icon: 
                 scaleY = pressScale
             }
             .clip(CircleShape)
-            .background(AuroroAccent, CircleShape)
+            .background(AuroroPal.accent, CircleShape)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,

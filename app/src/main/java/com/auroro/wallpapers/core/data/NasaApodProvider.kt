@@ -116,7 +116,7 @@ class NasaApodProvider(
     companion object {
         const val PAGE_SIZE = 20
         private const val THUMB_MAX_EDGE = 960
-        private const val PREVIEW_MAX_EDGE = 1_920
+        private const val PREVIEW_MAX_EDGE = 1_440
         private val DATE_PATTERN = Regex("\\d{4}-\\d{2}-\\d{2}")
         private val WHITESPACE = Regex("\\s+")
 

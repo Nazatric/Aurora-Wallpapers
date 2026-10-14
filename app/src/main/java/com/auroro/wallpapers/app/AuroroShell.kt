@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -23,11 +24,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.auroro.wallpapers.R
-import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.BottomPillBar
 import com.auroro.wallpapers.ui.components.ShellTab
@@ -42,11 +43,11 @@ import com.auroro.wallpapers.ui.settings.SettingsScreen
 import com.auroro.wallpapers.ui.settings.SettingsViewModel
 import com.auroro.wallpapers.ui.search.SearchScreen
 import com.auroro.wallpapers.ui.search.SearchViewModel
-import com.auroro.wallpapers.ui.theme.AuroroBackground
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 
 /** One wallpaper action that needs a crop editor pass before applying. */
-private data class CropRequest(val wallpaper: Wallpaper, val target: ApplyTarget)
+private data class CropRequest(val wallpaper: Wallpaper)
 
 /**
  * App shell: tab slot switched by the floating pill bar with Material Expressive
@@ -72,8 +73,18 @@ fun AuroroShell() {
     val settingsState by settingsViewModel.state.collectAsStateWithLifecycle()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(homeViewModel) {
-        homeViewModel.messages.collect { message -> snackbarHostState.showSnackbar(message) }
+    val downloadStartedText = stringResource(R.string.download_started)
+    val viewLabel = stringResource(R.string.snackbar_view)
+    LaunchedEffect(homeViewModel, downloadStartedText) {
+        homeViewModel.messages.collect { message ->
+            // Snackbar with a real action (reference component): a queued download offers
+            // "View" and jumps straight to the Library downloads queue.
+            val result = snackbarHostState.showSnackbar(
+                message = message,
+                actionLabel = if (message == downloadStartedText) viewLabel else null,
+            )
+            if (result == SnackbarResult.ActionPerformed) tab = ShellTab.LIBRARY
+        }
     }
     LaunchedEffect(settingsViewModel) {
         settingsViewModel.messages.collect { message -> snackbarHostState.showSnackbar(message) }
@@ -85,7 +96,7 @@ fun AuroroShell() {
     BackHandler(enabled = coverFlow && detailWallpaper == null && crop == null) { coverFlow = false }
 
     Box(
-        modifier = Modifier.fillMaxSize().background(AuroroBackground),
+        modifier = Modifier.fillMaxSize().background(AuroroPal.background),
     ) {
         AnimatedContent(
             targetState = tab,
@@ -100,11 +111,15 @@ fun AuroroShell() {
             when (currentTab) {
                 ShellTab.HOME -> HomeScreen(
                     state = homeState,
-                    onSelectStyle = { style -> homeViewModel.reload(style) },
+                    onSelectStyle = homeViewModel::selectStyle,
+                    onSelectMode = homeViewModel::selectMode,
                     onReload = { homeViewModel.reload() },
                     onLoadMore = homeViewModel::loadMore,
                     onToggleFavorite = homeViewModel::toggleFavorite,
-                    onOpen = { wallpaper -> detail = wallpaper },
+                    onOpen = { wallpaper ->
+                        homeViewModel.recordHistory(wallpaper)
+                        detail = wallpaper
+                    },
                     onSearch = { tab = ShellTab.SEARCH },
                 )
 
@@ -116,13 +131,19 @@ fun AuroroShell() {
                     onLoadMore = searchViewModel::loadMore,
                     onRetry = searchViewModel::retry,
                     onToggleFavorite = searchViewModel::toggleFavorite,
-                    onOpen = { wallpaper -> detail = wallpaper },
+                    onOpen = { wallpaper ->
+                        homeViewModel.recordHistory(wallpaper)
+                        detail = wallpaper
+                    },
                 )
 
                 ShellTab.LIBRARY -> LibraryScreen(
                     state = libraryState,
                     onToggleFavorite = libraryViewModel::toggleFavorite,
-                    onOpen = { wallpaper -> detail = wallpaper },
+                    onOpen = { wallpaper ->
+                        homeViewModel.recordHistory(wallpaper)
+                        detail = wallpaper
+                    },
                     onCancel = libraryViewModel::cancel,
                     onRetry = libraryViewModel::retry,
                     onDelete = libraryViewModel::delete,
@@ -155,7 +176,7 @@ fun AuroroShell() {
                 onBack = { detail = null },
                 onToggleFavorite = { homeViewModel.toggleFavorite(detailWallpaper) },
                 onDownload = { homeViewModel.download(detailWallpaper) },
-                onApply = { target -> cropRequest = CropRequest(detailWallpaper, target) },
+                onApply = { cropRequest = CropRequest(detailWallpaper) },
             )
         }
         if (coverFlow && detailWallpaper == null && crop == null) {
@@ -164,7 +185,10 @@ fun AuroroShell() {
                 loading = homeState.loading,
                 favoriteKeys = homeState.favoriteKeys,
                 onToggleFavorite = homeViewModel::toggleFavorite,
-                onOpen = { wallpaper -> detail = wallpaper },
+                onOpen = { wallpaper ->
+                        homeViewModel.recordHistory(wallpaper)
+                        detail = wallpaper
+                    },
                 onShuffle = { homeViewModel.shuffle() },
                 onClose = { coverFlow = false },
             )
@@ -172,10 +196,9 @@ fun AuroroShell() {
         crop?.let { request ->
             CropScreen(
                 wallpaper = request.wallpaper,
-                target = request.target,
                 onBack = { cropRequest = null },
-                onConfirm = { normalizedCrop ->
-                    homeViewModel.setWallpaper(request.wallpaper, request.target, normalizedCrop)
+                onConfirm = { normalizedCrop, rotationDegrees, target ->
+                    homeViewModel.setWallpaper(request.wallpaper, target, normalizedCrop, rotationDegrees)
                     cropRequest = null
                 },
             )

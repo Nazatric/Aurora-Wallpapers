@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.library
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,10 +50,6 @@ import com.auroro.wallpapers.ui.components.WallpaperArt
 import com.auroro.wallpapers.ui.components.artAspect
 import com.auroro.wallpapers.ui.components.formatBytes
 import com.auroro.wallpapers.ui.components.wallpaperDescription
-import com.auroro.wallpapers.ui.theme.AuroroAccent
-import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 /**
  * Slice-4 library: favorites and downloads in one place, same card language as Home/Search.
@@ -91,6 +88,11 @@ fun LibraryScreen(
                 active = segment == LibrarySegment.DOWNLOADS,
                 onClick = { segment = LibrarySegment.DOWNLOADS },
             )
+            AuroraChip(
+                label = stringResource(R.string.lib_history, state.recent.size),
+                active = segment == LibrarySegment.HISTORY,
+                onClick = { segment = LibrarySegment.HISTORY },
+            )
             Spacer(Modifier.size(16.dp, 1.dp))
         }
         when (segment) {
@@ -99,6 +101,15 @@ fun LibraryScreen(
                 favoriteKeys = state.favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
                 onOpen = onOpen,
+            )
+
+            LibrarySegment.HISTORY -> FavoritesGrid(
+                favorites = state.recent,
+                favoriteKeys = state.favoriteKeys,
+                onToggleFavorite = onToggleFavorite,
+                onOpen = onOpen,
+                emptyTitle = stringResource(R.string.lib_hist_empty_title),
+                emptyBody = stringResource(R.string.lib_hist_empty_body),
             )
 
             LibrarySegment.DOWNLOADS -> DownloadsList(
@@ -120,7 +131,9 @@ fun LibraryScreen(
     }
 }
 
-private enum class LibrarySegment { FAVORITES, DOWNLOADS }
+private enum class DlFilter { ALL, COMPLETED, FAILED }
+
+private enum class LibrarySegment { FAVORITES, DOWNLOADS, HISTORY }
 
 @Composable
 private fun FavoritesGrid(
@@ -128,12 +141,11 @@ private fun FavoritesGrid(
     favoriteKeys: Set<String>,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
+    emptyTitle: String = stringResource(R.string.lib_fav_empty_title),
+    emptyBody: String = stringResource(R.string.lib_fav_empty_body),
 ) {
     if (favorites.isEmpty()) {
-        LibraryEmptyState(
-            title = stringResource(R.string.lib_fav_empty_title),
-            body = stringResource(R.string.lib_fav_empty_body),
-        )
+        LibraryEmptyState(title = emptyTitle, body = emptyBody)
         return
     }
     LazyVerticalStaggeredGrid(
@@ -173,6 +185,43 @@ private fun DownloadsList(
         )
         return
     }
+    var filter by remember { mutableStateOf(DlFilter.ALL) }
+    val filtered = rows.filter { row ->
+        val status = runCatching { DownloadStatus.valueOf(row.entity.status) }.getOrDefault(DownloadStatus.FAILED)
+        when (filter) {
+            DlFilter.ALL -> true
+            DlFilter.COMPLETED -> status == DownloadStatus.COMPLETED
+            DlFilter.FAILED -> status == DownloadStatus.FAILED || status == DownloadStatus.CANCELED
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AuroraChip(
+            label = stringResource(R.string.dl_filter_all),
+            active = filter == DlFilter.ALL,
+            onClick = { filter = DlFilter.ALL },
+        )
+        AuroraChip(
+            label = stringResource(R.string.dl_filter_completed),
+            active = filter == DlFilter.COMPLETED,
+            onClick = { filter = DlFilter.COMPLETED },
+        )
+        AuroraChip(
+            label = stringResource(R.string.dl_filter_failed),
+            active = filter == DlFilter.FAILED,
+            onClick = { filter = DlFilter.FAILED },
+        )
+    }
+    Spacer(Modifier.size(8.dp))
+    if (filtered.isEmpty()) {
+        LibraryEmptyState(
+            title = stringResource(R.string.dl_filter_empty_title),
+            body = stringResource(R.string.dl_filter_empty_body),
+        )
+        return
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(bottom = 126.dp),
@@ -183,12 +232,12 @@ private fun DownloadsList(
                 Text(
                     text = line,
                     style = MaterialTheme.typography.labelSmall,
-                    color = AuroroTextTertiary,
+                    color = AuroroPal.textTertiary,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
                 )
             }
         }
-        items(rows, key = { it.entity.wallpaperKey }) { row ->
+        items(filtered, key = { it.entity.wallpaperKey }) { row ->
             DownloadRowItem(
                 row = row,
                 onCancel = onCancel,
@@ -213,7 +262,7 @@ private fun DownloadRowItem(
     val status = runCatching { DownloadStatus.valueOf(entity.status) }.getOrDefault(DownloadStatus.FAILED)
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = AuroroSurfaceBright,
+        color = AuroroPal.surfaceBright,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
     ) {
         Row(
@@ -235,7 +284,7 @@ private fun DownloadRowItem(
                     Icon(
                         painter = painterResource(R.drawable.ic_download),
                         contentDescription = null,
-                        tint = AuroroTextTertiary,
+                        tint = AuroroPal.textTertiary,
                         modifier = Modifier.size(20.dp),
                     )
                 }
@@ -280,7 +329,7 @@ private fun DownloadRowItem(
                     color = if (status == DownloadStatus.FAILED) {
                         MaterialTheme.colorScheme.error
                     } else {
-                        AuroroTextSecondary
+                        AuroroPal.textSecondary
                     },
                     maxLines = 2,
                 )
@@ -289,12 +338,12 @@ private fun DownloadRowItem(
                     if (entity.totalBytes > 0) {
                         LinearProgressIndicator(
                             progress = { (entity.bytesDownloaded.toFloat() / entity.totalBytes).coerceIn(0f, 1f) },
-                            color = AuroroAccent,
+                            color = AuroroPal.accent,
                             modifier = Modifier.fillMaxWidth().height(3.dp),
                         )
                     } else {
                         LinearProgressIndicator(
-                            color = AuroroAccent,
+                            color = AuroroPal.accent,
                             modifier = Modifier.fillMaxWidth().height(3.dp),
                         )
                     }
@@ -303,26 +352,26 @@ private fun DownloadRowItem(
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 when (status) {
                     DownloadStatus.QUEUED, DownloadStatus.RUNNING -> TextButton(onClick = { onCancel(entity.wallpaperKey) }) {
-                        Text(stringResource(R.string.dl_cancel), color = AuroroTextSecondary)
+                        Text(stringResource(R.string.dl_cancel), color = AuroroPal.textSecondary)
                     }
 
                     DownloadStatus.FAILED, DownloadStatus.CANCELED -> {
                         TextButton(onClick = { onRetry(entity.wallpaperKey) }) {
-                            Text(stringResource(R.string.dl_retry), color = AuroroAccent)
+                            Text(stringResource(R.string.dl_retry), color = AuroroPal.accent)
                         }
                         TextButton(onClick = { onDelete(entity.wallpaperKey) }) {
-                            Text(stringResource(R.string.dl_delete), color = AuroroTextTertiary)
+                            Text(stringResource(R.string.dl_delete), color = AuroroPal.textTertiary)
                         }
                     }
 
                     DownloadStatus.COMPLETED -> {
                         wallpaper?.let { w ->
                             TextButton(onClick = { onOpen(w) }) {
-                                Text(stringResource(R.string.dl_open), color = AuroroAccent)
+                                Text(stringResource(R.string.dl_open), color = AuroroPal.accent)
                             }
                         }
                         TextButton(onClick = { onDelete(entity.wallpaperKey) }) {
-                            Text(stringResource(R.string.dl_delete), color = AuroroTextTertiary)
+                            Text(stringResource(R.string.dl_delete), color = AuroroPal.textTertiary)
                         }
                     }
                 }
@@ -338,11 +387,11 @@ private fun LibraryEmptyState(title: String, body: String) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Surface(shape = RoundedCornerShape(28.dp), color = AuroroSurfaceBright) {
+        Surface(shape = RoundedCornerShape(28.dp), color = AuroroPal.surfaceBright) {
             Icon(
                 painter = painterResource(R.drawable.ic_bookmark_outlined),
                 contentDescription = null,
-                tint = AuroroAccent,
+                tint = AuroroPal.accent,
                 modifier = Modifier.padding(20.dp).size(28.dp),
             )
         }
@@ -352,7 +401,7 @@ private fun LibraryEmptyState(title: String, body: String) {
         Text(
             text = body,
             style = MaterialTheme.typography.bodySmall,
-            color = AuroroTextSecondary,
+            color = AuroroPal.textSecondary,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 44.dp),
         )

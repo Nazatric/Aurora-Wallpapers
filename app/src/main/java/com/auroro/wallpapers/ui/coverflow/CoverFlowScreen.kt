@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.coverflow
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,6 +38,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,18 +62,15 @@ import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.artAspect
 import com.auroro.wallpapers.ui.components.resolutionLabel
 import com.auroro.wallpapers.ui.components.wallpaperDescription
-import com.auroro.wallpapers.ui.theme.AuroroAccent
-import com.auroro.wallpapers.ui.theme.AuroroBackground
 import com.auroro.wallpapers.ui.theme.AuroroMotion
-import com.auroro.wallpapers.ui.theme.AuroroSurface
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 import com.auroro.wallpapers.ui.theme.rememberBounceScale
 import kotlin.math.abs
 
+private enum class CoverOrientation { ALL, PORTRAIT, LANDSCAPE }
+
 /**
  * Cover-flow browser opened by the pill bar's magic button: the current discovery mix as a
- * rotating carousel. Side pages tilt away on the Y axis and shrink/fade with distance while
+ * rotating carousel with an icon-only All / Portrait / Landscape orientation filter. Side pages tilt away on the Y axis and shrink/fade with distance while
  * the centre card sits flat — pure graphicsLayer math, no bitmaps, cheap on the GPU.
  *
  * Cards fill their frame with [ContentScale.Crop]: a browsing carousel shows a full-bleed
@@ -84,9 +88,17 @@ fun CoverFlowScreen(
     modifier: Modifier = Modifier,
 ) {
     BackHandler { onClose() }
-    val pagerState = rememberPagerState(pageCount = { items.size })
-    val current = pagerState.currentPage.coerceIn(0, (items.size - 1).coerceAtLeast(0))
-    val currentItem = items.getOrNull(current)
+    var orientation by rememberSaveable { mutableStateOf(CoverOrientation.ALL) }
+    val visibleItems = remember(items, orientation) {
+        when (orientation) {
+            CoverOrientation.ALL -> items
+            CoverOrientation.PORTRAIT -> items.filter { it.hasKnownDimensions && it.height > it.width }
+            CoverOrientation.LANDSCAPE -> items.filter { it.hasKnownDimensions && it.width > it.height }
+        }
+    }
+    val pagerState = rememberPagerState(pageCount = { visibleItems.size })
+    val current = pagerState.currentPage.coerceIn(0, (visibleItems.size - 1).coerceAtLeast(0))
+    val currentItem = visibleItems.getOrNull(current)
 
     // A fresh shuffle replaces the list: start the carousel back at the first card so the
     // new mix is what you see, not a stale page index.
@@ -95,9 +107,12 @@ fun CoverFlowScreen(
             pagerState.scrollToPage(0)
         }
     }
+    LaunchedEffect(orientation) {
+        if (pagerState.currentPage != 0) pagerState.scrollToPage(0)
+    }
 
     Box(
-        modifier = modifier.fillMaxSize().background(AuroroBackground),
+        modifier = modifier.fillMaxSize().background(AuroroPal.background),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -109,9 +124,14 @@ fun CoverFlowScreen(
                     Text(
                         text = stringResource(R.string.coverflow_subtitle),
                         style = MaterialTheme.typography.labelSmall,
-                        color = AuroroTextTertiary,
+                        color = AuroroPal.textTertiary,
                     )
                 }
+                OrientationToggle(
+                    selected = orientation,
+                    onSelect = { orientation = it },
+                )
+                Spacer(Modifier.size(6.dp))
                 IconButton(onClick = onClose) {
                     Icon(
                         painter = painterResource(R.drawable.ic_close),
@@ -121,22 +141,22 @@ fun CoverFlowScreen(
                 }
             }
             when {
-                items.isEmpty() && loading -> Box(
+                visibleItems.isEmpty() && loading -> Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = AuroroAccent, strokeWidth = 2.5.dp, modifier = Modifier.size(32.dp))
+                        CircularProgressIndicator(color = AuroroPal.accent, strokeWidth = 2.5.dp, modifier = Modifier.size(32.dp))
                         Spacer(Modifier.size(14.dp))
                         Text(
                             text = stringResource(R.string.coverflow_fetching),
                             style = MaterialTheme.typography.bodySmall,
-                            color = AuroroTextSecondary,
+                            color = AuroroPal.textSecondary,
                         )
                     }
                 }
 
-                items.isEmpty() -> Box(
+                visibleItems.isEmpty() -> Box(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -149,14 +169,14 @@ fun CoverFlowScreen(
                         Text(
                             text = stringResource(R.string.coverflow_empty_body),
                             style = MaterialTheme.typography.bodySmall,
-                            color = AuroroTextSecondary,
+                            color = AuroroPal.textSecondary,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(horizontal = 40.dp),
                         )
                         Spacer(Modifier.size(16.dp))
                         Button(
                             onClick = onShuffle,
-                            colors = ButtonDefaults.buttonColors(containerColor = AuroroAccent),
+                            colors = ButtonDefaults.buttonColors(containerColor = AuroroPal.accent),
                         ) {
                             Text(stringResource(R.string.coverflow_shuffle))
                         }
@@ -170,7 +190,7 @@ fun CoverFlowScreen(
                     pageSpacing = (-6).dp,
                     verticalAlignment = Alignment.CenterVertically,
                 ) { page ->
-                    val wallpaper = items[page]
+                    val wallpaper = visibleItems[page]
                     val offset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
                     val distance = abs(offset).coerceIn(0f, 1f)
                     val density = LocalDensity.current
@@ -223,14 +243,14 @@ fun CoverFlowScreen(
                                 add(wallpaper.source.displayName)
                             }.joinToString(" · "),
                             style = MaterialTheme.typography.labelSmall,
-                            color = AuroroTextSecondary,
+                            color = AuroroPal.textSecondary,
                             maxLines = 1,
                         )
                         Spacer(Modifier.size(10.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(
                                 onClick = { onOpen(wallpaper) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AuroroAccent),
+                                colors = ButtonDefaults.buttonColors(containerColor = AuroroPal.accent),
                                 shape = RoundedCornerShape(50),
                             ) {
                                 Text(stringResource(R.string.coverflow_open))
@@ -238,7 +258,7 @@ fun CoverFlowScreen(
                             TextButton(onClick = onShuffle, shape = RoundedCornerShape(50)) {
                                 Text(
                                     stringResource(R.string.coverflow_shuffle),
-                                    color = AuroroTextSecondary,
+                                    color = AuroroPal.textSecondary,
                                 )
                             }
                         }
@@ -248,6 +268,52 @@ fun CoverFlowScreen(
                 }
             }
         }
+    }
+}
+
+/** Icon-only segmented orientation filter — same pill language as the navigation bar. */
+@Composable
+private fun OrientationToggle(
+    selected: CoverOrientation,
+    onSelect: (CoverOrientation) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AuroroPal.surfaceBright)
+            .padding(3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ToggleButton(CoverOrientation.ALL, R.drawable.ic_aspect_ratio, R.string.coverflow_orient_all, selected, onSelect)
+        ToggleButton(CoverOrientation.PORTRAIT, R.drawable.ic_crop_portrait, R.string.coverflow_orient_portrait, selected, onSelect)
+        ToggleButton(CoverOrientation.LANDSCAPE, R.drawable.ic_crop_landscape, R.string.coverflow_orient_landscape, selected, onSelect)
+    }
+}
+
+@Composable
+private fun ToggleButton(
+    value: CoverOrientation,
+    icon: Int,
+    labelRes: Int,
+    selected: CoverOrientation,
+    onSelect: (CoverOrientation) -> Unit,
+) {
+    val active = value == selected
+    val label = stringResource(labelRes)
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (active) AuroroPal.accent.copy(alpha = 0.22f) else Color.Transparent, CircleShape)
+            .clickable(role = Role.RadioButton, onClickLabel = label) { onSelect(value) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painter = painterResource(icon),
+            contentDescription = label,
+            tint = if (active) AuroroPal.accent else AuroroPal.textTertiary,
+            modifier = Modifier.size(18.dp),
+        )
     }
 }
 
@@ -266,11 +332,12 @@ private fun CoverFlowCard(
             .padding(horizontal = 4.dp, vertical = 10.dp)
             .aspectRatio(artAspect(wallpaper).coerceIn(0.46f, 2.1f))
             .clip(shape)
-            .background(AuroroSurface, shape)
+            .background(AuroroPal.surface, shape)
             .clickable(role = Role.Button, onClick = { onOpen(wallpaper) }),
     ) {
         AsyncImage(
-            model = wallpaper.previewUrl,
+            // Fullscreen showcase: the carousel earns the original bytes, cards don't.
+            model = wallpaper.originalUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),

@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.components
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,10 +24,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
-import com.auroro.wallpapers.ui.theme.AuroroAccent
-import com.auroro.wallpapers.ui.theme.AuroroSurface
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 /** First-load skeleton: calm static blocks plus one honest progress indicator. */
 @Composable
@@ -37,21 +34,21 @@ fun FeedLoadingState(modifier: Modifier = Modifier) {
     ) {
         Box(
             modifier = Modifier.fillMaxWidth().height(300.dp)
-                .clip(RoundedCornerShape(26.dp)).background(AuroroSurface),
+                .clip(RoundedCornerShape(26.dp)).background(AuroroPal.surface),
             contentAlignment = Alignment.Center,
         ) {
-            CircularProgressIndicator(color = AuroroAccent, strokeWidth = 2.5.dp)
+            CircularProgressIndicator(color = AuroroPal.accent, strokeWidth = 2.5.dp)
         }
         repeat(2) {
             Box(
                 modifier = Modifier.fillMaxWidth().height(180.dp)
-                    .clip(RoundedCornerShape(22.dp)).background(AuroroSurface),
+                    .clip(RoundedCornerShape(22.dp)).background(AuroroPal.surface),
             )
         }
         Text(
             text = stringResource(R.string.loading_feed),
             style = MaterialTheme.typography.labelSmall,
-            color = AuroroTextTertiary,
+            color = AuroroPal.textTertiary,
             modifier = Modifier.align(Alignment.CenterHorizontally),
         )
     }
@@ -72,7 +69,7 @@ fun FeedEmptyState(
         Icon(
             painter = painterResource(if (error != null) R.drawable.ic_cloud_off else R.drawable.ic_image),
             contentDescription = null,
-            tint = AuroroTextTertiary,
+            tint = AuroroPal.textTertiary,
             modifier = Modifier.size(44.dp),
         )
         Text(
@@ -82,7 +79,7 @@ fun FeedEmptyState(
         Text(
             text = error ?: stringResource(R.string.empty_hint),
             style = MaterialTheme.typography.bodySmall,
-            color = AuroroTextSecondary,
+            color = AuroroPal.textSecondary,
         )
         if (error != null) {
             TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
@@ -109,25 +106,25 @@ fun FeedFooterState(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CircularProgressIndicator(color = AuroroAccent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                CircularProgressIndicator(color = AuroroPal.accent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
                 Text(
                     text = stringResource(R.string.loading_more),
                     style = MaterialTheme.typography.labelSmall,
-                    color = AuroroTextSecondary,
+                    color = AuroroPal.textSecondary,
                 )
             }
         } else if (notice != null) {
             Text(
                 text = notice,
                 style = MaterialTheme.typography.labelSmall,
-                color = AuroroTextSecondary,
+                color = AuroroPal.textSecondary,
             )
             TextButton(onClick = onRetryMore) { Text(stringResource(R.string.retry)) }
         } else if (endReached) {
             Text(
                 text = stringResource(R.string.end_feed),
                 style = MaterialTheme.typography.labelSmall,
-                color = AuroroTextTertiary,
+                color = AuroroPal.textTertiary,
             )
         }
     }

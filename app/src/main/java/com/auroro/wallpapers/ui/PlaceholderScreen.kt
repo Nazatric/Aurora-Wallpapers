@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,8 +17,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.ui.components.ShellTab
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 /** Honest stand-in for destinations that arrive in later slices. */
 @Composable
@@ -30,7 +29,7 @@ fun PlaceholderScreen(tab: ShellTab, modifier: Modifier = Modifier) {
         Icon(
             painter = painterResource(tab.iconOutlined),
             contentDescription = null,
-            tint = AuroroTextTertiary,
+            tint = AuroroPal.textTertiary,
             modifier = Modifier.size(42.dp),
         )
         Text(
@@ -40,7 +39,7 @@ fun PlaceholderScreen(tab: ShellTab, modifier: Modifier = Modifier) {
         Text(
             text = stringResource(R.string.tab_placeholder, stringResource(tab.labelRes)),
             style = MaterialTheme.typography.bodySmall,
-            color = AuroroTextSecondary,
+            color = AuroroPal.textSecondary,
         )
     }
 }

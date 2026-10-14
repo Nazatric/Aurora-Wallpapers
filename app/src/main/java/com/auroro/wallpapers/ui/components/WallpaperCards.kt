@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.components
 
+import com.auroro.wallpapers.ui.theme.AuroroPal
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,24 +32,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
-import com.auroro.wallpapers.ui.theme.AuroroAccent
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.rememberBounceScale
-import com.auroro.wallpapers.ui.theme.AuroroSurface
-import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
-import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 /**
  * Container aspect follows the provider's real dimensions; only extreme ratios are trimmed
- * by the clamp and images are drawn with [ContentScale.Fit], so artwork is always shown whole
- * in its true orientation — landscape never becomes a portrait crop and vice versa.
+ * by the clamp. Art is drawn with [ContentScale.Crop] so it always fills its true-aspect
+ * container — when a CDN frame disagrees with the metadata the card crops a hair instead
+ * of showing letterbox bars. Cards decode through a 1440 px cap with a crossfade: 4K
+ * originals never pay full decode cost in the feed, while detail keeps full resolution.
  */
 fun artAspect(wallpaper: Wallpaper): Float =
     wallpaper.aspectRatio.takeIf { wallpaper.hasKnownDimensions && it.isFinite() && it > 0f }
@@ -64,6 +66,9 @@ fun resolutionLabel(wallpaper: Wallpaper): String? {
         else -> "${wallpaper.width}×${wallpaper.height}"
     }
 }
+
+/** Feed cards never decode above ~1440p; the detail screen keeps the full original. */
+private const val CARD_DECODE_MAX_PX = 1440
 
 fun wallpaperDescription(wallpaper: Wallpaper): String =
     if (wallpaper.hasKnownDimensions) {
@@ -115,9 +120,9 @@ fun HeroPager(
                             .clip(CircleShape)
                             .background(
                                 if (index == pagerState.currentPage) {
-                                    AuroroAccent
+                                    AuroroPal.accent
                                 } else {
-                                    AuroroTextTertiary.copy(alpha = 0.5f)
+                                    AuroroPal.textTertiary.copy(alpha = 0.5f)
                                 },
                             ),
                     )
@@ -158,18 +163,26 @@ fun WallpaperArt(
 ) {
     val shape = RoundedCornerShape(corner)
     val heartScale = rememberBounceScale(favorite)
+    val context = LocalContext.current
+    val request = remember(wallpaper.previewUrl) {
+        ImageRequest.Builder(context)
+            .data(wallpaper.previewUrl)
+            .size(CARD_DECODE_MAX_PX, CARD_DECODE_MAX_PX)
+            .crossfade(true)
+            .build()
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .aspectRatioSafe(aspect)
             .clip(shape)
-            .background(AuroroSurface)
+            .background(AuroroPal.surface)
             .clickable(role = Role.Button, onClick = onClick),
     ) {
         AsyncImage(
-            model = wallpaper.previewUrl,
+            model = request,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
-            contentScale = ContentScale.Fit,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
         Box(
