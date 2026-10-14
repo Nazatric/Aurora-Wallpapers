@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.core.data.GlassQuality
 import dev.chrisbanes.haze.ExperimentalHazeApi
@@ -57,7 +57,7 @@ fun Modifier.auroroHazeSource(): Modifier {
  */
 @OptIn(ExperimentalHazeApi::class)
 @Composable
-fun Modifier.auroroGlass(shape: Shape, quality: GlassQuality, fallback: Color, tint: Color): Modifier {
+fun Modifier.auroroGlass(shape: RoundedCornerShape, quality: GlassQuality, fallback: Color, tint: Color): Modifier {
     val state = LocalHazeState.current
     if (state == null || quality == GlassQuality.REDUCED) {
         return this.background(fallback, shape)

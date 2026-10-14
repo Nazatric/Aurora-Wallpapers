@@ -186,7 +186,6 @@ fun SettingsScreen(
                         icon = when (layout) {
                             FeedLayout.CARDS -> R.drawable.ic_view_stream
                             FeedLayout.GRID -> R.drawable.ic_view_module
-                            FeedLayout.LIST -> R.drawable.ic_view_list
                         },
                     )
                 }
