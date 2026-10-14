@@ -44,14 +44,33 @@ jobs:
           if [ -n "$KEYSTORE_B64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
             # A malformed secret must never block CI: fall back to the debug-signed path
             # with a loud warning instead of failing the whole build.
-            if echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null && [ -s "$RUNNER_TEMP/release.jks" ]; then
-              echo "AURORO_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-              echo "signed=true" >> "$GITHUB_OUTPUT"
-              echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
+            # Tolerant decode: strips whitespace/newlines, accepts URL-safe alphabet,
+            # restores padding, then requires real JKS/PKCS#12 magic bytes so a garbage
+            # secret can never fail the release build later.
+            KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+            B64=$(printf '%s' "$KEYSTORE_B64" | tr -d '[:space:]' | tr '_-' '/+')
+            case $(( ${#B64} % 4 )) in
+              2) B64="$B64==" ;;
+              3) B64="$B64=" ;;
+            esac
+            if printf '%s' "$B64" | base64 -d > "$KEYSTORE_FILE" 2>/dev/null && [ -s "$KEYSTORE_FILE" ]; then
+              MAGIC=$(head -c 4 "$KEYSTORE_FILE" | od -An -tx1 | tr -d ' \n')
+              case "$MAGIC" in
+                feedfeed | 3082*)
+                  echo "AURORO_KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
+                  echo "signed=true" >> "$GITHUB_OUTPUT"
+                  echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
+                  ;;
+                *)
+                  rm -f "$KEYSTORE_FILE"
+                  echo "signed=false" >> "$GITHUB_OUTPUT"
+                  echo "::warning title=APK signing status::AURORO_KEYSTORE_BASE64 decoded but is not a JKS/PKCS#12 keystore (bad magic bytes); building debug-signed only. Re-upload base64 of the raw .jks/.p12 file bytes."
+                  ;;
+              esac
             else
-              rm -f "$RUNNER_TEMP/release.jks"
+              rm -f "$KEYSTORE_FILE"
               echo "signed=false" >> "$GITHUB_OUTPUT"
-              echo "::warning title=APK signing status::Signing secrets are present but AURORO_KEYSTORE_BASE64 did not decode to a non-empty file; building debug-signed only. Re-upload it as clean single-line base64 of the .p12/.jks bytes."
+              echo "::warning title=APK signing status::Signing secrets are present but AURORO_KEYSTORE_BASE64 did not decode to a non-empty file; building debug-signed only. Re-upload base64 of the raw .jks/.p12 FILE BYTES (not a path, password, or hex)."
             fi
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
