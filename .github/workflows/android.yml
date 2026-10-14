@@ -42,10 +42,17 @@ jobs:
           KEY_PASSWORD: ${{ secrets.AURORO_KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_B64" ] && [ -n "$STORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
-            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
-            echo "AURORO_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
-            echo "signed=true" >> "$GITHUB_OUTPUT"
-            echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
+            # A malformed secret must never block CI: fall back to the debug-signed path
+            # with a loud warning instead of failing the whole build.
+            if echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null && [ -s "$RUNNER_TEMP/release.jks" ]; then
+              echo "AURORO_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+              echo "signed=true" >> "$GITHUB_OUTPUT"
+              echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
+            else
+              rm -f "$RUNNER_TEMP/release.jks"
+              echo "signed=false" >> "$GITHUB_OUTPUT"
+              echo "::warning title=APK signing status::Signing secrets are present but AURORO_KEYSTORE_BASE64 did not decode to a non-empty file; building debug-signed only. Re-upload it as clean single-line base64 of the .p12/.jks bytes."
+            fi
           else
             echo "signed=false" >> "$GITHUB_OUTPUT"
             echo "No complete release signing configuration found: a debug APK is available for CI smoke testing only; no production APK will be published."
