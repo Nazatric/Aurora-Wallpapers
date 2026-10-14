@@ -1,9 +1,8 @@
 package com.auroro.wallpapers.ui.home
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer.initializer
-import androidx.lifecycle.viewmodel.initializer.viewModelFactory
 import com.auroro.wallpapers.app.AppContainer
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoveryStyle
@@ -182,8 +181,11 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         private const val MAX_EMPTY_CONTINUATIONS = 2
         private const val GENERIC_ERROR = "The enabled catalogues returned nothing usable. Try again shortly."
 
-        fun factory(app: AppContainer) = viewModelFactory {
-            initializer { HomeViewModel(app) }
+        fun factory(app: AppContainer): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return HomeViewModel(app) as T
+            }
         }
     }
 }
