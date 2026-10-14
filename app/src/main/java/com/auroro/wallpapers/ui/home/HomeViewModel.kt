@@ -224,21 +224,21 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                             capabilities.unavailableReason
                                 ?: app.appContext.getString(R.string.apply_unavailable),
                         )
-                        return@launch
-                    }
-                    runCatching {
-                        val original = app.wallpaperApplyRepository.prepare(wallpaper)
-                        app.wallpaperApplier.apply(original.uri, target, crop)
-                    }
-                }.onSuccess { result ->
-                    when (result) {
-                        ApplyResult.Success ->
-                            _messages.emit(app.appContext.getString(R.string.apply_success))
+                    } else {
+                        runCatching {
+                            val original = app.wallpaperApplyRepository.prepare(wallpaper)
+                            app.wallpaperApplier.apply(original.uri, target, crop)
+                        }.onSuccess { result ->
+                            when (result) {
+                                ApplyResult.Success ->
+                                    _messages.emit(app.appContext.getString(R.string.apply_success))
 
-                        is ApplyResult.Failure -> _messages.emit(result.message)
+                                is ApplyResult.Failure -> _messages.emit(result.message)
+                            }
+                        }.onFailure {
+                            _messages.emit(it.message ?: "The wallpaper could not be set.")
+                        }
                     }
-                }.onFailure {
-                    _messages.emit(it.message ?: "The wallpaper could not be set.")
                 }
             }
         }

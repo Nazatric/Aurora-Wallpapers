@@ -45,7 +45,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import coil3.compose.PainterState
+import coil3.compose.AsyncImagePainter
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.data.download.CropMath
@@ -176,7 +176,7 @@ fun CropScreen(
                         contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
                         contentScale = ContentScale.Crop,
                         onState = { state ->
-                            if (state is PainterState.Success) {
+                            if (state is AsyncImagePainter.State.Success) {
                                 val drawable = state.result.image
                                 val w = drawable.width
                                 val h = drawable.height
