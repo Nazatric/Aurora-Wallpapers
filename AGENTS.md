@@ -5,11 +5,14 @@
 Work in progress. The entire old application UI was removed in October 2026 (git history
 around `versionName 1.4.0`); all GitHub releases and tags were deleted at the same time.
 A new UI is being rebuilt slice by slice on top of the validated data/domain layer.
-Slices 1–2 (Home feed, shell pill navigation, fullscreen detail/preview with info sheet,
-rights-gated download and set-wallpaper target sheet) are implemented under
-`app/src/main/java/com/auroro/wallpapers/ui/`; later slices add Search, Library and
-Settings. Feed cards use `ContentScale.Fit` inside a true-aspect container — never crop
-artwork to fake an orientation. Keep slices small and land each with green CI.
+Slices 1–3 (Home feed, shell pill navigation, fullscreen detail/preview, search with
+FeedPager + staggered grid, cover-flow browser, crop editor) are implemented under
+`app/src/main/java/com/auroro/wallpapers/ui/`; later slices add Library and Settings.
+Feed cards use `ContentScale.Fit` inside a true-aspect container — never crop artwork to
+fake an orientation. Motion tokens live in `ui/theme/Motion.kt` (Material 3 Expressive:
+bouncy springs for small elements, emphasized easings for transitions); set-wallpaper
+framing must go through `CropMath.visibleRect` so the crop editor and the applier agree.
+Keep slices small and land each with green CI.
 
 ## Layout
 

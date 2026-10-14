@@ -7,6 +7,7 @@ import com.auroro.wallpapers.R
 import com.auroro.wallpapers.app.AppContainer
 import com.auroro.wallpapers.core.data.download.ApplyResult
 import com.auroro.wallpapers.core.data.download.ApplyTarget
+import com.auroro.wallpapers.core.data.download.NormalizedCrop
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
@@ -203,8 +204,11 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         }
     }
 
-    /** Fetches the original and applies it via WallpaperManager; honours both rights gates. */
-    fun setWallpaper(wallpaper: Wallpaper, target: ApplyTarget) {
+    /**
+     * Fetches the original and applies it via WallpaperManager; honours both rights gates.
+     * [crop] comes from the crop editor; null lets the applier center-crop to the screen.
+     */
+    fun setWallpaper(wallpaper: Wallpaper, target: ApplyTarget, crop: NormalizedCrop? = null) {
         viewModelScope.launch {
             when {
                 !wallpaper.downloadAllowed ->
@@ -213,9 +217,19 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
                 !wallpaper.setWallpaperAllowed ->
                     _messages.emit(app.appContext.getString(R.string.apply_blocked_licence))
 
-                else -> runCatching {
-                    val original = app.wallpaperApplyRepository.prepare(wallpaper)
-                    app.wallpaperApplier.apply(original.uri, target)
+                else -> {
+                    val capabilities = app.wallpaperApplier.capabilities()
+                    if (!capabilities.usable) {
+                        _messages.emit(
+                            capabilities.unavailableReason
+                                ?: app.appContext.getString(R.string.apply_unavailable),
+                        )
+                        return@launch
+                    }
+                    runCatching {
+                        val original = app.wallpaperApplyRepository.prepare(wallpaper)
+                        app.wallpaperApplier.apply(original.uri, target, crop)
+                    }
                 }.onSuccess { result ->
                     when (result) {
                         ApplyResult.Success ->

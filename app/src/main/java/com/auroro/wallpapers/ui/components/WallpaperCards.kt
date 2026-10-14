@@ -1,5 +1,6 @@
 package com.auroro.wallpapers.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +22,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -35,6 +38,8 @@ import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.theme.AuroroAccent
+import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.rememberBounceScale
 import com.auroro.wallpapers.ui.theme.AuroroSurface
 import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
 import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
@@ -44,7 +49,7 @@ import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
  * by the clamp and images are drawn with [ContentScale.Fit], so artwork is always shown whole
  * in its true orientation — landscape never becomes a portrait crop and vice versa.
  */
-private fun artAspect(wallpaper: Wallpaper): Float =
+fun artAspect(wallpaper: Wallpaper): Float =
     wallpaper.aspectRatio.takeIf { wallpaper.hasKnownDimensions && it.isFinite() && it > 0f }
         ?.coerceIn(0.5f, 2.4f) ?: 1f
 
@@ -99,9 +104,14 @@ fun HeroPager(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 repeat(items.size) { index ->
+                    val dotWidth by animateDpAsState(
+                        targetValue = if (index == pagerState.currentPage) 18.dp else 4.dp,
+                        animationSpec = AuroroMotion.BouncyDp,
+                        label = "heroDot",
+                    )
                     Box(
                         modifier = Modifier
-                            .size(if (index == pagerState.currentPage) 18.dp else 4.dp, 4.dp)
+                            .size(dotWidth, 4.dp)
                             .clip(CircleShape)
                             .background(
                                 if (index == pagerState.currentPage) {
@@ -137,7 +147,7 @@ fun WallpaperCard(
 }
 
 @Composable
-private fun WallpaperArt(
+fun WallpaperArt(
     wallpaper: Wallpaper,
     aspect: Float,
     corner: androidx.compose.ui.unit.Dp,
@@ -147,6 +157,7 @@ private fun WallpaperArt(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(corner)
+    val heartScale = rememberBounceScale(favorite)
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -196,7 +207,13 @@ private fun WallpaperArt(
         }
         IconButton(
             onClick = { onToggleFavorite(wallpaper) },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 6.dp, bottom = 6.dp),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 6.dp, bottom = 6.dp)
+                .graphicsLayer {
+                    scaleX = heartScale
+                    scaleY = heartScale
+                },
         ) {
             Icon(
                 painter = painterResource(

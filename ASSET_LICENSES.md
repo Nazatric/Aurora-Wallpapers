@@ -16,8 +16,8 @@ The navigation, favorite, refresh, empty-state and error-state glyphs are unmodi
 
 The bundled Open Sans typefaces (SIL Open Font License 1.1) and the previous interface artwork were deleted with the 1.4.0 UI removal and have not been re-added.
 
-## Slice-2 UI icons (`ic_arrow_back`, `ic_info_outlined`, `ic_download`, `ic_open_in_new`)
+## Slice-2/3 UI icons (`ic_arrow_back`, `ic_info_outlined`, `ic_download`, `ic_open_in_new`, `ic_close`)
 
-Bundled from [`google/material-design-icons`](https://github.com/google/material-design-icons) (Apache License 2.0) via the `android/` resource layout (`navigation/arrow_back`, `action/info` outlined theme, `file/download`, `action/open_in_new`; 24 dp baseline/outline vectors). Fills were normalized to white and runtime tints stripped; they are tinted at runtime like the slice-1 icons. Licence: <https://github.com/google/material-design-icons/blob/master/LICENSE>.
+Bundled from [`google/material-design-icons`](https://github.com/google/material-design-icons) (Apache License 2.0) via the `android/` resource layout (`navigation/arrow_back`, `action/info` outlined theme, `file/download`, `action/open_in_new`, `navigation/close`; 24 dp baseline/outline vectors). Fills were normalized to white and runtime tints stripped; they are tinted at runtime like the slice-1 icons. Licence: <https://github.com/google/material-design-icons/blob/master/LICENSE>.
 
 The detail screen's Set-wallpaper action reuses the existing Material `wallpaper` glyph (`ic_stat_auroro`), attributed above.

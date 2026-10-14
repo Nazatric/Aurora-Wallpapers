@@ -1,6 +1,10 @@
 package com.auroro.wallpapers.ui.detail
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +30,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -47,6 +53,8 @@ import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.resolutionLabel
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroAccent
+import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.rememberBounceScale
 import com.auroro.wallpapers.ui.theme.AuroroSurface
 import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
 import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
@@ -70,6 +78,9 @@ fun DetailScreen(
 ) {
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
     var showApply by remember(wallpaper.key) { mutableStateOf(false) }
+    var chromeVisible by remember(wallpaper.key) { mutableStateOf(false) }
+    val heartScale = rememberBounceScale(favorite)
+    LaunchedEffect(wallpaper.key) { chromeVisible = true }
     BackHandler { onBack() }
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
@@ -79,42 +90,59 @@ fun DetailScreen(
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        AnimatedVisibility(
+            visible = chromeVisible,
+            enter = fadeIn(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) +
+                slideInVertically(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) { -it / 3 },
         ) {
-            CircleButton(icon = R.drawable.ic_arrow_back, label = stringResource(R.string.detail_back), onClick = onBack)
-            Spacer(Modifier.weight(1f))
-            CircleButton(
-                icon = if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_outlined,
-                label = stringResource(if (favorite) R.string.favorite_remove else R.string.favorite_add),
-                tint = if (favorite) Color(0xFFFF6B81) else Color.White,
-                onClick = onToggleFavorite,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircleButton(icon = R.drawable.ic_arrow_back, label = stringResource(R.string.detail_back), onClick = onBack)
+                Spacer(Modifier.weight(1f))
+                CircleButton(
+                    icon = if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_outlined,
+                    label = stringResource(if (favorite) R.string.favorite_remove else R.string.favorite_add),
+                    tint = if (favorite) Color(0xFFFF6B81) else Color.White,
+                    onClick = onToggleFavorite,
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = heartScale
+                        scaleY = heartScale
+                    },
+                )
+            }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 20.dp, top = 40.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly,
+        AnimatedVisibility(
+            visible = chromeVisible,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) +
+                slideInVertically(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) { it / 3 },
         ) {
-            DetailAction(
-                icon = R.drawable.ic_info_outlined,
-                label = stringResource(R.string.detail_info),
-                emphasized = false,
-                onClick = { showInfo = true },
-            )
-            DetailAction(
-                icon = R.drawable.ic_download,
-                label = stringResource(R.string.detail_download),
-                emphasized = true,
-                onClick = onDownload,
-            )
-            DetailAction(
-                icon = R.drawable.ic_stat_auroro,
-                label = stringResource(R.string.detail_set_wallpaper),
-                emphasized = false,
-                onClick = { showApply = true },
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 20.dp, top = 40.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceEvenly,
+            ) {
+                DetailAction(
+                    icon = R.drawable.ic_info_outlined,
+                    label = stringResource(R.string.detail_info),
+                    emphasized = false,
+                    onClick = { showInfo = true },
+                )
+                DetailAction(
+                    icon = R.drawable.ic_download,
+                    label = stringResource(R.string.detail_download),
+                    emphasized = true,
+                    onClick = onDownload,
+                )
+                DetailAction(
+                    icon = R.drawable.ic_stat_auroro,
+                    label = stringResource(R.string.detail_set_wallpaper),
+                    emphasized = false,
+                    onClick = { showApply = true },
+                )
+            }
         }
     }
 
@@ -159,10 +187,11 @@ private fun CircleButton(
     label: String,
     onClick: () -> Unit,
     tint: Color = Color.White,
+    modifier: Modifier = Modifier,
 ) {
     IconButton(
         onClick = onClick,
-        modifier = Modifier.size(44.dp).clip(CircleShape).background(AuroroSurface.copy(alpha = 0.72f), CircleShape),
+        modifier = modifier.size(44.dp).clip(CircleShape).background(AuroroSurface.copy(alpha = 0.72f), CircleShape),
     ) {
         Icon(
             painter = painterResource(icon),

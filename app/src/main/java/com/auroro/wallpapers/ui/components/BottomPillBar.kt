@@ -1,6 +1,8 @@
 package com.auroro.wallpapers.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +19,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -29,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.ui.theme.AuroroAccent
+import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.AuroroSurface
 import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
 import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
@@ -89,6 +97,26 @@ fun BottomPillBar(
 private fun PillItem(tab: ShellTab, selected: ShellTab, onSelect: (ShellTab) -> Unit) {
     val active = tab == selected
     val label = stringResource(tab.labelRes)
+    val indicatorColor by animateColorAsState(
+        targetValue = if (active) AuroroAccent.copy(alpha = 0.22f) else AuroroAccent.copy(alpha = 0f),
+        animationSpec = AuroroMotion.ColorCalm,
+        label = "pillIndicator",
+    )
+    val iconTint by animateColorAsState(
+        targetValue = if (active) MaterialTheme.colorScheme.primary else AuroroTextTertiary,
+        animationSpec = AuroroMotion.ColorCalm,
+        label = "pillIconTint",
+    )
+    val iconScale by animateFloatAsState(
+        targetValue = if (active) 1.1f else 1f,
+        animationSpec = AuroroMotion.BouncyFloat,
+        label = "pillIconScale",
+    )
+    val labelColor by animateColorAsState(
+        targetValue = if (active) AuroroTextSecondary else AuroroTextTertiary,
+        animationSpec = AuroroMotion.ColorCalm,
+        label = "pillLabel",
+    )
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
@@ -101,39 +129,53 @@ private fun PillItem(tab: ShellTab, selected: ShellTab, onSelect: (ShellTab) -> 
         Box(
             modifier = Modifier
                 .size(34.dp)
-                .then(
-                    if (active) {
-                        Modifier.background(AuroroAccent.copy(alpha = 0.22f), CircleShape)
-                    } else {
-                        Modifier
-                    },
-                ),
+                .background(indicatorColor, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painter = painterResource(if (active) tab.iconFilled else tab.iconOutlined),
                 contentDescription = null,
-                tint = if (active) MaterialTheme.colorScheme.primary else AuroroTextTertiary,
-                modifier = Modifier.size(21.dp),
+                tint = iconTint,
+                modifier = Modifier.size(21.dp).graphicsLayer {
+                    scaleX = iconScale
+                    scaleY = iconScale
+                },
             )
         }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = if (active) AuroroTextSecondary.copy(alpha = 1f) else AuroroTextTertiary,
+            color = labelColor,
         )
     }
 }
 
 @Composable
 private fun CenterAction(onClick: () -> Unit, label: String, @DrawableRes icon: Int) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.86f else 1f,
+        animationSpec = AuroroMotion.BouncyFloat,
+        label = "centerPress",
+    )
     Box(
         modifier = Modifier
             .padding(horizontal = 4.dp)
             .size(52.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(CircleShape)
             .background(AuroroAccent, CircleShape)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = label,
+                onClick = onClick,
+            )
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {

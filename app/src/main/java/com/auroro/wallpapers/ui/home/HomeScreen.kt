@@ -14,11 +14,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,13 +31,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.DiscoveryStyle
+import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.FeedEmptyState
 import com.auroro.wallpapers.ui.components.FeedFooterState
 import com.auroro.wallpapers.ui.components.FeedLoadingState
 import com.auroro.wallpapers.ui.components.HeroPager
 import com.auroro.wallpapers.ui.components.WallpaperCard
-import com.auroro.wallpapers.ui.theme.AuroroAccent
-import com.auroro.wallpapers.ui.theme.AuroroSurfaceBright
 import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
 import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
@@ -160,34 +157,18 @@ private fun StyleChips(selected: DiscoveryStyle?, onSelect: (DiscoveryStyle?) ->
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(Modifier.size(16.dp, 1.dp))
-        StyleChip(
+        AuroraChip(
             label = stringResource(R.string.chip_for_you),
             active = selected == null,
             onClick = { onSelect(null) },
         )
         DiscoveryStyle.entries.forEach { style ->
-            StyleChip(
+            AuroraChip(
                 label = style.label,
                 active = selected == style,
                 onClick = { onSelect(style) },
             )
         }
         Spacer(Modifier.size(16.dp, 1.dp))
-    }
-}
-
-@Composable
-private fun StyleChip(label: String, active: Boolean, onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = if (active) AuroroAccent else AuroroSurfaceBright,
-        onClick = onClick,
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (active) MaterialTheme.colorScheme.onPrimary else AuroroTextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-        )
     }
 }
