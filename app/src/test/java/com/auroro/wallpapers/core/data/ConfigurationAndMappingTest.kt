@@ -204,7 +204,7 @@ class ConfigurationAndMappingTest {
         settings.update { it.copy(fontScale = 1.05f) }
         val normalized = store.data.first()
         assertEquals(setOf("surreal", "botanical-art"), normalized[oldPreferred])
-        assertEquals(listOf("Frutiger Aero", "Material 3", "Frutiger Zen"), DesignTheme.entries.map { it.label })
+        assertEquals(listOf("Liquid Glass", "Material 3"), DesignTheme.entries.map { it.label })
     }
 
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {
