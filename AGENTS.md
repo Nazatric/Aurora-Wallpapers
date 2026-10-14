@@ -2,10 +2,12 @@
 
 ## Current state
 
-Work in progress. The entire application UI was removed in October 2026 (git history around
-`versionName 1.4.0`); all GitHub releases and tags were deleted at the same time. The tree
-contains the validated Kotlin data/domain layer only, and the `app` module builds a UI-less
-shell APK. A new UI is expected to be built from scratch on top of this layer.
+Work in progress. The entire old application UI was removed in October 2026 (git history
+around `versionName 1.4.0`); all GitHub releases and tags were deleted at the same time.
+A new UI is being rebuilt slice by slice on top of the validated data/domain layer.
+Slice 1 (Home feed + shell pill navigation) is implemented under
+`app/src/main/java/com/auroro/wallpapers/ui/`; later slices add Search, detail/preview,
+Library and Settings. Keep slices small and land each with green CI.
 
 ## Layout
 
@@ -16,8 +18,10 @@ shell APK. A new UI is expected to be built from scratch on top of this layer.
 - `app/src/main/java/com/auroro/wallpapers/core/model/` — domain types (no framework deps
   beyond harmless annotations)
 - `app/src/main/java/com/auroro/wallpapers/core/network/` — OkHttp/Retrofit clients, URL policy
-- `app/src/main/java/com/auroro/wallpapers/app/` — `Application` class and `AppContainer`
-  (manual dependency injection)
+- `app/src/main/java/com/auroro/wallpapers/app/` — `Application` class, `AppContainer`
+  (manual dependency injection), `MainActivity`, `AuroroShell`
+- `app/src/main/java/com/auroro/wallpapers/ui/` — Compose UI: `theme/`, `components/`,
+  `home/`, placeholder screens; icons are Material Icons vectors in `res/drawable`
 - `app/src/test/` — JVM unit tests (JUnit 4, Robolectric, MockWebServer, Turbine)
 - `scripts/live_source_smoke.sh` — curl-based live provider checks (no app or UI involved)
 - `.github/workflows/android.yml` — CI: unit tests, Android lint, debug/release assembly,

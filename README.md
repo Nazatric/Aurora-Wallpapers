@@ -2,7 +2,9 @@
 
 **Work in progress.**
 
-The application UI has been removed and is being rebuilt from scratch. The current tree contains only the Kotlin data/domain layer — wallpaper providers, discovery and validation engines, Room/DataStore persistence, settings, and the download/apply pipeline — plus its CI. The app module builds a UI-less shell APK (no launcher activity), so there is nothing to run on a device yet.
+The application UI is being rebuilt from scratch, one slice at a time, on top of the validated Kotlin data/domain layer (providers, discovery and validation engines, Room/DataStore persistence, settings, download/apply pipeline).
+
+**Slice 1 — Home feed — is in:** dark Material 3 shell with a floating pill navigation bar, style chips, a hero pager and a stacked card feed driven by the real discovery engine (continuation batches on scroll, honest loading/empty/error/end states, favorites). Search, Library, Settings and the detail/preview flows are the next slices; their tabs currently show placeholders.
 
 - Repository conventions for contributors and AI agents: [`AGENTS.md`](AGENTS.md)
 - Software licences: [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)
