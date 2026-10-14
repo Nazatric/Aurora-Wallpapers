@@ -67,8 +67,9 @@ class ProviderNormalizationTest {
         assertEquals(WallpaperSource.WALLHAVEN, mapped.source)
         assertEquals("abc123", mapped.sourceId)
         assertEquals("https://wallhaven.cc/w/abc123", mapped.pageUrl)
-        assertEquals("https://th.wallhaven.cc/orig/ab/abc123.jpg", mapped.thumbUrl)
-        assertEquals(original, mapped.previewUrl)
+        // Cards/carousels ride the large thumb for speed; the 4K original is reserved for detail/apply.
+        assertEquals("https://th.wallhaven.cc/lg/ab/abc123.jpg", mapped.thumbUrl)
+        assertEquals("https://th.wallhaven.cc/lg/ab/abc123.jpg", mapped.previewUrl)
         assertEquals(original, mapped.originalUrl)
         assertEquals(3840, mapped.width)
         assertEquals(2160, mapped.height)
@@ -123,7 +124,8 @@ class ProviderNormalizationTest {
         assertFalse(publicItem.downloadAllowed)
         assertFalse(publicItem.setWallpaperAllowed)
         assertEquals("https://images.nasa.gov/apod.jpg?w=960&h=720", publicItem.thumbUrl)
-        assertEquals("https://images.nasa.gov/apod.jpg?w=1920&h=1440", publicItem.previewUrl)
+        // APOD previews cap at 1440 px on the long edge (4032×3024 -> 1440×1080).
+        assertEquals("https://images.nasa.gov/apod.jpg?w=1440&h=1080", publicItem.previewUrl)
         assertFalse(LocalFilter.matches(publicItem, WallpaperFilter(orientation = Orientation.LANDSCAPE)))
 
         val copyrighted = page.items.last()

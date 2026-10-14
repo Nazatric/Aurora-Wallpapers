@@ -74,7 +74,7 @@ class WallhavenHttpSearchIntegrationTest {
             assertEquals("abc123", page.items.single().sourceId)
             assertEquals(3840, page.items.single().width)
             assertEquals(2160, page.items.single().height)
-            assertEquals("https://th.wallhaven.cc/orig/ab/abc123.jpg", page.items.single().thumbUrl)
+            assertEquals("https://th.wallhaven.cc/lg/ab/abc123.jpg", page.items.single().thumbUrl)
             assertEquals("https://w.wallhaven.cc/full/ab/wallhaven-abc123.jpg", page.items.single().originalUrl)
             assertTrue(page.next != null)
         } finally {
