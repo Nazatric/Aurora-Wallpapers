@@ -53,7 +53,6 @@ import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.artAspect
-import com.auroro.wallpapers.ui.components.rememberBounceScale
 import com.auroro.wallpapers.ui.components.resolutionLabel
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroAccent

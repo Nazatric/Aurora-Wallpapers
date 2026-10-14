@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.SaveLocation
-import com.auroro.wallpapers.core.data.SettingsRepository
 import com.auroro.wallpapers.core.data.download.StorageInfo
 import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.ui.components.AuroraChip
@@ -243,7 +242,7 @@ fun SettingsScreen(
                 modifier = Modifier.padding(start = 18.dp),
             )
             ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
-                SettingsRepository.CACHE_CHOICES_MB.forEach { mb ->
+                AppSettings.CACHE_CHOICES_MB.forEach { mb ->
                     AuroraChip(
                         label = "$mb MB",
                         active = settings.cacheLimitMb == mb,

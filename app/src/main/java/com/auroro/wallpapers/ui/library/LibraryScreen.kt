@@ -269,7 +269,7 @@ private fun DownloadRowItem(
                             entity.savedWidth?.let { w ->
                                 entity.savedHeight?.let { h -> add("$w×$h") }
                             }
-                        }.joinToString(" · "),
+                        }.joinToString(" · ")
 
                         DownloadStatus.FAILED -> entity.errorMessage
                             ?: stringResource(R.string.dl_failed)
