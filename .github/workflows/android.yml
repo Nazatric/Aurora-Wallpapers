@@ -57,9 +57,18 @@ jobs:
               MAGIC=$(head -c 4 "$KEYSTORE_FILE" | od -An -tx1 | tr -d ' \n')
               case "$MAGIC" in
                 feedfeed | 3082*)
-                  echo "AURORO_KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
-                  echo "signed=true" >> "$GITHUB_OUTPUT"
-                  echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
+                  # Validate alias + passwords with keytool before Gradle sees the store,
+                  # so a mismatched secret degrades to debug-signed instead of failing
+                  # :app:packageRelease.
+                  if keytool -list -keystore "$KEYSTORE_FILE" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null 2>&1; then
+                    echo "AURORO_KEYSTORE_PATH=$KEYSTORE_FILE" >> "$GITHUB_ENV"
+                    echo "signed=true" >> "$GITHUB_OUTPUT"
+                    echo "::notice title=APK signing status::Complete production signing configuration detected; the release APK will be verified before it can be published."
+                  else
+                    rm -f "$KEYSTORE_FILE"
+                    echo "signed=false" >> "$GITHUB_OUTPUT"
+                    echo "::warning title=APK signing status::The keystore file decoded and looks like a real JKS/PKCS#12 store, but keytool cannot read alias '$KEY_ALIAS' with AURORO_KEYSTORE_PASSWORD. Check that AURORO_KEY_ALIAS matches the keystore exactly (case-sensitive) and that the store/key passwords are correct (for .p12 they are the same password). Building debug-signed only."
+                  fi
                   ;;
                 *)
                   rm -f "$KEYSTORE_FILE"
