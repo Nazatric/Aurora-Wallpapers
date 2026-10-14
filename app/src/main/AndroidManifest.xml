@@ -13,6 +13,14 @@
     <!-- Normal permission required by WallpaperManager.setBitmap / setStream. -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
+    <queries>
+        <!-- Needed to resolve the system browser for "Open original page" handoffs. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".app.AuroroApp"
         android:allowBackup="false"

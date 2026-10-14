@@ -1,6 +1,7 @@
 package com.auroro.wallpapers.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -28,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
@@ -38,17 +40,13 @@ import com.auroro.wallpapers.ui.theme.AuroroTextSecondary
 import com.auroro.wallpapers.ui.theme.AuroroTextTertiary
 
 /**
- * Cards keep the provider's real orientation: the container aspect follows the reported
- * dimensions and only extreme ratios are trimmed by [coerceIn], so a landscape wallpaper is
- * never presented as a portrait one. Unknown dimensions fall back to a neutral tile.
+ * Container aspect follows the provider's real dimensions; only extreme ratios are trimmed
+ * by the clamp and images are drawn with [ContentScale.Fit], so artwork is always shown whole
+ * in its true orientation — landscape never becomes a portrait crop and vice versa.
  */
-private fun tileAspect(wallpaper: Wallpaper): Float =
+private fun artAspect(wallpaper: Wallpaper): Float =
     wallpaper.aspectRatio.takeIf { wallpaper.hasKnownDimensions && it.isFinite() && it > 0f }
-        ?.coerceIn(0.62f, 2.1f) ?: 1f
-
-private fun heroAspect(wallpaper: Wallpaper): Float =
-    wallpaper.aspectRatio.takeIf { wallpaper.hasKnownDimensions && it.isFinite() && it > 0f }
-        ?.coerceIn(0.68f, 1.5f) ?: 0.8f
+        ?.coerceIn(0.5f, 2.4f) ?: 1f
 
 /** Honest resolution tag derived from real pixel dimensions; never invented. */
 fun resolutionLabel(wallpaper: Wallpaper): String? {
@@ -74,6 +72,7 @@ fun HeroPager(
     items: List<Wallpaper>,
     favoriteKeys: Set<String>,
     onToggleFavorite: (Wallpaper) -> Unit,
+    onOpen: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
@@ -86,10 +85,11 @@ fun HeroPager(
         ) { page ->
             WallpaperArt(
                 wallpaper = items[page],
-                aspect = heroAspect(items[page]),
+                aspect = artAspect(items[page]),
                 corner = 26.dp,
                 favorite = items[page].key in favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
+                onClick = { onOpen(items[page]) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -122,14 +122,16 @@ fun WallpaperCard(
     wallpaper: Wallpaper,
     favorite: Boolean,
     onToggleFavorite: (Wallpaper) -> Unit,
+    onClick: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     WallpaperArt(
         wallpaper = wallpaper,
-        aspect = tileAspect(wallpaper),
+        aspect = artAspect(wallpaper),
         corner = 22.dp,
         favorite = favorite,
         onToggleFavorite = onToggleFavorite,
+        onClick = { onClick(wallpaper) },
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp),
     )
 }
@@ -141,6 +143,7 @@ private fun WallpaperArt(
     corner: androidx.compose.ui.unit.Dp,
     favorite: Boolean,
     onToggleFavorite: (Wallpaper) -> Unit,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(corner)
@@ -149,12 +152,13 @@ private fun WallpaperArt(
             .fillMaxWidth()
             .aspectRatioSafe(aspect)
             .clip(shape)
-            .background(AuroroSurface),
+            .background(AuroroSurface)
+            .clickable(role = Role.Button, onClick = onClick),
     ) {
         AsyncImage(
             model = wallpaper.thumbUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
         )
         Box(

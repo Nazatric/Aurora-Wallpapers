@@ -1,9 +1,13 @@
 package com.auroro.wallpapers.ui.home
 
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.auroro.wallpapers.R
 import com.auroro.wallpapers.app.AppContainer
+import com.auroro.wallpapers.core.data.download.ApplyResult
+import com.auroro.wallpapers.core.data.download.ApplyTarget
 import com.auroro.wallpapers.core.model.DiscoverySession
 import com.auroro.wallpapers.core.model.DiscoveryStyle
 import com.auroro.wallpapers.core.model.DiscoveryStylePreferenceMapping
@@ -11,16 +15,29 @@ import com.auroro.wallpapers.core.model.DiscoverySessionPlanner
 import com.auroro.wallpapers.core.model.Wallpaper
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** One-off UI messages surfaced as snackbars by the shell. */
+sealed interface UiEvent {
+    /** Message from app resources; [arg] fills a single `%1$s` placeholder when present. */
+    data class Message(@StringRes val res: Int, val arg: String? = null) : UiEvent
+
+    /** Verbatim message owned by the data layer (e.g. an apply-failure reason). */
+    data class Raw(val text: String) : UiEvent
+}
+
 /**
  * Slice-1 home feed state: one discovery session per selection, honest loading/error/end
  * states, and continuation batches when the first pass is consumed. The engine and planners
  * live in the data layer; this ViewModel only sequences them and exposes immutable UI state.
+ * Slice 2 adds detail actions (download, set wallpaper) routed through the rights gates.
  */
 class HomeViewModel(private val app: AppContainer) : ViewModel() {
 
@@ -37,6 +54,9 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
+
+    private val _events = MutableSharedFlow<UiEvent>(extraBufferCapacity = 4)
+    val events: SharedFlow<UiEvent> = _events.asSharedFlow()
 
     private val generation = AtomicLong(0L)
     private var session: DiscoverySession? = null
@@ -175,6 +195,46 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
 
     fun toggleFavorite(wallpaper: Wallpaper) {
         viewModelScope.launch { app.favorites.toggle(wallpaper) }
+    }
+
+    /** Queues the original download through the rights-gated data layer. */
+    fun download(wallpaper: Wallpaper) {
+        viewModelScope.launch {
+            if (!wallpaper.downloadAllowed) {
+                _events.emit(UiEvent.Message(R.string.download_blocked_rights))
+                return@launch
+            }
+            runCatching { app.downloads.enqueue(wallpaper) }
+                .onSuccess { _events.emit(UiEvent.Message(R.string.download_started)) }
+                .onFailure {
+                    _events.emit(UiEvent.Raw(it.message ?: "The download could not be queued."))
+                }
+        }
+    }
+
+    /** Fetches the original and applies it via WallpaperManager; honours both rights gates. */
+    fun setWallpaper(wallpaper: Wallpaper, target: ApplyTarget) {
+        viewModelScope.launch {
+            when {
+                !wallpaper.downloadAllowed ->
+                    _events.emit(UiEvent.Message(R.string.download_blocked_rights))
+
+                !wallpaper.setWallpaperAllowed ->
+                    _events.emit(UiEvent.Message(R.string.apply_blocked_licence))
+
+                else -> runCatching {
+                    val original = app.wallpaperApplyRepository.prepare(wallpaper)
+                    app.wallpaperApplier.apply(original.uri, target)
+                }.onSuccess { result ->
+                    when (result) {
+                        ApplyResult.Success -> _events.emit(UiEvent.Message(R.string.apply_success))
+                        is ApplyResult.Failure -> _events.emit(UiEvent.Raw(result.message))
+                    }
+                }.onFailure {
+                    _events.emit(UiEvent.Raw(it.message ?: "The wallpaper could not be set."))
+                }
+            }
+        }
     }
 
     companion object {

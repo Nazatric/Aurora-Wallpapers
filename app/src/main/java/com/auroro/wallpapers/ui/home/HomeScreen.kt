@@ -58,6 +58,7 @@ fun HomeScreen(
     onReload: () -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
+    onOpen: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -96,6 +97,7 @@ fun HomeScreen(
                         items = hero,
                         favoriteKeys = state.favoriteKeys,
                         onToggleFavorite = onToggleFavorite,
+                        onOpen = onOpen,
                     )
                 }
                 items(rest, key = { it.key }) { wallpaper ->
@@ -103,6 +105,7 @@ fun HomeScreen(
                         wallpaper = wallpaper,
                         favorite = wallpaper.key in state.favoriteKeys,
                         onToggleFavorite = onToggleFavorite,
+                        onClick = onOpen,
                     )
                 }
                 item(key = "footer") {
