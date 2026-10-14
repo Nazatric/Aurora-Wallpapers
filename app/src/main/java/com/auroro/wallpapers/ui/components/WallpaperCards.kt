@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.theme.AuroroMotion
