@@ -54,8 +54,8 @@ fun BottomPillBar(
     selected: ShellTab,
     onSelect: (ShellTab) -> Unit,
     onCenterAction: () -> Unit,
-    @param:StringRes centerActionLabel: Int,
-    @param:DrawableRes centerActionIcon: Int,
+    StringRes centerActionLabel: Int,
+    DrawableRes centerActionIcon: Int,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -126,7 +126,7 @@ private fun PillItem(tab: ShellTab, selected: ShellTab, onSelect: (ShellTab) -> 
 }
 
 @Composable
-private fun CenterAction(onClick: () -> Unit, label: String, @param:DrawableRes icon: Int) {
+private fun CenterAction(onClick: () -> Unit, label: String, DrawableRes icon: Int) {
     Box(
         modifier = Modifier
             .padding(horizontal = 4.dp)
