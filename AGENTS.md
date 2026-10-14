@@ -5,7 +5,8 @@
 Work in progress. The entire old application UI was removed in October 2026 (git history
 around `versionName 1.4.0`); all GitHub releases and tags were deleted at the same time.
 A new UI is being rebuilt slice by slice on top of the validated data/domain layer.
-Slices 1–6 (Home feed + mode chips + orientation filter + cards/grid/list layouts,
+Slices 1–7 (Home feed + mode chips + orientation filter + cards/grid layouts +
+pull-to-refresh, Liquid Glass via Haze 2 behind ui/theme/Glass.kt,
 shell pill navigation with sliding indicator,
 fullscreen detail/preview + HDR, crop editor with rotation, search with
 FeedPager + staggered grid, cover-flow browser, crop editor, Library favorites/downloads,

@@ -33,7 +33,6 @@ enum class DesignTheme(val label: String, val description: String) {
 enum class FeedLayout(val label: String) {
     CARDS("Cards"),
     GRID("Grid"),
-    LIST("List"),
 }
 enum class FontChoice(val label: String, val description: String) {
     OPEN_SANS("Open Sans", "Bundled humanist sans · works offline"),

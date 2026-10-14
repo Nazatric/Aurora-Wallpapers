@@ -59,6 +59,9 @@ import com.auroro.wallpapers.core.data.download.NormalizedCrop
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroPal
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.auroroHazeSource
 import kotlin.math.max
 
 private const val MAX_USER_ZOOM = 4f
@@ -100,7 +103,7 @@ fun CropScreen(
     val effW = if (swapped) imageH else imageW
     val effH = if (swapped) imageW else imageH
 
-    Box(modifier = modifier.fillMaxSize().background(AuroroPal.background)) {
+    Box(modifier = modifier.fillMaxSize().background(AuroroPal.background).auroroHazeSource()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 10.dp, vertical = 6.dp),
@@ -108,8 +111,14 @@ fun CropScreen(
             ) {
                 IconButton(
                     onClick = onBack,
-                    modifier = Modifier.size(44.dp).clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f), CircleShape),
+                    modifier = Modifier.size(44.dp)
+                        .auroroGlass(
+                            shape = CircleShape,
+                            quality = LocalGlassQuality.current,
+                            fallback = Color.White.copy(alpha = 0.08f),
+                            tint = Color.Black,
+                        )
+                        .clip(CircleShape),
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_arrow_back),
@@ -239,8 +248,13 @@ fun CropScreen(
                             .align(Alignment.TopEnd)
                             .padding(top = 10.dp, end = 10.dp)
                             .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.45f), CircleShape),
+                            .auroroGlass(
+                                shape = CircleShape,
+                                quality = LocalGlassQuality.current,
+                                fallback = Color.Black.copy(alpha = 0.45f),
+                                tint = Color.Black,
+                            )
+                            .clip(CircleShape),
                     ) {
                         Icon(
                             painter = painterResource(R.drawable.ic_rotate_right),

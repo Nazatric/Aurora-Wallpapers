@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.auroro.wallpapers.core.data.AppSettings
+import com.auroro.wallpapers.core.data.DesignTheme
 import com.auroro.wallpapers.core.data.ThemeMode
 
 /**
@@ -78,7 +79,15 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
             onError = androidx.compose.ui.graphics.Color(0xFFFFFFFF),
         )
     }
-    CompositionLocalProvider(LocalAuroroPalette provides palette) {
+    // Liquid Glass surfaces exist only for the glass theme; every helper no-ops otherwise.
+    val glassActive = (settings?.designTheme ?: DesignTheme.LIQUID_GLASS) == DesignTheme.LIQUID_GLASS
+    val hazeState = if (glassActive) rememberAuroroHazeState() else null
+    val glassQuality = settings?.glassQuality ?: com.auroro.wallpapers.core.data.GlassQuality.BALANCED
+    CompositionLocalProvider(
+        LocalAuroroPalette provides palette,
+        LocalHazeState provides hazeState,
+        LocalGlassQuality provides glassQuality,
+    ) {
         val baseDensity = LocalDensity.current
         val fontScale = settings?.fontScale ?: 1f
         val density = remember(baseDensity, fontScale) {

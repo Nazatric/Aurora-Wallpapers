@@ -306,7 +306,11 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     /** Icon-only orientation filter on the feed header; re-filters the loaded batch instantly. */
     fun setOrientation(orientation: Orientation) {
         if (orientation == _state.value.orientation) return
-        _state.update { it.copy(orientation = orientation, items = filtered(rawItems)) }
+        // Filter with the NEW orientation explicitly: reading _state.value inside the
+        // update lambda would still see the previous value and silently no-op.
+        val filter = WallpaperFilter(orientation = orientation)
+        val next = rawItems.filter { LocalFilter.matches(it, filter) }
+        _state.update { it.copy(orientation = orientation, items = next) }
     }
 
     private fun buildSortedPager(mode: FeedMode): FeedPager {

@@ -45,6 +45,7 @@ import com.auroro.wallpapers.ui.search.SearchScreen
 import com.auroro.wallpapers.ui.search.SearchViewModel
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.auroroHazeSource
 
 /** One wallpaper action that needs a crop editor pass before applying. */
 private data class CropRequest(val wallpaper: Wallpaper)
@@ -99,6 +100,7 @@ fun AuroroShell() {
         modifier = Modifier.fillMaxSize().background(AuroroPal.background),
     ) {
         AnimatedContent(
+            modifier = Modifier.auroroHazeSource(),
             targetState = tab,
             transitionSpec = {
                 (
@@ -160,6 +162,9 @@ fun AuroroShell() {
             BottomPillBar(
                 selected = tab,
                 onSelect = { tab = it },
+                onTabDoubleTap = { tapped ->
+                    if (tapped == ShellTab.HOME) homeViewModel.reload()
+                },
                 onCenterAction = {
                     coverFlow = true
                     homeViewModel.shuffle()

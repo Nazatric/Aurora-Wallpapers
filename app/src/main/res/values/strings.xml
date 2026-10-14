@@ -22,7 +22,7 @@
     <string name="empty_hint">The mix refreshes from live providers — try again in a moment.</string>
     <string name="error_title">Couldn’t load wallpapers</string>
     <string name="retry">Try again</string>
-    <string name="end_feed">That’s everything in this mix — shuffle for a new one.</string>
+    <string name="end_feed">You’re all caught up — pull down or double-tap Home for a fresh mix.</string>
     <string name="nav_home">Home</string>
     <string name="nav_search">Search</string>
     <string name="nav_library">Library</string>

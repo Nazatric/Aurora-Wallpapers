@@ -8,7 +8,9 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.AuroroPal
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
@@ -73,20 +77,29 @@ enum class ShellTab(
  * indicator), icons crossfade filled/outlined, and the centre action keeps its press spring.
  */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun BottomPillBar(
     selected: ShellTab,
     onSelect: (ShellTab) -> Unit,
+    onTabDoubleTap: (ShellTab) -> Unit = {},
     onCenterAction: () -> Unit,
     @StringRes centerActionLabel: Int,
     @DrawableRes centerActionIcon: Int,
     modifier: Modifier = Modifier,
 ) {
+    val pillShape = RoundedCornerShape(34.dp)
     Surface(
         modifier = modifier
             .navigationBarsPadding()
-            .padding(bottom = 14.dp),
-        shape = RoundedCornerShape(34.dp),
-        color = AuroroPal.surface,
+            .padding(bottom = 14.dp)
+            .auroroGlass(
+                shape = pillShape,
+                quality = LocalGlassQuality.current,
+                fallback = AuroroPal.surface,
+                tint = AuroroPal.surface,
+            ),
+        shape = pillShape,
+        color = androidx.compose.ui.graphics.Color.Transparent,
         shadowElevation = 10.dp,
         tonalElevation = 2.dp,
     ) {
@@ -126,15 +139,15 @@ fun BottomPillBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                PillItem(ShellTab.HOME, selected, onSelect) { bounds[ShellTab.HOME] = it }
-                PillItem(ShellTab.SEARCH, selected, onSelect) { bounds[ShellTab.SEARCH] = it }
+                PillItem(ShellTab.HOME, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.HOME] = it }
+                PillItem(ShellTab.SEARCH, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.SEARCH] = it }
                 CenterAction(
                     onClick = onCenterAction,
                     label = stringResource(centerActionLabel),
                     icon = centerActionIcon,
                 )
-                PillItem(ShellTab.LIBRARY, selected, onSelect) { bounds[ShellTab.LIBRARY] = it }
-                PillItem(ShellTab.SETTINGS, selected, onSelect) { bounds[ShellTab.SETTINGS] = it }
+                PillItem(ShellTab.LIBRARY, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.LIBRARY] = it }
+                PillItem(ShellTab.SETTINGS, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.SETTINGS] = it }
             }
         }
     }
@@ -145,6 +158,7 @@ private fun PillItem(
     tab: ShellTab,
     selected: ShellTab,
     onSelect: (ShellTab) -> Unit,
+    onTabDoubleTap: (ShellTab) -> Unit,
     onPosition: (Rect) -> Unit,
 ) {
     val active = tab == selected
@@ -168,7 +182,12 @@ private fun PillItem(
         modifier = Modifier
             .onGloballyPositioned { onPosition(it.boundsInParent()) }
             .clip(RoundedCornerShape(20.dp))
-            .clickable(role = Role.Tab, onClickLabel = label) { onSelect(tab) }
+            .combinedClickable(
+                role = Role.Tab,
+                onClickLabel = label,
+                onClick = { onSelect(tab) },
+                onDoubleClick = { onTabDoubleTap(tab) },
+            )
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .semantics { contentDescription = label },
         horizontalAlignment = Alignment.CenterHorizontally,

@@ -40,6 +40,7 @@ import com.auroro.wallpapers.core.data.AccentTheme
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.DesignTheme
 import com.auroro.wallpapers.core.data.FeedLayout
+import com.auroro.wallpapers.core.data.GlassQuality
 import com.auroro.wallpapers.core.data.SaveLocation
 import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.data.download.StorageInfo
@@ -142,11 +143,23 @@ fun SettingsScreen(
                 value = settings.fontChoice.label,
                 note = androidx.compose.ui.res.stringResource(R.string.soon_theming),
             )
-            ComingSoonRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_glass),
-                value = settings.glassQuality.label,
-                note = androidx.compose.ui.res.stringResource(R.string.soon_glass),
+            // Liquid Glass rendering tier: real Haze tiers, honest cost labels.
+            SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_glass))
+            Text(
+                text = settings.glassQuality.description,
+                style = MaterialTheme.typography.labelSmall,
+                color = AuroroPal.textTertiary,
+                modifier = Modifier.padding(start = 18.dp),
             )
+            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                GlassQuality.entries.forEach { quality ->
+                    AuroraChip(
+                        label = quality.label,
+                        active = settings.glassQuality == quality,
+                        onClick = { onUpdate { it.copy(glassQuality = quality) } },
+                    )
+                }
+            }
             SwitchRow(
                 title = androidx.compose.ui.res.stringResource(R.string.set_amoled),
                 subtitle = androidx.compose.ui.res.stringResource(R.string.set_amoled_sub),

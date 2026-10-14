@@ -23,9 +23,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +42,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.auroro.wallpapers.R
@@ -84,7 +88,7 @@ fun resolutionLabel(wallpaper: Wallpaper): String? {
 }
 
 /** Feed decode cap: above any phone panel, below 4K memory cost. Detail keeps the original. */
-private const val CARD_DECODE_MAX_PX = 2560
+private const val CARD_DECODE_MAX_PX = 1920
 
 fun wallpaperDescription(wallpaper: Wallpaper): String =
     if (wallpaper.hasKnownDimensions) {
@@ -179,6 +183,15 @@ fun WallpaperArt(
 ) {
     val shape = RoundedCornerShape(corner)
     val heartScale = rememberBounceScale(favorite)
+    // The container starts at the metadata aspect but snaps to the DECODED image's real
+    // aspect as soon as pixels arrive, so the Fit layer always covers the card exactly —
+    // no grey bands, no translucent strips, even when CDN frames disagree with metadata.
+    var measuredAspect by remember(wallpaper.key) { mutableFloatStateOf(aspect) }
+    val liveAspect by animateFloatAsState(
+        targetValue = measuredAspect,
+        animationSpec = AuroroMotion.SnappyFloat,
+        label = "cardAspect",
+    )
     val context = LocalContext.current
     val request = remember(wallpaper.previewUrl) {
         ImageRequest.Builder(context)
@@ -189,7 +202,7 @@ fun WallpaperArt(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .aspectRatioSafe(aspect)
+            .aspectRatioSafe(liveAspect)
             .shadow(elevation = 12.dp, shape = shape, clip = false)
             .clip(shape)
             .background(AuroroPal.surface)
@@ -206,6 +219,15 @@ fun WallpaperArt(
             model = request,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Fit,
+            onState = { state ->
+                if (state is AsyncImagePainter.State.Success) {
+                    val w = state.result.image.width
+                    val h = state.result.image.height
+                    if (w > 0 && h > 0) {
+                        measuredAspect = (w.toFloat() / h.toFloat()).coerceIn(0.35f, 2.8f)
+                    }
+                }
+            },
             modifier = Modifier.fillMaxSize(),
         )
         Box(

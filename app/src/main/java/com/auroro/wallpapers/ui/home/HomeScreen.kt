@@ -27,10 +27,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -61,6 +63,8 @@ import com.auroro.wallpapers.ui.components.artAspect
 import com.auroro.wallpapers.ui.components.wallpaperMeta
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.AuroroPal
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
 
 private const val HERO_COUNT = 4
 private const val NEAR_END_THRESHOLD = 3
@@ -158,8 +162,13 @@ private fun HomeHeader(
 private fun OrientationSegmented(selected: Orientation, onSelect: (Orientation) -> Unit) {
     Row(
         modifier = Modifier
+            .auroroGlass(
+                shape = RoundedCornerShape(50),
+                quality = LocalGlassQuality.current,
+                fallback = AuroroPal.surfaceBright,
+                tint = AuroroPal.surface,
+            )
             .clip(RoundedCornerShape(50))
-            .background(AuroroPal.surfaceBright)
             .padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -215,6 +224,7 @@ private fun ModeChips(selected: FeedMode, onSelect: (FeedMode) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FeedBody(
     state: HomeViewModel.UiState,
@@ -233,10 +243,15 @@ private fun FeedBody(
             FeedEmptyState(error = state.error, onRetry = onReload)
         }
 
-        else -> when (state.layout) {
-            FeedLayout.CARDS -> CardsFeed(state, onLoadMore, onToggleFavorite, onOpen, modifier)
-            FeedLayout.GRID -> GridFeed(state, onLoadMore, onToggleFavorite, onOpen, modifier)
-            FeedLayout.LIST -> ListFeed(state, onLoadMore, onToggleFavorite, onOpen, modifier)
+        else -> PullToRefreshBox(
+            isRefreshing = state.loading,
+            onRefresh = onReload,
+            modifier = modifier.fillMaxSize(),
+        ) {
+            when (state.layout) {
+                FeedLayout.CARDS -> CardsFeed(state, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.GRID -> GridFeed(state, onLoadMore, onToggleFavorite, onOpen, Modifier)
+            }
         }
     }
 }
@@ -320,98 +335,6 @@ private fun GridFeed(
         }
         item(key = "footer", span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
             FeedFooter(state, onLoadMore)
-        }
-    }
-}
-
-@Composable
-private fun ListFeed(
-    state: HomeViewModel.UiState,
-    onLoadMore: () -> Unit,
-    onToggleFavorite: (Wallpaper) -> Unit,
-    onOpen: (Wallpaper) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val listState = rememberLazyListState()
-    NearEndEffect(listState) { onLoadMore() }
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(top = 6.dp, bottom = 118.dp),
-    ) {
-        items(state.items, key = { it.key }) { wallpaper ->
-            ListRow(
-                wallpaper = wallpaper,
-                favorite = wallpaper.key in state.favoriteKeys,
-                onToggleFavorite = onToggleFavorite,
-                onOpen = onOpen,
-                modifier = Modifier.animateItem(),
-            )
-        }
-        item(key = "footer") { FeedFooter(state, onLoadMore) }
-    }
-}
-
-@Composable
-private fun ListRow(
-    wallpaper: Wallpaper,
-    favorite: Boolean,
-    onToggleFavorite: (Wallpaper) -> Unit,
-    onOpen: (Wallpaper) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 14.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(AuroroPal.surface)
-            .clickable(role = Role.Button) { onOpen(wallpaper) }
-            .padding(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(AuroroPal.surfaceBright),
-            contentAlignment = Alignment.Center,
-        ) {
-            AsyncImage(
-                model = wallpaper.previewUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        Spacer(Modifier.size(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = wallpaper.title?.takeIf { it.isNotBlank() } ?: wallpaperMeta(wallpaper),
-                style = MaterialTheme.typography.labelLarge,
-                color = AuroroPal.textPrimary,
-                maxLines = 1,
-            )
-            Spacer(Modifier.size(2.dp))
-            Text(
-                text = wallpaperMeta(wallpaper),
-                style = MaterialTheme.typography.labelSmall,
-                color = AuroroPal.textTertiary,
-                maxLines = 1,
-            )
-        }
-        IconButton(onClick = { onToggleFavorite(wallpaper) }) {
-            Icon(
-                painter = painterResource(
-                    if (favorite) R.drawable.ic_favorite else R.drawable.ic_favorite_outlined,
-                ),
-                contentDescription = stringResource(
-                    if (favorite) R.string.favorite_remove else R.string.favorite_add,
-                ),
-                tint = if (favorite) androidx.compose.ui.graphics.Color(0xFFFF6B81) else AuroroPal.textTertiary,
-                modifier = Modifier.size(20.dp),
-            )
         }
     }
 }

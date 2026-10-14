@@ -56,6 +56,9 @@ import coil3.compose.AsyncImage
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.theme.AuroroPal
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.auroroHazeSource
 import com.auroro.wallpapers.ui.components.resolutionLabel
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroMotion
@@ -99,7 +102,7 @@ fun DetailScreen(
     }
     BackHandler { onBack() }
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier = modifier.fillMaxSize().background(Color.Black).auroroHazeSource()) {
         AsyncImage(
             model = wallpaper.originalUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
@@ -220,7 +223,15 @@ private fun CircleButton(
 ) {
     IconButton(
         onClick = onClick,
-        modifier = modifier.size(44.dp).clip(CircleShape).background(AuroroPal.surface.copy(alpha = 0.72f), CircleShape),
+        modifier = modifier
+            .size(44.dp)
+            .auroroGlass(
+                shape = CircleShape,
+                quality = LocalGlassQuality.current,
+                fallback = AuroroPal.surface.copy(alpha = 0.72f),
+                tint = AuroroPal.surface,
+            )
+            .clip(CircleShape),
     ) {
         Icon(
             painter = painterResource(icon),
@@ -245,11 +256,19 @@ private fun DetailAction(
             onClick = onClick,
             modifier = iconModifier
                 .size(54.dp)
-                .clip(CircleShape)
-                .background(
-                    if (emphasized) AuroroPal.accent else AuroroPal.surface.copy(alpha = 0.78f),
-                    CircleShape,
-                ),
+                .then(
+                    if (emphasized) {
+                        Modifier.background(AuroroPal.accent, CircleShape)
+                    } else {
+                        Modifier.auroroGlass(
+                            shape = CircleShape,
+                            quality = LocalGlassQuality.current,
+                            fallback = AuroroPal.surface.copy(alpha = 0.78f),
+                            tint = AuroroPal.surface,
+                        )
+                    },
+                )
+                .clip(CircleShape),
         ) {
             Icon(
                 painter = painterResource(icon),

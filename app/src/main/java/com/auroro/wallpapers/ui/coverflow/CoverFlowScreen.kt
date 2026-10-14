@@ -63,6 +63,9 @@ import com.auroro.wallpapers.ui.components.artAspect
 import com.auroro.wallpapers.ui.components.wallpaperMeta
 import com.auroro.wallpapers.ui.components.wallpaperDescription
 import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.auroroHazeSource
 import com.auroro.wallpapers.ui.theme.rememberBounceScale
 import kotlin.math.abs
 
@@ -112,7 +115,8 @@ fun CoverFlowScreen(
     }
 
     Box(
-        modifier = modifier.fillMaxSize().background(AuroroPal.background),
+        modifier = modifier.fillMaxSize().background(AuroroPal.background)
+            .auroroHazeSource(),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -276,8 +280,13 @@ private fun OrientationToggle(
 ) {
     Row(
         modifier = Modifier
+            .auroroGlass(
+                shape = RoundedCornerShape(50),
+                quality = LocalGlassQuality.current,
+                fallback = AuroroPal.surfaceBright,
+                tint = AuroroPal.surface,
+            )
             .clip(RoundedCornerShape(50))
-            .background(AuroroPal.surfaceBright)
             .padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

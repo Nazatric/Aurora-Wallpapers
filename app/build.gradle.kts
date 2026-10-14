@@ -16,8 +16,8 @@ android {
         applicationId = "com.auroro.wallpapers"
         minSdk = 29
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.6.0"
+        versionCode = 9
+        versionName = "1.7.0"
 
     }
 
@@ -96,6 +96,10 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
     implementation(libs.coil.compose)
+    // Liquid Glass: one backdrop engine (Haze 2 stable) - capture, frosted blur, refraction glass.
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
+    implementation(libs.haze.glass)
     implementation(libs.coil.network.okhttp)
 
     implementation(libs.androidx.room.runtime)
