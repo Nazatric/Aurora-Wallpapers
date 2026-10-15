@@ -35,7 +35,10 @@ History recording happens on deliberate opens.
 Random-lane freshness: `FeedPager(initialSeed=...)` seeds every provider cursor; `ProviderPageCache` keys on
 (source, page, seed, query) so a new seed always misses; sorted lanes pass seed=null and keep cache hits.
 Search idle (blank query) never touches the network; rate-limited empty results surface `cooldownSeconds` +
-a nonce-driven auto-retry card instead of "No matches". All chips are glass in both states (AuroraChip).
+a nonce-driven auto-retry card instead of "No matches". All chips are glossy aero pills (auroroGloss, no blur); live glass is reserved for floating controls, nav,
+dialogs/sheets and suspended during tab transitions (LocalGlassSuspend). DesignTheme.FRUTIGER_AERO owns the
+navy/aqua palette; Collections UI lives in ui/library (CollectionsUi.kt) over CollectionsRepository;
+Search filters flow through SearchViewModel.filter into SearchSourceSelection.
 Keep slices small and land each with green CI.
 
 ## Layout

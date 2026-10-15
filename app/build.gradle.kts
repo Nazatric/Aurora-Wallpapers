@@ -16,8 +16,8 @@ android {
         applicationId = "com.auroro.wallpapers"
         minSdk = 29
         targetSdk = 36
-        versionCode = 14
-        versionName = "1.12.0"
+        versionCode = 15
+        versionName = "1.13.0"
 
     }
 
