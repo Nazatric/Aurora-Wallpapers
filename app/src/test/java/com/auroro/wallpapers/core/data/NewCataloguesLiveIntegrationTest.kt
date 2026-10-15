@@ -206,6 +206,25 @@ class NewCataloguesLiveIntegrationTest {
     }
 
     /**
+     * Public APIs occasionally answer datacenter runners slower than the provider timeout even
+     * when perfectly healthy. One polite retry, then an honest SKIP — runner slowness must never
+     * masquerade as a broken adapter, and a genuine outage still fails (only timeouts skip).
+     */
+    private suspend fun <T> slowTolerant(label: String, block: suspend () -> T): T = try {
+        block()
+    } catch (first: com.auroro.wallpapers.core.network.ProviderException) {
+        if (first.message?.contains("too long") != true) throw first
+        kotlinx.coroutines.delay(1_500)
+        try {
+            block()
+        } catch (second: com.auroro.wallpapers.core.network.ProviderException) {
+            if (second.message?.contains("too long") != true) throw second
+            Assume.assumeNoException("$label was too slow from this runner's network path", second)
+            throw second
+        }
+    }
+
+    /**
      * The Art Institute front-end protection intermittently denies datacenter runners (HTTP 403)
      * even for perfectly valid requests. One polite retry, then an honest SKIP — a blocked
      * network path must never masquerade as a broken adapter.
