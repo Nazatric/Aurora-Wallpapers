@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.annotation.Config
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -12,6 +13,7 @@ import org.robolectric.RobolectricTestRunner
  * they are recycled back into view (no per-composition re-measure, no animated column reflow).
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class AspectCacheTest {
 
     @Test fun unknownKeysHaveNoCachedAspect() {

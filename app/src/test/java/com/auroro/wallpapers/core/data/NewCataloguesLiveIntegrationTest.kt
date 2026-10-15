@@ -158,14 +158,6 @@ class NewCataloguesLiveIntegrationTest {
             assertThumbServed("openverse", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
         }
 
-        val artic = articTolerant {
-            ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
-                .fetchPage(FeedRequest(), PageCursor())
-        }
-        artic.items.take(2).forEach {
-            assertThumbServed("artic", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
-        }
-
         val cleveland = ClevelandProvider(retrofit(ClevelandApi.BASE_URL).create(ClevelandApi::class.java))
             .fetchPage(FeedRequest(), PageCursor())
         cleveland.items.take(2).forEach {
@@ -182,6 +174,30 @@ class NewCataloguesLiveIntegrationTest {
             .fetchPage(FeedRequest(query = "aurora borealis"), PageCursor())
         wikimedia.items.take(2).forEach {
             assertThumbServed("wikimedia", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
+        }
+    }
+
+    /**
+     * The Art Institute IIIF host sits behind the same front-end protection as the API and
+     * intermittently answers datacenter runners with HTTP 403. Proved when reachable; an honest
+     * SKIP when the WAF denies this runner — never a fake failure, never a fake pass.
+     */
+    @Test fun articFeedThumbsAreServedWhenTheWafAllowsTheRunner() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT120S")) {
+        val page = articTolerant {
+            ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
+                .fetchPage(FeedRequest(), PageCursor())
+        }
+        assertTrue("artic returned nothing", page.items.isNotEmpty())
+        val url = page.items.first().thumbUrl.takeIf(String::isNotBlank) ?: page.items.first().previewUrl
+        val imageClient = HttpClients.images(HttpClients.base())
+        val response = imageClient.newCall(okhttp3.Request.Builder().url(url).head().build()).execute()
+        response.use {
+            Assume.assumeTrue("AIC IIIF WAF denies this runner's network path (HTTP 403)", it.code != 403)
+            assertTrue("artic thumb HEAD ${it.code} for $url", it.isSuccessful)
+            assertTrue(
+                "artic thumb is not an image (${it.header("Content-Type")}) for $url",
+                it.header("Content-Type")?.startsWith("image/") == true,
+            )
         }
     }
 
