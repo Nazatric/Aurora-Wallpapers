@@ -49,9 +49,11 @@ class NewCataloguesLiveIntegrationTest {
         Assume.assumeTrue("live catalogue integration needs outbound network", online)
     }
 
-    @Test fun openverseLiveReturnsRightsGatedWallpapers() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT90S")) {
-        val page = OpenverseProvider(retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java))
-            .fetchPage(FeedRequest(query = "aurora"), PageCursor())
+    @Test fun openverseLiveReturnsRightsGatedWallpapers() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT120S")) {
+        val page = slowTolerant("Openverse") {
+            OpenverseProvider(retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java))
+                .fetchPage(FeedRequest(query = "aurora"), PageCursor())
+        }
         assertTrue("openverse returned nothing", page.items.isNotEmpty())
         page.items.forEach {
             assertTrue(it.originalUrl.startsWith("https://"))
@@ -152,8 +154,10 @@ class NewCataloguesLiveIntegrationTest {
             }
         }
 
-        val openverse = OpenverseProvider(retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java))
-            .fetchPage(FeedRequest(query = "aurora"), PageCursor())
+        val openverse = slowTolerant("Openverse") {
+            OpenverseProvider(retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java))
+                .fetchPage(FeedRequest(query = "aurora"), PageCursor())
+        }
         openverse.items.take(2).forEach {
             assertThumbServed("openverse", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
         }
