@@ -34,9 +34,9 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
     val context = androidx.compose.ui.platform.LocalContext.current
     val systemHighContrast = remember(context) {
         runCatching {
-            android.provider.Settings.System.getInt(
+            android.provider.Settings.Secure.getInt(
                 context.contentResolver,
-                android.provider.Settings.System.HIGH_CONTRAST_TEXT,
+                android.provider.Settings.Secure.HIGH_CONTRAST_TEXT,
             ) == 1
         }.getOrDefault(false)
     }
