@@ -11,7 +11,8 @@ cards, the search field and a drifting aurora backdrop — with a scroll-condens
 pill bar and 220 ms tab transitions, bundled Open Sans / system typeface choice,
 seven rights-checked catalogues (Wallhaven, NASA APOD, Openverse, Art Institute of
 Chicago, Wikimedia Commons, The Met, Cleveland Museum of Art) with per-source chips,
-shell pill navigation with sliding indicator,
+shell pill navigation with sliding indicator and a seamless bottom scrim,
+glass chips with per-catalogue Material-Design-Icons marks (ui/components/SourceIcons.kt),
 fullscreen detail/preview + HDR, crop editor with rotation, search with
 FeedPager + staggered grid, cover-flow browser, crop editor, Library favorites/downloads,
 Settings) are implemented under `app/src/main/java/com/auroro/wallpapers/ui/`.

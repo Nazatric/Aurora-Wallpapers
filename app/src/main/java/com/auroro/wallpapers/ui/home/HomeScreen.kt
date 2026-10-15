@@ -149,7 +149,18 @@ private fun HomeHeader(
         }
         OrientationSegmented(selected = orientation, onSelect = onOrientation)
         Spacer(Modifier.size(6.dp))
-        IconButton(onClick = onSearch, modifier = Modifier.padding(end = 8.dp)) {
+        IconButton(
+            onClick = onSearch,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .size(40.dp)
+                .auroroGlass(
+                    shape = RoundedCornerShape(50),
+                    quality = LocalGlassQuality.current,
+                    fallback = AuroroPal.surfaceBright,
+                    tint = AuroroPal.surfaceBright.copy(alpha = 0.42f),
+                ),
+        ) {
             Icon(
                 painter = painterResource(R.drawable.ic_search_outlined),
                 contentDescription = stringResource(R.string.action_search),
@@ -395,7 +406,7 @@ private fun CondenseEffect(
     }
 }
 
-private const val CONDENSE_THRESHOLD = 40L
+private const val CONDENSE_THRESHOLD = 24L
 
 @Composable
 private fun NearEndEffect(listState: androidx.compose.foundation.lazy.LazyListState, onNearEnd: () -> Unit) {

@@ -124,7 +124,6 @@
     <string name="set_glass">Glass quality</string>
     <string name="set_amoled">AMOLED black</string>
     <string name="set_contrast">Increase contrast</string>
-    <string name="soon_theming">Wired with the theming slice (light mode, accents, type).</string>
     <string name="soon_glass">Haze-backed glass renders in the Liquid Glass slice.</string>
     <string name="set_rotate">Rotate the mix hourly</string>
     <string name="set_rotate_sub">New discovery recipes each hour instead of each launch.</string>
@@ -134,8 +133,6 @@
     <string name="set_repeat_sub">How long before a wallpaper may return to the mix.</string>
     <string name="set_hidden">Hidden styles</string>
     <string name="set_hidden_sub">Tap a style to hide it from discovery and the Home chips.</string>
-    <string name="set_wallhaven">Wallhaven</string>
-    <string name="set_nasa">NASA APOD</string>
     <string name="set_sources_desc">Pick which catalogues feed your home screen and search. Every source is rights-checked at the item level.</string>
     <string name="set_save_location">Save downloads to</string>
     <string name="set_set_after">Set after download</string>

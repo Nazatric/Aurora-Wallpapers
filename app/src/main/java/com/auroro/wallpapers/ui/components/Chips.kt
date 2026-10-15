@@ -1,6 +1,8 @@
 package com.auroro.wallpapers.ui.components
 
 import com.auroro.wallpapers.ui.theme.AuroroPal
+import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.annotation.DrawableRes
@@ -60,16 +62,30 @@ fun AuroraChip(
         animationSpec = AuroroMotion.ColorCalm,
         label = "chipContent",
     )
+    // Inactive chips are real liquid glass over whatever lives behind them; the selected chip
+    // fills with the live accent so state stays unmistakable on every quality tier.
+    val glassModifier = if (active) {
+        Modifier
+    } else {
+        Modifier.auroroGlass(
+            shape = RoundedCornerShape(50),
+            quality = LocalGlassQuality.current,
+            fallback = AuroroPal.surfaceBright,
+            tint = AuroroPal.surfaceBright.copy(alpha = 0.42f),
+        )
+    }
     Surface(
         shape = RoundedCornerShape(50),
-        color = background,
+        color = if (active) background else androidx.compose.ui.graphics.Color.Transparent,
         contentColor = contentColor,
         onClick = onClick,
         interactionSource = interactionSource,
-        modifier = modifier.graphicsLayer {
-            scaleX = pressScale
-            scaleY = pressScale
-        },
+        modifier = modifier
+            .then(glassModifier)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            },
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),

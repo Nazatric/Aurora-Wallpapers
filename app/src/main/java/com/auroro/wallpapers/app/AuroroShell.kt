@@ -47,6 +47,10 @@ import com.auroro.wallpapers.ui.search.SearchViewModel
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.auroroHazeSource
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 
 /** One wallpaper action that needs a crop editor pass before applying. */
 private data class CropRequest(val wallpaper: Wallpaper)
@@ -115,9 +119,12 @@ fun AuroroShell() {
                     // Snappy by design: the incoming screen settles in 220 ms while the outgoing
                     // one is gone in 90 ms, so tab switches read as instant but stay oriented.
                     // Shorter transitions also mean fewer frames of live haze re-capture.
-                    fadeIn(tween(220, easing = AuroroMotion.EmphasizedDecelerate)) +
-                        slideInVertically(tween(220, easing = AuroroMotion.EmphasizedDecelerate)) { it / 28 }
-                    ) togetherWith fadeOut(tween(90, easing = AuroroMotion.EmphasizedAccelerate))
+                    // Near-instant: the new page is fully in within 150 ms and the old one is
+                    // gone in 60 ms, so switches read as immediate while the small rise keeps
+                    // the eye oriented.
+                    fadeIn(tween(150, easing = AuroroMotion.EmphasizedDecelerate)) +
+                        slideInVertically(tween(150, easing = AuroroMotion.EmphasizedDecelerate)) { it / 32 }
+                    ) togetherWith fadeOut(tween(60, easing = AuroroMotion.EmphasizedAccelerate))
             },
             label = "shellTab",
         ) { currentTab ->
@@ -171,6 +178,24 @@ fun AuroroShell() {
             }
         }
         if (!anyOverlay) {
+            // Seamless bottom: scrolling content fades into the background before it reaches
+            // the screen edge, so no card edge ever draws a hard line under the glass bar.
+            // A plain Box has no pointer input, so touches pass straight through to the feed.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(150.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
+                                MaterialTheme.colorScheme.background,
+                            ),
+                        ),
+                    ),
+            )
             BottomPillBar(
                 selected = tab,
                 condensed = pillCondensed,

@@ -204,7 +204,7 @@ private fun PillItem(
             modifier = Modifier.size(34.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Crossfade(targetState = active, animationSpec = tween(200), label = "pillIcon") { activeNow ->
+            Crossfade(targetState = active, animationSpec = tween(140), label = "pillIcon") { activeNow ->
                 Icon(
                     painter = painterResource(if (activeNow) tab.iconFilled else tab.iconOutlined),
                     contentDescription = null,

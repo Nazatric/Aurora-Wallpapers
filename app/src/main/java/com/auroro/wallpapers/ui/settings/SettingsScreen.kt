@@ -44,6 +44,7 @@ import com.auroro.wallpapers.core.data.GlassQuality
 import com.auroro.wallpapers.ui.theme.auroroGlass
 import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import com.auroro.wallpapers.core.model.WallpaperSource
+import com.auroro.wallpapers.ui.components.iconRes
 import com.auroro.wallpapers.core.data.FontChoice
 import com.auroro.wallpapers.core.data.SaveLocation
 import com.auroro.wallpapers.core.data.ThemeMode
@@ -253,6 +254,7 @@ fun SettingsScreen(
                     val on = src.id in settings.enabledSources
                     AuroraChip(
                         label = src.displayName,
+                        icon = src.iconRes(),
                         active = on,
                         onClick = {
                             onUpdate {
