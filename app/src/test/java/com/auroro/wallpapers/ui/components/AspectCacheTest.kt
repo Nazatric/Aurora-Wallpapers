@@ -21,16 +21,16 @@ class AspectCacheTest {
     @Test fun decodedAspectsSurviveRecycling() {
         val key = "wallhaven:aspect-cache-test"
         AspectCache.put(key, 0.5625f)
-        assertEquals(0.5625f, AspectCache.get(key), 1e-6f)
+        assertEquals(0.5625f, requireNotNull(AspectCache.get(key)), 1e-6f)
         // Re-put is idempotent — a recycled card never fights its own cached ratio.
         AspectCache.put(key, 0.5625f)
-        assertEquals(0.5625f, AspectCache.get(key), 1e-6f)
+        assertEquals(0.5625f, requireNotNull(AspectCache.get(key)), 1e-6f)
     }
 
     @Test fun cacheIsBoundedAndEvictsOldestEntries() {
         repeat(700) { AspectCache.put("eviction-probe:$it", 1f + it * 0.001f) }
         assertNull("oldest entry should have been evicted", AspectCache.get("eviction-probe:0"))
-        assertEquals(1.699f, AspectCache.get("eviction-probe:699"), 1e-6f)
+        assertEquals(1.699f, requireNotNull(AspectCache.get("eviction-probe:699")), 1e-6f)
     }
 
     @Test fun artAspectFallsBackToOneAndClampsExtremes() {
