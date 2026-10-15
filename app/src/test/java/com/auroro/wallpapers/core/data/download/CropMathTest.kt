@@ -91,13 +91,13 @@ class CropMathTest {
         val ox = 40f
         val oy = -60f
         val (nx, ny) = CropMath.applyZoomPan(ox, oy, centroidX, centroidY, centerX, centerY, zoom, 0f, 0f)
-        fun mapX(offset: Float, scale: Float, px: Float) = centerX + scale * (px - centerX) + offset
+        fun mapAxis(center: Float, offset: Float, scale: Float, px: Float) = center + scale * (px - center) + offset
         // Content point that sat under the centroid before the zoom:
         val beforeX = (centroidX - centerX - ox) / 1f + centerX
-        val afterX = mapX(nx, zoom, beforeX)
+        val afterX = mapAxis(centerX, nx, zoom, beforeX)
         assertEquals(centroidX, afterX, 0.01f)
         val beforeY = (centroidY - centerY - oy) / 1f + centerY
-        val afterY = mapX(ny, zoom, beforeY)
+        val afterY = mapAxis(centerY, ny, zoom, beforeY)
         assertEquals(centroidY, afterY, 0.01f)
     }
 
