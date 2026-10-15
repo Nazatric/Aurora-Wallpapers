@@ -156,7 +156,10 @@ class ConfigurationAndMappingTest {
         assertEquals(ThemeMode.SYSTEM, settings.themeMode)
         assertEquals("Follow system", settings.themeMode.label)
         assertEquals(DesignTheme.LIQUID_GLASS, settings.designTheme)
-        assertEquals(listOf(DesignTheme.LIQUID_GLASS, DesignTheme.MATERIAL_3), DesignTheme.entries)
+        assertEquals(
+            listOf(DesignTheme.LIQUID_GLASS, DesignTheme.FRUTIGER_AERO, DesignTheme.MATERIAL_3),
+            DesignTheme.entries,
+        )
     }
 
     @Test fun basicModeAndAdvancedThemePersistIndependently() = runBlocking {
@@ -204,7 +207,7 @@ class ConfigurationAndMappingTest {
         settings.update { it.copy(fontScale = 1.05f) }
         val normalized = store.data.first()
         assertEquals(setOf("surreal", "botanical-art"), normalized[oldPreferred])
-        assertEquals(listOf("Liquid Glass", "Material 3"), DesignTheme.entries.map { it.label })
+        assertEquals(listOf("Liquid Glass", "Frutiger Aero", "Material 3"), DesignTheme.entries.map { it.label })
     }
 
     @Test fun settingsPersistSourceAndDisplayPreferencesWithoutCredentialsOrQualityTransforms() = runBlocking {

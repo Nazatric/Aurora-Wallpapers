@@ -110,7 +110,7 @@ fun CollectionCard(
 }
 
 private fun Modifier.clickableCard(onClick: () -> Unit): Modifier =
-    this.then(clickable(onClick = onClick))
+    this.clickable(onClick = onClick)
 
 /** Inside one collection: the real saved wallpapers, nothing invented. */
 @Composable
