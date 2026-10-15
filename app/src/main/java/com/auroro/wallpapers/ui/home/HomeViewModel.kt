@@ -101,6 +101,10 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         reload()
     }
 
+    /** Feed scroll positions survive tab switches so returning tabs land where the user left them. */
+    var cardsScroll: Pair<Int, Int> = 0 to 0
+    var gridScroll: Pair<Int, Int> = 0 to 0
+
     fun reload() {
         if (_state.value.mode != FeedMode.FOR_YOU) {
             loadSorted(_state.value.mode)
@@ -109,8 +113,10 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         loadJob?.cancel()
         moreJob?.cancel()
         val gen = generation.incrementAndGet()
+        // Never blank the feed: existing cards stay on screen (dimmed by the refresh indicator)
+        // until the new mix arrives, so refreshes and mode swaps never flash an empty state.
         _state.update {
-            it.copy(items = emptyList(), loading = true, loadingMore = false, error = null, notice = null, endReached = false)
+            it.copy(loading = true, loadingMore = false, error = null, notice = null, endReached = false)
         }
         loadJob = viewModelScope.launch {
             val prefs = app.settings.current()
@@ -332,7 +338,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         val gen = generation.incrementAndGet()
         _state.update {
             it.copy(
-                items = emptyList(), loading = true, loadingMore = false,
+                loading = true, loadingMore = false,
                 error = null, notice = null, endReached = false, mode = mode,
             )
         }

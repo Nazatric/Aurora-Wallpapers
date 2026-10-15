@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -24,14 +26,20 @@ import com.auroro.wallpapers.ui.theme.AuroroPal
  * animation only recomputes two offsets, and the haze source layer above captures it for free.
  */
 @Composable
-fun AuroraBackdrop(modifier: Modifier = Modifier) {
+fun AuroraBackdrop(modifier: Modifier = Modifier, active: Boolean = true) {
     val transition = rememberInfiniteTransition(label = "auroraBackdrop")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "auroraDrift",
-    )
+    // Reduced-motion users get the same depth without the infinite drift.
+    val driftState: androidx.compose.runtime.State<Float> = if (active) {
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(18_000, easing = LinearEasing), RepeatMode.Reverse),
+            label = "auroraDrift",
+        )
+    } else {
+        remember { mutableFloatStateOf(0.35f) }
+    }
+    val drift by driftState
     val accent = AuroroPal.accent
     Box(
         modifier = modifier.fillMaxSize().drawBehind {

@@ -108,7 +108,9 @@ class MetMuseumProvider(
             pageUrl = dto.objectUrl?.takeIf { it.startsWith("https://") }
                 ?: "https://www.metmuseum.org/art/collection/search/$id",
             thumbUrl = dto.primaryImageSmall?.takeIf(String::isNotBlank) ?: original,
-            previewUrl = original,
+            // The Met has no resize service: the full Open Access JPEG runs to tens of MB, so
+            // previews use the museum's sized rendition and originals stay for download/apply.
+            previewUrl = dto.primaryImageSmall?.takeIf(String::isNotBlank) ?: original,
             originalUrl = original,
             width = 0,
             height = 0,

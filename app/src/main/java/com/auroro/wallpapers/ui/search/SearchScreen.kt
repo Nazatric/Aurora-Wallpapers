@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,9 +68,17 @@ fun SearchScreen(
     onRetry: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
+    initialGridScroll: Pair<Int, Int> = 0 to 0,
+    onGridScrollSave: (Pair<Int, Int>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyStaggeredGridState(
+        initialFirstVisibleItemIndex = initialGridScroll.first,
+        initialFirstVisibleItemScrollOffset = initialGridScroll.second,
+    )
+    DisposableEffect(gridState) {
+        onDispose { onGridScrollSave(gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset) }
+    }
     val nearEnd by remember {
         derivedStateOf {
             val info = gridState.layoutInfo

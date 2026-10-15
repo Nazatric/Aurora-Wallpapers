@@ -27,6 +27,9 @@ import kotlinx.coroutines.launch
  */
 class SearchViewModel(private val app: AppContainer) : ViewModel() {
 
+    /** Result-grid scroll survives tab switches. */
+    var gridScroll: Pair<Int, Int> = 0 to 0
+
     data class UiState(
         val query: String = "",
         /** Empty set means "all integrated sources". */

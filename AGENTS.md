@@ -26,8 +26,12 @@ Shuffles go through `HomeViewModel.shuffle()` — one at a time, current mix kep
 new batch lands. Settings rows must map to real AppSettings fields the data layer
 consumes; the settings palette (theme mode, design, accent, AMOLED, contrast, font
 scale, feed layout) is live via `AuroroPal` composition-local colours; only the
-Liquid-Glass renderer and typeface swap remain disabled rows with a "later slice" note. Feed cards decode at a
-1440 px cap; detail/apply use originals; history recording happens on deliberate opens.
+Liquid-Glass renderer and typeface swap remain disabled rows with a "later slice" note. Feed cards request the provider's sized THUMB (never the original — that was the black-card bug) decoded at a
+1920 px cap; detail/cover-flow use the preview rendition; download/apply use originals. Measured card aspects
+live in the process-wide `AspectCache` and are applied WITHOUT animation so recycled cards never reflow the
+grid. Refresh/mode-swap keep existing items until the new page lands; Home/Search persist scroll positions in
+their ViewModels; `rememberReducedMotion()` (Motion.kt) honours the system animation scales.
+History recording happens on deliberate opens.
 Keep slices small and land each with green CI.
 
 ## Layout

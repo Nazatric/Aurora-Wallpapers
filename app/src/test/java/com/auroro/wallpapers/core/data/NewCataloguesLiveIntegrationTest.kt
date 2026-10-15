@@ -118,6 +118,74 @@ class NewCataloguesLiveIntegrationTest {
     }
 
     /**
+     * Slice-11 black-screen proof: the URL every feed card now downloads (thumbUrl, with the
+     * preview as fallback) must actually serve image bytes through the SAME OkHttp client the
+     * Coil image pipeline uses — including its allow-list and redirect policy. A thumb that 404s
+     * or serves HTML is exactly what rendered as a black card.
+     */
+    @Test fun feedThumbsAreServedAsImagesThroughTheImageClient() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT180S")) {
+        val imageClient = HttpClients.images(HttpClients.base())
+        suspend fun assertThumbServed(label: String, url: String) {
+            assertTrue("$label thumb url is blank", url.isNotBlank())
+            val head = imageClient.newCall(
+                okhttp3.Request.Builder().url(url).head().build(),
+            ).execute()
+            head.use { response ->
+                if (response.code == 405) {
+                    val ranged = imageClient.newCall(
+                        okhttp3.Request.Builder().url(url).header("Range", "bytes=0-0").get().build(),
+                    ).execute()
+                    ranged.use {
+                        assertTrue("$label thumb GET ${it.code} for $url", it.isSuccessful)
+                        assertTrue(
+                            "$label thumb is not an image (${it.header("Content-Type")}) for $url",
+                            it.header("Content-Type")?.startsWith("image/") == true,
+                        )
+                    }
+                } else {
+                    assertTrue("$label thumb HEAD ${response.code} for $url", response.isSuccessful)
+                    assertTrue(
+                        "$label thumb is not an image (${response.header("Content-Type")}) for $url",
+                        response.header("Content-Type")?.startsWith("image/") == true,
+                    )
+                }
+            }
+        }
+
+        val openverse = OpenverseProvider(retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java))
+            .fetchPage(FeedRequest(query = "aurora"), PageCursor())
+        openverse.items.take(2).forEach {
+            assertThumbServed("openverse", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
+        }
+
+        val artic = articTolerant {
+            ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
+                .fetchPage(FeedRequest(), PageCursor())
+        }
+        artic.items.take(2).forEach {
+            assertThumbServed("artic", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
+        }
+
+        val cleveland = ClevelandProvider(retrofit(ClevelandApi.BASE_URL).create(ClevelandApi::class.java))
+            .fetchPage(FeedRequest(), PageCursor())
+        cleveland.items.take(2).forEach {
+            assertThumbServed("cleveland", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
+        }
+
+        val met = MetMuseumProvider(retrofit(MetApi.BASE_URL).create(MetApi::class.java))
+            .fetchPage(FeedRequest(query = "landscape"), PageCursor())
+        met.items.take(2).forEach {
+            assertThumbServed("met", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
+        }
+
+        val wikimedia = WikimediaProvider(retrofit(WikimediaApi.BASE_URL).create(WikimediaApi::class.java))
+            .fetchPage(FeedRequest(query = "aurora borealis"), PageCursor())
+        wikimedia.items.take(2).forEach {
+            assertThumbServed("wikimedia", it.thumbUrl.takeIf(String::isNotBlank) ?: it.previewUrl)
+        }
+    }
+
+    /**
      * The Art Institute front-end protection intermittently denies datacenter runners (HTTP 403)
      * even for perfectly valid requests. One polite retry, then an honest SKIP — a blocked
      * network path must never masquerade as a broken adapter.

@@ -46,6 +46,7 @@ import com.auroro.wallpapers.ui.search.SearchScreen
 import com.auroro.wallpapers.ui.search.SearchViewModel
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.rememberReducedMotion
 import com.auroro.wallpapers.ui.theme.auroroHazeSource
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -105,18 +106,21 @@ fun AuroroShell() {
     // iOS-style scroll condensing: the pill bar slims to icons while the home feed scrolls down
     // and re-expands with labels on scroll-up or when the feed is back at the top.
     var pillCondensed by remember { mutableStateOf(false) }
+    val reducedMotion = rememberReducedMotion()
     LaunchedEffect(tab) {
         if (tab != ShellTab.HOME) pillCondensed = false
     }
     Box(
         modifier = Modifier.fillMaxSize().background(AuroroPal.background),
     ) {
-        AuroraBackdrop()
+        AuroraBackdrop(active = !reducedMotion)
         AnimatedContent(
             modifier = Modifier.auroroHazeSource(),
             targetState = tab,
             transitionSpec = {
-                (
+                if (reducedMotion) {
+                    fadeIn(tween(80)) togetherWith fadeOut(tween(80))
+                } else (
                     // Snappy by design: the incoming screen settles in 220 ms while the outgoing
                     // one is gone in 90 ms, so tab switches read as instant but stay oriented.
                     // Shorter transitions also mean fewer frames of live haze re-capture.
@@ -143,6 +147,10 @@ fun AuroroShell() {
                     },
                     onSearch = { tab = ShellTab.SEARCH },
                     onCondense = { pillCondensed = it },
+                    initialCardsScroll = homeViewModel.cardsScroll,
+                    onCardsScrollSave = { homeViewModel.cardsScroll = it },
+                    initialGridScroll = homeViewModel.gridScroll,
+                    onGridScrollSave = { homeViewModel.gridScroll = it },
                 )
 
                 ShellTab.SEARCH -> SearchScreen(
@@ -157,6 +165,8 @@ fun AuroroShell() {
                         homeViewModel.recordHistory(wallpaper)
                         detail = wallpaper
                     },
+                    initialGridScroll = searchViewModel.gridScroll,
+                    onGridScrollSave = { searchViewModel.gridScroll = it },
                 )
 
                 ShellTab.LIBRARY -> LibraryScreen(

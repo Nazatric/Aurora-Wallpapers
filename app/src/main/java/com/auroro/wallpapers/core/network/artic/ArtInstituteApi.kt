@@ -15,7 +15,7 @@ import retrofit2.http.Query
 interface ArtInstituteApi {
     @Headers(
         "Accept: application/json",
-        "User-Agent: Mozilla/5.0 (Android 15; Mobile; AuroroWallpapers/1.10.0; +https://github.com/Nazatric/Aurora-Wallpapers)",
+        "User-Agent: Mozilla/5.0 (Android 15; Mobile; AuroroWallpapers/1.11.0; +https://github.com/Nazatric/Aurora-Wallpapers)",
     )
     @GET("api/v1/artworks/search")
     suspend fun searchPublicDomain(

@@ -343,7 +343,7 @@ private fun CoverFlowCard(
     ) {
         AsyncImage(
             // Fullscreen showcase: the carousel earns the original bytes, cards don't.
-            model = wallpaper.originalUrl,
+            model = wallpaper.previewUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),

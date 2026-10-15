@@ -104,7 +104,9 @@ fun DetailScreen(
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black).auroroHazeSource()) {
         AsyncImage(
-            model = wallpaper.originalUrl,
+            // Preview rendition first (fast, cached); the original is fetched only for
+            // download/apply/crop, so opening detail never stalls on a 30 MB museum JPEG.
+            model = wallpaper.previewUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),

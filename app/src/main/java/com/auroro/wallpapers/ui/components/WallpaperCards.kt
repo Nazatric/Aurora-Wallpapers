@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -41,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import android.util.LruCache
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
@@ -89,6 +89,18 @@ fun resolutionLabel(wallpaper: Wallpaper): String? {
 
 /** Feed decode cap: above any phone panel, below 4K memory cost. Detail keeps the original. */
 private const val CARD_DECODE_MAX_PX = 1920
+
+/**
+ * Decoded aspects survive composition: lazy feeds recycle items, and re-measuring on every
+ * re-entry made grid columns reflow mid-scroll (the "cards all over the place" lag). Once a
+ * bitmap has reported its true ratio it is remembered process-wide, so a recycled card is born
+ * at its final size and never animates the layout again.
+ */
+object AspectCache {
+    private val cache = LruCache<String, Float>(512)
+    fun get(key: String): Float? = cache.get(key)
+    fun put(key: String, aspect: Float) { cache.put(key, aspect) }
+}
 
 fun wallpaperDescription(wallpaper: Wallpaper): String =
     if (wallpaper.hasKnownDimensions) {
@@ -183,19 +195,20 @@ fun WallpaperArt(
 ) {
     val shape = RoundedCornerShape(corner)
     val heartScale = rememberBounceScale(favorite)
-    // The container starts at the metadata aspect but snaps to the DECODED image's real
-    // aspect as soon as pixels arrive, so the Fit layer always covers the card exactly —
-    // no grey bands, no translucent strips, even when CDN frames disagree with metadata.
-    var measuredAspect by remember(wallpaper.key) { mutableFloatStateOf(aspect) }
-    val liveAspect by animateFloatAsState(
-        targetValue = measuredAspect,
-        animationSpec = AuroroMotion.SnappyFloat,
-        label = "cardAspect",
-    )
+    // Born at the cached true aspect when known, else metadata; the first decode may still
+    // correct it once, but never with an animation — animating aspect reflows every column of
+    // a staggered grid and reads as lag. Cards stay static where the user left them.
+    var measuredAspect by remember(wallpaper.key) {
+        mutableFloatStateOf(AspectCache.get(wallpaper.key) ?: aspect)
+    }
+    val liveAspect = measuredAspect
     val context = LocalContext.current
-    val request = remember(wallpaper.previewUrl) {
+    // Feeds load the provider's sized THUMB, never the multi-MB original: that is what thumbs
+    // exist for, and it is the difference between an instant card and a black rectangle.
+    val feedUrl = wallpaper.thumbUrl.takeIf(String::isNotBlank) ?: wallpaper.previewUrl
+    val request = remember(feedUrl) {
         ImageRequest.Builder(context)
-            .data(wallpaper.previewUrl)
+            .data(feedUrl)
             .size(CARD_DECODE_MAX_PX, CARD_DECODE_MAX_PX)
             .build()
     }
@@ -224,7 +237,9 @@ fun WallpaperArt(
                     val w = state.result.image.width
                     val h = state.result.image.height
                     if (w > 0 && h > 0) {
-                        measuredAspect = (w.toFloat() / h.toFloat()).coerceIn(0.35f, 2.8f)
+                        val ratio = (w.toFloat() / h.toFloat()).coerceIn(0.35f, 2.8f)
+                        measuredAspect = ratio
+                        AspectCache.put(wallpaper.key, ratio)
                     }
                 }
             },

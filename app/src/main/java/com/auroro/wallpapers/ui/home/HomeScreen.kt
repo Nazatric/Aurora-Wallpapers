@@ -34,6 +34,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -86,6 +87,10 @@ fun HomeScreen(
     onOpen: (Wallpaper) -> Unit,
     onSearch: () -> Unit,
     onCondense: (Boolean) -> Unit = {},
+    initialCardsScroll: Pair<Int, Int> = 0 to 0,
+    onCardsScrollSave: (Pair<Int, Int>) -> Unit = {},
+    initialGridScroll: Pair<Int, Int> = 0 to 0,
+    onGridScrollSave: (Pair<Int, Int>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Feed-level entrance: whenever mode or orientation changes the whole feed fades and
@@ -264,8 +269,8 @@ private fun FeedBody(
             modifier = modifier.fillMaxSize(),
         ) {
             when (state.layout) {
-                FeedLayout.CARDS -> CardsFeed(state, onCondense, onLoadMore, onToggleFavorite, onOpen, Modifier)
-                FeedLayout.GRID -> GridFeed(state, onCondense, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.CARDS -> CardsFeed(state, onCondense, initialCardsScroll, onCardsScrollSave, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.GRID -> GridFeed(state, onCondense, initialGridScroll, onGridScrollSave, onLoadMore, onToggleFavorite, onOpen, Modifier)
             }
         }
     }
@@ -275,12 +280,17 @@ private fun FeedBody(
 private fun CardsFeed(
     state: HomeViewModel.UiState,
     onCondense: (Boolean) -> Unit,
+    initialScroll: Pair<Int, Int>,
+    onScrollSave: (Pair<Int, Int>) -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(initialScroll.first, initialScroll.second)
+    DisposableEffect(listState) {
+        onDispose { onScrollSave(listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset) }
+    }
     NearEndEffect(listState) { onLoadMore() }
     CondenseEffect(
         position = { listState.firstVisibleItemIndex * 100_000L + listState.firstVisibleItemScrollOffset },
@@ -321,12 +331,20 @@ private fun CardsFeed(
 private fun GridFeed(
     state: HomeViewModel.UiState,
     onCondense: (Boolean) -> Unit,
+    initialScroll: Pair<Int, Int>,
+    onScrollSave: (Pair<Int, Int>) -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyStaggeredGridState(
+        initialFirstVisibleItemIndex = initialScroll.first,
+        initialFirstVisibleItemScrollOffset = initialScroll.second,
+    )
+    DisposableEffect(gridState) {
+        onDispose { onScrollSave(gridState.firstVisibleItemIndex to gridState.firstVisibleItemScrollOffset) }
+    }
     CondenseEffect(
         position = { gridState.firstVisibleItemIndex * 100_000L + gridState.firstVisibleItemScrollOffset },
         atTop = { !gridState.canScrollBackward },
