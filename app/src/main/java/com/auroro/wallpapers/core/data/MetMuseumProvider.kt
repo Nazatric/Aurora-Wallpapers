@@ -51,9 +51,9 @@ class MetMuseumProvider(
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
         pageCache?.get(request, cursor.page)?.let { return it }
         val query = request.normalizedQuery.takeIf { it.isNotEmpty() }.orEmpty()
-        val ids = idCache[query] ?: RateLimitedCall.run(limiter, source.displayName) {
+        val ids = idCache.get(query) ?: RateLimitedCall.run(limiter, source.displayName) {
             api.search(query = query.takeIf { it.isNotEmpty() })
-        }.objectIDs.orEmpty().also { if (it.isNotEmpty()) idCache[query] = it }
+        }.objectIDs.orEmpty().also { if (it.isNotEmpty()) idCache.put(query, it) }
         val randomMode = request.filter.sort == SortOption.RANDOM
         val start = if (randomMode) {
             RandomLane.offset(cursor, RANDOM_OFFSET_SPAN, 51L, PAGE_SIZE * 4)
