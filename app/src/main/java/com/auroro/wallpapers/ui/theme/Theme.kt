@@ -34,9 +34,10 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
     val context = androidx.compose.ui.platform.LocalContext.current
     val systemHighContrast = remember(context) {
         runCatching {
+            // The HIGH_CONTRAST_TEXT constant is @hide; the Secure key string is stable API.
             android.provider.Settings.Secure.getInt(
                 context.contentResolver,
-                android.provider.Settings.Secure.HIGH_CONTRAST_TEXT,
+                "high_contrast_text",
             ) == 1
         }.getOrDefault(false)
     }

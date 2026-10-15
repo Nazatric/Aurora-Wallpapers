@@ -116,10 +116,11 @@ fun DetailScreen(
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black).auroroHazeSource()) {
         val thumbUrl = wallpaper.thumbUrl.takeIf(String::isNotBlank) ?: wallpaper.previewUrl
-        val previewUrl = remember(wallpaper.key, retryNonce) {
+        val previewUrl = remember(wallpaper.key, retryNonce, context) {
             coil3.request.ImageRequest.Builder(context)
                 .data(wallpaper.previewUrl)
-                .setParameter("retry", retryNonce)
+                // A fresh memory-cache key per retry nonce forces a genuine refetch.
+                .memoryCacheKey("detail-preview-${wallpaper.key}-$retryNonce")
                 .build()
         }
         // Layer 1: best cached rendition (the feed's thumb) — never a black flash on open.

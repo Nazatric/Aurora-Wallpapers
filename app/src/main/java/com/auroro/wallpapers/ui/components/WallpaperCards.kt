@@ -117,6 +117,7 @@ fun HeroPager(
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
+    onImageFailed: ((Wallpaper) -> Unit)? = null,
 ) {
     if (items.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { items.size })
@@ -133,6 +134,7 @@ fun HeroPager(
                 favorite = items[page].key in favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
                 onClick = { onOpen(items[page]) },
+                onImageFailed = onImageFailed,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
