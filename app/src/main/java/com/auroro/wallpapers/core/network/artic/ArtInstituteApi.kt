@@ -13,7 +13,10 @@ import retrofit2.http.Query
  * `/full/full/` for the original) — unknown pixel sizes are handled by measured-aspect cards.
  */
 interface ArtInstituteApi {
-    @Headers("Accept: application/json")
+    @Headers(
+        "Accept: application/json",
+        "User-Agent: Mozilla/5.0 (Android 15; Mobile; AuroroWallpapers/1.10.0; +https://github.com/Nazatric/Aurora-Wallpapers)",
+    )
     @GET("api/v1/artworks/search")
     suspend fun searchPublicDomain(
         @Query("q") query: String?,

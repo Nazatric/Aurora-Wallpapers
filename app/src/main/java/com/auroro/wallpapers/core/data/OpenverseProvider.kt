@@ -1,6 +1,5 @@
 package com.auroro.wallpapers.core.data
 
-import android.text.Html
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -106,7 +105,12 @@ class OpenverseProvider(
     }
 
     private fun cleanText(value: String?): String = value.orEmpty()
-        .let { Html.fromHtml(it, Html.FROM_HTML_MODE_COMPACT)?.toString().orEmpty() }
+        .replace(Regex("<[^>]*>"), " ")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
         .replace('\u00a0', ' ')
         .replace(WHITESPACE, " ")
         .trim()

@@ -1,6 +1,5 @@
 package com.auroro.wallpapers.core.data
 
-import android.text.Html
 import com.auroro.wallpapers.core.model.FeedRequest
 import com.auroro.wallpapers.core.model.SortOption
 import com.auroro.wallpapers.core.model.Wallpaper
@@ -104,8 +103,18 @@ class WikimediaProvider(
         )
     }
 
+    /**
+     * Strip wiki markup without android.text.Html: extmetadata values are small HTML fragments
+     * and the gate must behave identically on-device and in JVM/Robolectric tests.
+     */
     private fun cleanHtml(value: String?): String = value.orEmpty()
-        .let { Html.fromHtml(it, Html.FROM_HTML_MODE_COMPACT)?.toString().orEmpty() }
+        .replace(Regex("<[^>]*>"), " ")
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
         .replace('\u00a0', ' ')
         .replace(WHITESPACE, " ")
         .trim()

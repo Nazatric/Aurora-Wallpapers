@@ -91,9 +91,12 @@ class NewCataloguesLiveIntegrationTest {
     }
 
     @Test fun wikimediaLiveReturnsLicensedWallpapersForAKeyword() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT90S")) {
-        val page = WikimediaProvider(retrofit(WikimediaApi.BASE_URL).create(WikimediaApi::class.java))
-            .fetchPage(FeedRequest(query = "aurora borealis"), PageCursor())
-        assertTrue("wikimedia returned nothing", page.items.isNotEmpty())
+        val api = retrofit(WikimediaApi.BASE_URL).create(WikimediaApi::class.java)
+        val raw = api.searchFiles(search = "filetype:bitmap aurora borealis", limit = 5)
+        val rawPages = raw.query?.pages?.size ?: -1
+        assertTrue("wikimedia raw response had no pages ($rawPages)", rawPages > 0)
+        val page = WikimediaProvider(api).fetchPage(FeedRequest(query = "aurora borealis"), PageCursor())
+        assertTrue("wikimedia mapped 0 of $rawPages raw pages", page.items.isNotEmpty())
         page.items.forEach {
             assertTrue(it.originalUrl.contains("wikimedia.org"))
             assertTrue(it.width >= 1200 && it.height >= 600)
