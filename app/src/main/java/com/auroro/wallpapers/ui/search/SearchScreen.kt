@@ -117,7 +117,7 @@ fun SearchScreen(
         val cooling = state.hasSearched && state.items.isEmpty() && state.cooldownSeconds != null
         if (state.message != null && !cooling) {
             Text(
-                text = message,
+                text = state.message,
                 style = MaterialTheme.typography.labelSmall,
                 color = AuroroPal.textTertiary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
