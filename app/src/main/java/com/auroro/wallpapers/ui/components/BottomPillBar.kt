@@ -2,8 +2,13 @@ package com.auroro.wallpapers.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -80,6 +85,7 @@ enum class ShellTab(
 @OptIn(ExperimentalFoundationApi::class)
 fun BottomPillBar(
     selected: ShellTab,
+    condensed: Boolean = false,
     onSelect: (ShellTab) -> Unit,
     onTabDoubleTap: (ShellTab) -> Unit = {},
     onCenterAction: () -> Unit,
@@ -139,15 +145,15 @@ fun BottomPillBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                PillItem(ShellTab.HOME, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.HOME] = it }
-                PillItem(ShellTab.SEARCH, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.SEARCH] = it }
+                PillItem(ShellTab.HOME, selected, condensed, onSelect, onTabDoubleTap) { bounds[ShellTab.HOME] = it }
+                PillItem(ShellTab.SEARCH, selected, condensed, onSelect, onTabDoubleTap) { bounds[ShellTab.SEARCH] = it }
                 CenterAction(
                     onClick = onCenterAction,
                     label = stringResource(centerActionLabel),
                     icon = centerActionIcon,
                 )
-                PillItem(ShellTab.LIBRARY, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.LIBRARY] = it }
-                PillItem(ShellTab.SETTINGS, selected, onSelect, onTabDoubleTap) { bounds[ShellTab.SETTINGS] = it }
+                PillItem(ShellTab.LIBRARY, selected, condensed, onSelect, onTabDoubleTap) { bounds[ShellTab.LIBRARY] = it }
+                PillItem(ShellTab.SETTINGS, selected, condensed, onSelect, onTabDoubleTap) { bounds[ShellTab.SETTINGS] = it }
             }
         }
     }
@@ -157,6 +163,7 @@ fun BottomPillBar(
 private fun PillItem(
     tab: ShellTab,
     selected: ShellTab,
+    condensed: Boolean,
     onSelect: (ShellTab) -> Unit,
     onTabDoubleTap: (ShellTab) -> Unit,
     onPosition: (Rect) -> Unit,
@@ -209,11 +216,19 @@ private fun PillItem(
                 )
             }
         }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = labelColor,
-        )
+        // Scroll condensing: labels collapse away while the feed scrolls down, exactly like the
+        // iOS Liquid Glass tab bar; the sliding indicator follows the re-measured bounds.
+        AnimatedVisibility(
+            visible = !condensed,
+            enter = expandVertically(animationSpec = tween(200)) + fadeIn(animationSpec = tween(150)),
+            exit = shrinkVertically(animationSpec = tween(160)) + fadeOut(animationSpec = tween(100)),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = labelColor,
+            )
+        }
     }
 }
 

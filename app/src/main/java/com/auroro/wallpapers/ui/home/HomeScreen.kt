@@ -65,6 +65,7 @@ import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import com.auroro.wallpapers.ui.theme.auroroGlass
+import kotlinx.coroutines.flow.snapshotFlow
 
 private const val HERO_COUNT = 4
 private const val NEAR_END_THRESHOLD = 3
@@ -84,6 +85,7 @@ fun HomeScreen(
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
     onSearch: () -> Unit,
+    onCondense: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Feed-level entrance: whenever mode or orientation changes the whole feed fades and
@@ -249,8 +251,8 @@ private fun FeedBody(
             modifier = modifier.fillMaxSize(),
         ) {
             when (state.layout) {
-                FeedLayout.CARDS -> CardsFeed(state, onLoadMore, onToggleFavorite, onOpen, Modifier)
-                FeedLayout.GRID -> GridFeed(state, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.CARDS -> CardsFeed(state, onCondense, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.GRID -> GridFeed(state, onCondense, onLoadMore, onToggleFavorite, onOpen, Modifier)
             }
         }
     }
@@ -259,6 +261,7 @@ private fun FeedBody(
 @Composable
 private fun CardsFeed(
     state: HomeViewModel.UiState,
+    onCondense: (Boolean) -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
@@ -266,6 +269,12 @@ private fun CardsFeed(
 ) {
     val listState = rememberLazyListState()
     NearEndEffect(listState) { onLoadMore() }
+    CondenseEffect(
+        position = { listState.firstVisibleItemIndex * 100_000L + listState.firstVisibleItemScrollOffset },
+        atTop = { !listState.canScrollBackward },
+        scrolling = { listState.isScrollInProgress },
+        onCondense = onCondense,
+    )
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
@@ -298,12 +307,19 @@ private fun CardsFeed(
 @Composable
 private fun GridFeed(
     state: HomeViewModel.UiState,
+    onCondense: (Boolean) -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val gridState = rememberLazyStaggeredGridState()
+    CondenseEffect(
+        position = { gridState.firstVisibleItemIndex * 100_000L + gridState.firstVisibleItemScrollOffset },
+        atTop = { !gridState.canScrollBackward },
+        scrolling = { gridState.isScrollInProgress },
+        onCondense = onCondense,
+    )
     val nearEnd by remember {
         derivedStateOf {
             val info = gridState.layoutInfo
@@ -350,6 +366,35 @@ private fun FeedFooter(state: HomeViewModel.UiState, onRetryMore: () -> Unit) {
 }
 
 /** Fires [onNearEnd] once the list is scrolled within [NEAR_END_THRESHOLD] items of its end. */
+/**
+ * Reports scroll direction so the shell can condense/expand the glass pill bar: scrolling down
+ * past a small threshold condenses, scrolling up or resting at the top expands again.
+ */
+@Composable
+private fun CondenseEffect(
+    position: () -> Long,
+    atTop: () -> Boolean,
+    scrolling: () -> Boolean,
+    onCondense: (Boolean) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        var last = position()
+        snapshotFlow { position() }.collect { pos ->
+            val delta = pos - last
+            last = pos
+            if (delta > CONDENSE_THRESHOLD) onCondense(true)
+            else if (delta < -CONDENSE_THRESHOLD) onCondense(false)
+        }
+    }
+    LaunchedEffect(Unit) {
+        snapshotFlow { atTop() && !scrolling() }.collect { resting ->
+            if (resting) onCondense(false)
+        }
+    }
+}
+
+private const val CONDENSE_THRESHOLD = 40L
+
 @Composable
 private fun NearEndEffect(listState: androidx.compose.foundation.lazy.LazyListState, onNearEnd: () -> Unit) {
     val nearEnd by remember {

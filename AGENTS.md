@@ -5,8 +5,12 @@
 Work in progress. The entire old application UI was removed in October 2026 (git history
 around `versionName 1.4.0`); all GitHub releases and tags were deleted at the same time.
 A new UI is being rebuilt slice by slice on top of the validated data/domain layer.
-Slices 1–7 (Home feed + mode chips + orientation filter + cards/grid layouts +
-pull-to-refresh, Liquid Glass via Haze 2 behind ui/theme/Glass.kt,
+Slices 1–8 (Home feed + mode chips + orientation filter + cards/grid layouts +
+pull-to-refresh, Liquid Glass via Haze 2 behind ui/theme/Glass.kt — now on Settings
+cards, the search field and a drifting aurora backdrop — with a scroll-condensing
+pill bar and 220 ms tab transitions, bundled Open Sans / system typeface choice,
+seven rights-checked catalogues (Wallhaven, NASA APOD, Openverse, Art Institute of
+Chicago, Wikimedia Commons, The Met, Cleveland Museum of Art) with per-source chips,
 shell pill navigation with sliding indicator,
 fullscreen detail/preview + HDR, crop editor with rotation, search with
 FeedPager + staggered grid, cover-flow browser, crop editor, Library favorites/downloads,
@@ -27,7 +31,8 @@ Keep slices small and land each with green CI.
 
 ## Layout
 
-- `app/src/main/java/com/auroro/wallpapers/core/data/` — providers (Wallhaven, NASA APOD),
+- `app/src/main/java/com/auroro/wallpapers/core/data/` — providers (Wallhaven, NASA APOD, Openverse,
+  Art Institute of Chicago, Wikimedia Commons, The Met, Cleveland Museum of Art),
   discovery engines and session planning, quality validation, settings, favorites/collections/
   history repositories, download pipeline (`download/`)
 - `app/src/main/java/com/auroro/wallpapers/core/database/` — Room database and migrations

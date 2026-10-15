@@ -321,7 +321,7 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
             FeedMode.FOR_YOU -> SortOption.SOURCE_DEFAULT
         }
         return FeedPager(
-            providers = listOf(app.wallhaven, app.nasaApod),
+            providers = app.feedProviders,
             request = FeedRequest(filter = WallpaperFilter(sort = sort)),
         )
     }

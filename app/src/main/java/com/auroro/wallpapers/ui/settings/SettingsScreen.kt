@@ -41,6 +41,10 @@ import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.DesignTheme
 import com.auroro.wallpapers.core.data.FeedLayout
 import com.auroro.wallpapers.core.data.GlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.core.model.WallpaperSource
+import com.auroro.wallpapers.core.data.FontChoice
 import com.auroro.wallpapers.core.data.SaveLocation
 import com.auroro.wallpapers.core.data.ThemeMode
 import com.auroro.wallpapers.core.data.download.StorageInfo
@@ -138,11 +142,23 @@ fun SettingsScreen(
                     ),
                 )
             }
-            ComingSoonRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_typeface),
-                value = settings.fontChoice.label,
-                note = androidx.compose.ui.res.stringResource(R.string.soon_theming),
+            // Typeface choice is real: Open Sans ships in res/font, System uses the platform face.
+            SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_typeface))
+            Text(
+                text = settings.fontChoice.description,
+                style = MaterialTheme.typography.labelSmall,
+                color = AuroroPal.textTertiary,
+                modifier = Modifier.padding(start = 18.dp),
             )
+            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                FontChoice.entries.forEach { choice ->
+                    AuroraChip(
+                        label = choice.label,
+                        active = settings.fontChoice == choice,
+                        onClick = { onUpdate { it.copy(fontChoice = choice) } },
+                    )
+                }
+            }
             // Liquid Glass rendering tier: real Haze tiers, honest cost labels.
             SettingsRowTitle(androidx.compose.ui.res.stringResource(R.string.set_glass))
             Text(
@@ -226,17 +242,29 @@ fun SettingsScreen(
                     ),
                 )
             }
-            SwitchRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_wallhaven),
-                checked = settings.wallhavenEnabled,
-                onCheckedChange = { v -> onUpdate { it.copy(wallhavenEnabled = v) } },
+            Text(
+                text = androidx.compose.ui.res.stringResource(R.string.set_sources_desc),
+                style = MaterialTheme.typography.labelSmall,
+                color = AuroroPal.textTertiary,
+                modifier = Modifier.padding(start = 18.dp, top = 6.dp),
             )
-            SwitchRow(
-                title = androidx.compose.ui.res.stringResource(R.string.set_nasa),
-                checked = settings.nasaApodEnabled,
-                onCheckedChange = { v -> onUpdate { it.copy(nasaApodEnabled = v) } },
-                last = true,
-            )
+            ChipFlow(modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                WallpaperSource.integrated.forEach { src ->
+                    val on = src.id in settings.enabledSources
+                    AuroraChip(
+                        label = src.displayName,
+                        active = on,
+                        onClick = {
+                            onUpdate {
+                                it.copy(
+                                    enabledSources = if (on) it.enabledSources - src.id
+                                    else it.enabledSources + src.id,
+                                )
+                            }
+                        },
+                    )
+                }
+            }
         }
         SettingsCard(title = androidx.compose.ui.res.stringResource(R.string.section_downloads)) {
             Text(
@@ -380,9 +408,17 @@ private fun SettingsCard(title: String, content: @Composable ColumnScope.() -> U
             color = AuroroPal.accent,
             modifier = Modifier.padding(start = 8.dp, bottom = 6.dp),
         )
+        // Real liquid glass: the card refracts the drifting aurora backdrop behind it instead of
+        // painting a flat surface; the tint keeps text contrast on every quality tier.
         Surface(
+            modifier = Modifier.auroroGlass(
+                shape = RoundedCornerShape(24.dp),
+                quality = LocalGlassQuality.current,
+                fallback = AuroroPal.surface,
+                tint = AuroroPal.surface.copy(alpha = 0.62f),
+            ),
             shape = RoundedCornerShape(24.dp),
-            color = AuroroPal.surface,
+            color = androidx.compose.ui.graphics.Color.Transparent,
             shadowElevation = 3.dp,
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), content = content)
@@ -418,31 +454,6 @@ private fun ColumnScope.SwitchRow(
                 checkedThumbColor = Color.White,
             ),
         )
-    }
-}
-
-@Composable
-private fun ColumnScope.ComingSoonRow(
-    title: String,
-    value: String,
-    note: String,
-    last: Boolean = false,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 18.dp, vertical = if (last) 10.dp else 8.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.labelLarge,
-                color = AuroroPal.textSecondary,
-                modifier = Modifier.weight(1f),
-            )
-            Text(text = value, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
-        }
-        Text(text = note, style = MaterialTheme.typography.labelSmall, color = AuroroPal.textTertiary)
     }
 }
 

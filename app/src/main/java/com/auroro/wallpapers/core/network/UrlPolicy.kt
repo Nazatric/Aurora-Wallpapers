@@ -15,6 +15,10 @@ object UrlPolicy {
         "apod.nasa.gov",
         "api.artic.edu",
         "artic.edu",
+        "openverse.org",
+        "wikimedia.org",
+        "metmuseum.org",
+        "clevelandart.org",
     )
     val browsableDomains: Set<String> = networkDomains + setOf("nasa.gov")
 
@@ -31,7 +35,14 @@ object UrlPolicy {
             WallpaperSource.WALLHAVEN -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("wallhaven.cc"))
             WallpaperSource.NASA_APOD -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("nasa.gov"))
             WallpaperSource.ART_INSTITUTE -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("artic.edu"))
-            WallpaperSource.OPENVERSE -> false // legacy local records remain readable; no new network use
+            // Openverse media URLs live on the original hosting sites (museums, Flickr, ...), so no
+            // fixed host list exists for them. The URL arrives over Openverse's TLS-authenticated API
+            // channel and downloads stay TLS-only with content validation, so this source accepts any
+            // https host — the single documented exception to the fixed allow-list.
+            WallpaperSource.OPENVERSE -> parsed.isHttps && parsed.port == 443 && hasNoCredentials(parsed)
+            WallpaperSource.WIKIMEDIA -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("wikimedia.org"))
+            WallpaperSource.MET_MUSEUM -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("metmuseum.org"))
+            WallpaperSource.CLEVELAND_ART -> isAllowedForNetwork(parsed) && isHostIn(parsed.host, setOf("clevelandart.org"))
             WallpaperSource.REDDIT, WallpaperSource.ARCHIVED -> false
         }
     }

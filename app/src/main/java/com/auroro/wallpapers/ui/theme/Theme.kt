@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.Density
 import com.auroro.wallpapers.core.data.AppSettings
 import com.auroro.wallpapers.core.data.DesignTheme
 import com.auroro.wallpapers.core.data.ThemeMode
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 
 /**
  * Theme entry point: resolves the palette from real [AppSettings] (dark/light, AMOLED,
@@ -83,6 +85,8 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
     val glassActive = (settings?.designTheme ?: DesignTheme.LIQUID_GLASS) == DesignTheme.LIQUID_GLASS
     val hazeState = if (glassActive) rememberAuroroHazeState() else null
     val glassQuality = settings?.glassQuality ?: com.auroro.wallpapers.core.data.GlassQuality.BALANCED
+    val fontChoice = settings?.fontChoice ?: com.auroro.wallpapers.core.data.FontChoice.SYSTEM
+    val typography = remember(fontChoice) { auroraTypography(fontChoice) }
     CompositionLocalProvider(
         LocalAuroroPalette provides palette,
         LocalHazeState provides hazeState,
@@ -94,7 +98,7 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
             Density(baseDensity.density, baseDensity.fontScale * fontScale)
         }
         CompositionLocalProvider(LocalDensity provides density) {
-            MaterialTheme(colorScheme = scheme, typography = AuroroTypography) {
+            MaterialTheme(colorScheme = scheme, typography = typography) {
                 Surface(
                     color = scheme.background,
                     contentColor = scheme.onBackground,
@@ -104,4 +108,17 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
             }
         }
     }
+}
+
+/** Applies the bundled Open Sans variable font, or the platform default when System is chosen. */
+private fun auroraTypography(
+    choice: com.auroro.wallpapers.core.data.FontChoice,
+): androidx.compose.material3.Typography = when (choice) {
+    com.auroro.wallpapers.core.data.FontChoice.OPEN_SANS ->
+        AuroroTypography.copy(
+            defaultFontFamily = FontFamily(
+                Font(com.auroro.wallpapers.R.font.open_sans),
+            ),
+        )
+    com.auroro.wallpapers.core.data.FontChoice.SYSTEM -> AuroroTypography
 }

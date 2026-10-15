@@ -132,7 +132,7 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
             app.settings.rememberSearchQuery(query)
         }
         val p = FeedPager(
-            providers = listOf(app.wallhaven, app.nasaApod),
+            providers = app.feedProviders,
             request = FeedRequest(query = query, filter = selection),
         )
         pager = p

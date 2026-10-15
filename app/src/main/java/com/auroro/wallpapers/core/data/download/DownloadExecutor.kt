@@ -122,6 +122,9 @@ class DownloadExecutor(
                         WallpaperSource.WALLHAVEN -> wallpaper.creatorName?.let { "Uploader: $it" }
                         WallpaperSource.NASA_APOD -> "NASA Astronomy Picture of the Day"
                         WallpaperSource.ART_INSTITUTE -> wallpaper.creatorName?.let { "Creator: $it · Art Institute of Chicago" }
+                        WallpaperSource.WIKIMEDIA -> wallpaper.creatorName?.let { "Creator: $it · Wikimedia Commons" }
+                        WallpaperSource.MET_MUSEUM -> wallpaper.creatorName?.let { "Creator: $it · The Metropolitan Museum of Art" }
+                        WallpaperSource.CLEVELAND_ART -> wallpaper.creatorName?.let { "Creator: $it · Cleveland Museum of Art" }
                         WallpaperSource.REDDIT -> "Reddit wallpaper"
                         WallpaperSource.ARCHIVED -> null
                     }

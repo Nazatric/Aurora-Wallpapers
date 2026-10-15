@@ -6,23 +6,29 @@ enum class WallpaperSource(val id: String, val displayName: String, val siteUrl:
     WALLHAVEN("wallhaven", "Wallhaven", "https://wallhaven.cc"),
     NASA_APOD("nasa-apod", "NASA APOD", "https://science.nasa.gov/apod/"),
     /**
-     * Retired in 1.3.0: the catalogue's search results repeatedly arrived without image
-     * dimensions or displayable files ("Preview unavailable" tiles) and contributed no usable
-     * discovery results. The enum entry stays so previously saved records keep their CC0
-     * attribution; the provider, API client and discovery lane are removed.
+     * Re-integrated in 1.8.0. The 1.3.0 removal happened because search results arrived without
+     * dimensions or displayable files; the provider now builds deterministic IIIF URLs from
+     * `image_id`, and measured-aspect cards resolve unknown pixel sizes from the decoded preview.
      */
     ART_INSTITUTE("art-institute", "Art Institute of Chicago", "https://www.artic.edu/"),
     /** Approved in principle; hidden until official Reddit API authorization is available. */
     REDDIT("reddit", "Reddit", "https://www.reddit.com/"),
-    /** Legacy source retained only so older Room records and downloads stay readable. */
-    OPENVERSE("openverse", "Openverse (saved)", "https://openverse.org"),
+    /** Re-integrated in 1.8.0 as a live catalogue with a CC0/PDM/BY/BY-SA rights gate. */
+    OPENVERSE("openverse", "Openverse", "https://openverse.org"),
+    /** Wikimedia Commons freely-licensed files; keyword search only. */
+    WIKIMEDIA("wikimedia", "Wikimedia Commons", "https://commons.wikimedia.org/"),
+    /** The Metropolitan Museum of Art Open Access; isPublicDomain works only. */
+    MET_MUSEUM("met-museum", "The Met", "https://www.metmuseum.org/"),
+    /** Cleveland Museum of Art Open Access; CC0. */
+    CLEVELAND_ART("cleveland-art", "Cleveland Museum of Art", "https://www.clevelandart.org/"),
     /** Keeps older Room records and downloads readable without treating the provider as integrated. */
     ARCHIVED("archived", "Saved item", "");
 
     val isIntegrated: Boolean get() = this in integrated
 
     companion object {
-        val integrated: List<WallpaperSource> = listOf(WALLHAVEN, NASA_APOD)
+        val integrated: List<WallpaperSource> =
+            listOf(WALLHAVEN, NASA_APOD, OPENVERSE, ART_INSTITUTE, WIKIMEDIA, MET_MUSEUM, CLEVELAND_ART)
         fun fromId(id: String): WallpaperSource? = entries.firstOrNull { it.id == id }
     }
 }

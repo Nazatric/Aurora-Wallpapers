@@ -68,16 +68,16 @@ class DiscoveryTest {
 
     @Test fun qualityCheckedSearchResultsNeedKnownDimensionsAndA720PixelShortEdgeAcrossSources() {
         val wallhaven = wallpaper(id = "nature")
-        // Retired sources (Art Institute since 1.3.0) are not integrated, so even a record with
-        // perfect dimensions can never pass the discovery quality gate again.
-        val retiredMuseum = wallpaper(source = WallpaperSource.ART_INSTITUTE, id = "museum")
+        // The Art Institute was revived in 1.8.0: records with known dimensions pass the quality
+        // gate like any integrated source; records without dimensions still never do.
+        val museum = wallpaper(source = WallpaperSource.ART_INSTITUTE, id = "museum")
         val apodUnknown = wallpaper(source = WallpaperSource.NASA_APOD, id = "apod", width = 0, height = 0)
         val missingDimensions = wallpaper(id = "unknown", width = 0, height = 0)
         val tooSmall = wallpaper(id = "small", width = 400, height = 700)
         val selection = DiscoveryRotation.select(0L)
         assertEquals(
-            setOf(wallhaven.key),
-            DiscoveryQuality.rank(listOf(apodUnknown, missingDimensions, tooSmall, retiredMuseum, wallhaven), selection)
+            setOf(wallhaven.key, museum.key),
+            DiscoveryQuality.rank(listOf(apodUnknown, missingDimensions, tooSmall, museum, wallhaven), selection)
                 .map { it.key }.toSet(),
         )
     }

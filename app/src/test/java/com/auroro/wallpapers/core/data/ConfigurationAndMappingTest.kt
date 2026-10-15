@@ -96,7 +96,7 @@ class ConfigurationAndMappingTest {
 
         assertFalse(migrated.contains(oldContentSetting))
         assertFalse(migrated.contains(oldOpenverseToggle))
-        assertTrue(settings.current().wallhavenEnabled)
+        assertTrue(settings.current().enabledSources.contains("wallhaven"))
     }
 
     @Test fun discoverySnapshotsRepeatHistoryAndManualRefreshCooldownPersistLocally() = runBlocking {
@@ -223,8 +223,7 @@ class ConfigurationAndMappingTest {
                 avoidRecentlySeen = false,
                 repeatAfterHours = 72,
                 cacheLimitMb = 500,
-                wallhavenEnabled = false,
-                nasaApodEnabled = false,
+                enabledSources = emptySet(),
             )
         }
         val saved = settings.current()
@@ -239,7 +238,7 @@ class ConfigurationAndMappingTest {
         assertFalse(saved.avoidRecentlySeen)
         assertEquals(72, saved.repeatAfterHours)
         assertEquals(500, saved.cacheLimitMb)
-        assertFalse(saved.wallhavenEnabled)
-        assertFalse(saved.nasaApodEnabled)
+        assertFalse(saved.enabledSources.contains("wallhaven"))
+        assertFalse(saved.enabledSources.contains("nasa-apod"))
     }
 }

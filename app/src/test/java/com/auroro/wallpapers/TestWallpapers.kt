@@ -15,6 +15,9 @@ internal fun wallpaper(
         WallpaperSource.ART_INSTITUTE -> "https://www.artic.edu/iiif/2/$id/full/max,/0/default.jpg"
         WallpaperSource.REDDIT -> "https://www.reddit.com/r/wallpaper/comments/$id/"
         WallpaperSource.OPENVERSE -> "https://media.example.org/images/$id.jpg"
+        WallpaperSource.WIKIMEDIA -> "https://upload.wikimedia.org/wikipedia/commons/$id.jpg"
+        WallpaperSource.MET_MUSEUM -> "https://images.metmuseum.org/CRDImages/ep/original/$id.jpg"
+        WallpaperSource.CLEVELAND_ART -> "https://openaccess-api.clevelandart.org/api/artworks/img/$id.jpg"
         WallpaperSource.ARCHIVED -> "https://legacy.example.org/images/$id.jpg"
     },
     page: String = when (source) {
@@ -23,6 +26,9 @@ internal fun wallpaper(
         WallpaperSource.ART_INSTITUTE -> "https://www.artic.edu/artworks/$id"
         WallpaperSource.REDDIT -> "https://www.reddit.com/r/wallpaper/comments/$id/"
         WallpaperSource.OPENVERSE -> "https://openverse.org/image/$id"
+        WallpaperSource.WIKIMEDIA -> "https://commons.wikimedia.org/wiki/File:$id"
+        WallpaperSource.MET_MUSEUM -> "https://www.metmuseum.org/art/collection/search/$id"
+        WallpaperSource.CLEVELAND_ART -> "https://www.clevelandart.org/art/$id"
         WallpaperSource.ARCHIVED -> "https://legacy.example.org/item/$id"
     },
     tags: List<WallpaperTag> = listOf(WallpaperTag(7, "nature")),

@@ -47,6 +47,8 @@ import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.WallpaperArt
 import com.auroro.wallpapers.ui.components.artAspect
+import com.auroro.wallpapers.ui.theme.LocalGlassQuality
+import com.auroro.wallpapers.ui.theme.auroroGlass
 
 private const val NEAR_END_THRESHOLD = 4
 
@@ -198,8 +200,13 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
     val focusManager = LocalFocusManager.current
     Surface(
         shape = RoundedCornerShape(26.dp),
-        color = AuroroPal.surfaceBright,
-        modifier = modifier,
+        color = androidx.compose.ui.graphics.Color.Transparent,
+        modifier = modifier.auroroGlass(
+            shape = RoundedCornerShape(26.dp),
+            quality = LocalGlassQuality.current,
+            fallback = AuroroPal.surfaceBright,
+            tint = AuroroPal.surfaceBright.copy(alpha = 0.58f),
+        ),
     ) {
         Row(
             modifier = Modifier.padding(start = 14.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),

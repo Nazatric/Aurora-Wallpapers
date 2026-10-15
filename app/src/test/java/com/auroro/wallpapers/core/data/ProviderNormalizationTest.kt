@@ -172,7 +172,10 @@ class ProviderNormalizationTest {
         assertTrue(UrlPolicy.isAllowedForNetwork(WallpaperSource.ART_INSTITUTE, "https://api.artic.edu/api/v1/artworks/search"))
         assertTrue(UrlPolicy.isAllowedForNetwork(WallpaperSource.ART_INSTITUTE, "https://www.artic.edu/iiif/2/image/full/max,/0/default.jpg"))
         assertFalse(UrlPolicy.isAllowedForNetwork(WallpaperSource.REDDIT, "https://www.reddit.com/api/v1"))
-        assertFalse(UrlPolicy.isAllowedForNetwork(WallpaperSource.OPENVERSE, "https://media.example.org/legacy-image.jpg"))
+        // 1.8.0: Openverse is live again; media hosts are arbitrary (Flickr, museums, ...), so the
+        // source rule is TLS-only. Legacy saved records and new items share that rule.
+        assertTrue(UrlPolicy.isAllowedForNetwork(WallpaperSource.OPENVERSE, "https://media.example.org/legacy-image.jpg"))
+        assertFalse(UrlPolicy.isAllowedForNetwork(WallpaperSource.OPENVERSE, "http://media.example.org/legacy-image.jpg"))
         assertTrue(UrlPolicy.isAllowedForBrowsing("https://www.artic.edu/artworks/123"))
         assertFalse(UrlPolicy.isAllowedForBrowsing("https://127.0.0.1/image"))
     }

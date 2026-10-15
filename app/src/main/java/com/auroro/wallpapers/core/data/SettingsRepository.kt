@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.auroro.wallpapers.core.model.AspectMath
 import com.auroro.wallpapers.core.model.DiscoveryStyle
+import com.auroro.wallpapers.core.model.WallpaperSource
 import java.security.MessageDigest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -90,8 +91,8 @@ data class AppSettings(
     val setAfterDownload: Boolean = false,
     val notifyProgress: Boolean = true,
     val notifyResult: Boolean = true,
-    val wallhavenEnabled: Boolean = true,
-    val nasaApodEnabled: Boolean = true,
+    /** Catalogue ids the user allows; defaults to every integrated source. Replaces the per-source booleans in 1.8.0. */
+    val enabledSources: Set<String> = WallpaperSource.integrated.map { it.id }.toSet(),
 ) {
     companion object {
         const val DEFAULT_CACHE_MB = 250
@@ -367,8 +368,7 @@ class SettingsRepository(
             prefs[SET_AFTER] = false
             prefs[NOTIFY_PROGRESS] = next.notifyProgress
             prefs[NOTIFY_RESULT] = next.notifyResult
-            prefs[WALLHAVEN_ON] = next.wallhavenEnabled
-            prefs[NASA_APOD_ON] = next.nasaApodEnabled
+            prefs[ENABLED_SOURCES] = next.enabledSources
             // Retired with the Art Institute source (1.3.0); drop the stale toggle.
             prefs.remove(ART_INSTITUTE_ON)
             prefs.remove(LEGACY_RETIRED_PROVIDER_ENABLED)
@@ -434,8 +434,15 @@ class SettingsRepository(
             setAfterDownload = false,
             notifyProgress = this[NOTIFY_PROGRESS] ?: defaults.notifyProgress,
             notifyResult = this[NOTIFY_RESULT] ?: defaults.notifyResult,
-            wallhavenEnabled = this[WALLHAVEN_ON] ?: defaults.wallhavenEnabled,
-            nasaApodEnabled = this[NASA_APOD_ON] ?: defaults.nasaApodEnabled,
+            enabledSources = this[ENABLED_SOURCES] ?: WallpaperSource.integrated.map { it.id }
+                .filter { id ->
+                    when (id) {
+                        "wallhaven" -> this[WALLHAVEN_ON] != false
+                        "nasa-apod" -> this[NASA_APOD_ON] != false
+                        else -> true
+                    }
+                }
+                .toSet(),
         )
     }
 
@@ -505,6 +512,7 @@ class SettingsRepository(
         private val NOTIFY_RESULT = booleanPreferencesKey("notify_result")
         private val WALLHAVEN_ON = booleanPreferencesKey("wallhaven_enabled")
         private val NASA_APOD_ON = booleanPreferencesKey("nasa_apod_enabled")
+        private val ENABLED_SOURCES = stringSetPreferencesKey("enabled_sources")
         private val ART_INSTITUTE_ON = booleanPreferencesKey("art_institute_enabled")
         private val LEGACY_RETIRED_PROVIDER_ENABLED = booleanPreferencesKey("abyss_enabled")
         private val LEGACY_DOWNLOAD_QUALITY = stringPreferencesKey("download_quality")

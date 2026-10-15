@@ -45,6 +45,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import com.auroro.wallpapers.core.data.ArtInstituteProvider
+import com.auroro.wallpapers.core.data.ClevelandProvider
+import com.auroro.wallpapers.core.data.MetMuseumProvider
+import com.auroro.wallpapers.core.data.OpenverseProvider
+import com.auroro.wallpapers.core.data.WikimediaProvider
+import com.auroro.wallpapers.core.network.artic.ArtInstituteApi
+import com.auroro.wallpapers.core.network.cleveland.ClevelandApi
+import com.auroro.wallpapers.core.network.met.MetApi
+import com.auroro.wallpapers.core.network.openverse.OpenverseApi
+import com.auroro.wallpapers.core.network.wikimedia.WikimediaApi
 import kotlinx.serialization.json.Json
 import okhttp3.Cache
 import okhttp3.MediaType.Companion.toMediaType
@@ -100,6 +110,12 @@ class AppContainer(context: Context) {
 
     private val wallhavenApi: WallhavenApi = retrofit(WallhavenApi.BASE_URL).create(WallhavenApi::class.java)
     private val nasaApodApi: NasaApodApi = retrofit(NasaApodApi.BASE_URL).create(NasaApodApi::class.java)
+    private val openverseApi: OpenverseApi = retrofit(OpenverseApi.BASE_URL).create(OpenverseApi::class.java)
+    private val wikimediaApi: WikimediaApi = retrofit(WikimediaApi.BASE_URL).create(WikimediaApi::class.java)
+    private val metApi: MetApi = retrofit(MetApi.BASE_URL).create(MetApi::class.java)
+    private val clevelandApi: ClevelandApi = retrofit(ClevelandApi.BASE_URL).create(ClevelandApi::class.java)
+    private val artInstituteApi: ArtInstituteApi =
+        retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java)
 
     val wallhaven = WallhavenProvider(
         api = wallhavenApi,
@@ -109,7 +125,7 @@ class AppContainer(context: Context) {
             preferences = bootPrefs,
             storageKey = "wallhaven_api_events",
         ),
-        isEnabled = { settings.current().wallhavenEnabled },
+        isEnabled = { WallpaperSource.WALLHAVEN.id in settings.current().enabledSources },
     )
 
     val nasaApod = NasaApodProvider(
@@ -120,7 +136,7 @@ class AppContainer(context: Context) {
             preferences = bootPrefs,
             storageKey = "nasa_apod_api_events",
         ),
-        isEnabled = { settings.current().nasaApodEnabled },
+        isEnabled = { WallpaperSource.NASA_APOD.id in settings.current().enabledSources },
         pageCache = ProviderPageCache(
             source = WallpaperSource.NASA_APOD,
             preferences = providerPagePrefs,
@@ -129,11 +145,70 @@ class AppContainer(context: Context) {
         ),
     )
 
-    val aggregator = WallpaperAggregator(listOf(wallhaven, nasaApod))
+    val openverse = OpenverseProvider(
+        api = openverseApi,
+        limiter = SlidingWindowLimiter(
+            maxEvents = 20,
+            windowMs = 60_000,
+            preferences = bootPrefs,
+            storageKey = "openverse_api_events",
+        ),
+        isEnabled = { WallpaperSource.OPENVERSE.id in settings.current().enabledSources },
+    )
+
+    val wikimedia = WikimediaProvider(
+        api = wikimediaApi,
+        limiter = SlidingWindowLimiter(
+            maxEvents = 20,
+            windowMs = 60_000,
+            preferences = bootPrefs,
+            storageKey = "wikimedia_api_events",
+        ),
+        isEnabled = { WallpaperSource.WIKIMEDIA.id in settings.current().enabledSources },
+    )
+
+    val metMuseum = MetMuseumProvider(
+        api = metApi,
+        limiter = SlidingWindowLimiter(
+            maxEvents = 40,
+            windowMs = 60_000,
+            preferences = bootPrefs,
+            storageKey = "met_api_events",
+        ),
+        isEnabled = { WallpaperSource.MET_MUSEUM.id in settings.current().enabledSources },
+    )
+
+    val clevelandArt = ClevelandProvider(
+        api = clevelandApi,
+        limiter = SlidingWindowLimiter(
+            maxEvents = 20,
+            windowMs = 60_000,
+            preferences = bootPrefs,
+            storageKey = "cleveland_api_events",
+        ),
+        isEnabled = { WallpaperSource.CLEVELAND_ART.id in settings.current().enabledSources },
+    )
+
+    val artInstitute = ArtInstituteProvider(
+        api = artInstituteApi,
+        limiter = SlidingWindowLimiter(
+            maxEvents = 20,
+            windowMs = 60_000,
+            preferences = bootPrefs,
+            storageKey = "artic_api_events",
+        ),
+        isEnabled = { WallpaperSource.ART_INSTITUTE.id in settings.current().enabledSources },
+    )
+
+    /** Every integrated live catalogue, in feed priority order. */
+    val feedProviders: List<WallpaperProvider> =
+        listOf(wallhaven, nasaApod, openverse, artInstitute, wikimedia, metMuseum, clevelandArt)
+
+    val aggregator = WallpaperAggregator(feedProviders)
     private val wallhavenDiscovery = DiscoveryEngine(wallhaven, discoveryPools)
     val discoveryEngine = MultiSourceDiscoveryEngine(
         searchEngines = listOf(wallhavenDiscovery),
-        archiveProviders = listOf(nasaApod),
+        archiveProviders = listOf(nasaApod, clevelandArt, artInstitute),
     )
 
     val notifier = DownloadNotifier(appContext, settings)
@@ -150,11 +225,16 @@ class AppContainer(context: Context) {
 
     private fun downloadClient(source: WallpaperSource) = when (source) {
         WallpaperSource.WALLHAVEN -> wallhavenDownloadClient
-        WallpaperSource.OPENVERSE -> officialMediaDownloadClient // Legacy rows have no allowed network URL.
-        // ART_INSTITUTE is retired as a live source; the mapping stays so previously
-        // downloaded/saved records keep resolving through the official-media client.
-        WallpaperSource.NASA_APOD, WallpaperSource.ART_INSTITUTE -> officialMediaDownloadClient
-        WallpaperSource.REDDIT, WallpaperSource.ARCHIVED -> officialMediaDownloadClient
+        // Official open-access media: TLS-authenticated catalogue URLs only; no scraper hosts.
+        WallpaperSource.OPENVERSE,
+        WallpaperSource.NASA_APOD,
+        WallpaperSource.ART_INSTITUTE,
+        WallpaperSource.WIKIMEDIA,
+        WallpaperSource.MET_MUSEUM,
+        WallpaperSource.CLEVELAND_ART,
+        WallpaperSource.REDDIT,
+        WallpaperSource.ARCHIVED,
+        -> officialMediaDownloadClient
     }
 
     val downloadExecutor = DownloadExecutor(

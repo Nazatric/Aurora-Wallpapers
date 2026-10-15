@@ -136,6 +136,7 @@
     <string name="set_hidden_sub">Tap a style to hide it from discovery and the Home chips.</string>
     <string name="set_wallhaven">Wallhaven</string>
     <string name="set_nasa">NASA APOD</string>
+    <string name="set_sources_desc">Pick which catalogues feed your home screen and search. Every source is rights-checked at the item level.</string>
     <string name="set_save_location">Save downloads to</string>
     <string name="set_set_after">Set after download</string>
     <string name="set_set_after_sub">Apply the wallpaper automatically once the file is saved.</string>

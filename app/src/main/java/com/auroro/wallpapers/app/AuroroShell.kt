@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.auroro.wallpapers.R
+import com.auroro.wallpapers.ui.components.AuroraBackdrop
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.BottomPillBar
 import com.auroro.wallpapers.ui.components.ShellTab
@@ -96,17 +97,27 @@ fun AuroroShell() {
     val anyOverlay = detailWallpaper != null || coverFlow || crop != null
     BackHandler(enabled = coverFlow && detailWallpaper == null && crop == null) { coverFlow = false }
 
+    // iOS-style scroll condensing: the pill bar slims to icons while the home feed scrolls down
+    // and re-expands with labels on scroll-up or when the feed is back at the top.
+    var pillCondensed by remember { mutableStateOf(false) }
+    LaunchedEffect(tab) {
+        if (tab != ShellTab.HOME) pillCondensed = false
+    }
     Box(
         modifier = Modifier.fillMaxSize().background(AuroroPal.background),
     ) {
+        AuroraBackdrop()
         AnimatedContent(
             modifier = Modifier.auroroHazeSource(),
             targetState = tab,
             transitionSpec = {
                 (
-                    fadeIn(tween(400, easing = AuroroMotion.EmphasizedDecelerate)) +
-                        slideInVertically(tween(400, easing = AuroroMotion.EmphasizedDecelerate)) { it / 24 }
-                    ) togetherWith fadeOut(tween(200, easing = AuroroMotion.EmphasizedAccelerate))
+                    // Snappy by design: the incoming screen settles in 220 ms while the outgoing
+                    // one is gone in 90 ms, so tab switches read as instant but stay oriented.
+                    // Shorter transitions also mean fewer frames of live haze re-capture.
+                    fadeIn(tween(220, easing = AuroroMotion.EmphasizedDecelerate)) +
+                        slideInVertically(tween(220, easing = AuroroMotion.EmphasizedDecelerate)) { it / 28 }
+                    ) togetherWith fadeOut(tween(90, easing = AuroroMotion.EmphasizedAccelerate))
             },
             label = "shellTab",
         ) { currentTab ->
@@ -123,6 +134,7 @@ fun AuroroShell() {
                         detail = wallpaper
                     },
                     onSearch = { tab = ShellTab.SEARCH },
+                    onCondense = { pillCondensed = it },
                 )
 
                 ShellTab.SEARCH -> SearchScreen(
@@ -161,6 +173,7 @@ fun AuroroShell() {
         if (!anyOverlay) {
             BottomPillBar(
                 selected = tab,
+                condensed = pillCondensed,
                 onSelect = { tab = it },
                 onTabDoubleTap = { tapped ->
                     if (tapped == ShellTab.HOME) homeViewModel.reload()
