@@ -45,7 +45,7 @@ class OpenverseProvider(
         else "Openverse serves relevance order for searches and its default catalogue order otherwise."
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
-        pageCache?.get(request, cursor.page)?.let { return it }
+        pageCache?.get(request, cursor)?.let { return it }
         val randomMode = request.filter.sort == SortOption.RANDOM
         val page = if (randomMode) RandomLane.page(cursor, RANDOM_PAGE_SPAN, 11L) else cursor.page
         val response = RateLimitedCall.run(limiter, source.displayName) {
@@ -62,7 +62,7 @@ class OpenverseProvider(
             cursor.page < (response.pageCount ?: 1) && response.results.size == PAGE_SIZE
         }
         val next = if (hasMore && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
-        ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
+        ProviderPage(items, next).also { pageCache?.put(request, cursor, it) }
     }
 
     private fun toWallpaper(dto: OpenverseImageDto): Wallpaper? {

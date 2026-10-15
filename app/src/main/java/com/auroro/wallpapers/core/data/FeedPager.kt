@@ -57,14 +57,16 @@ class FeedPager(
     private val maxPagesPerLoad: Int = 4,
     concurrency: Int = 3,
     private val providerCallTimeoutMs: Long = 50_000,
+    /** Random-lane seed: every provider cursor starts from it, so a rebuilt pager draws a fresh slice. */
+    private val initialSeed: String? = null,
 ) {
     init {
         require(providerCallTimeoutMs > 0) { "Provider call timeout must be positive" }
     }
 
-    private class ProviderState(val provider: WallpaperProvider) {
+    private class ProviderState(val provider: WallpaperProvider, seed: String?) {
         var prepared = false
-        var cursor: PageCursor? = PageCursor()
+        var cursor: PageCursor? = PageCursor(seed = seed)
         var skipped: SourceState.Skipped? = null
         var halted: ProviderException? = null
         var lastError: ProviderException? = null
@@ -93,7 +95,7 @@ class FeedPager(
         val totalLoaded: Int,
     )
 
-    private val states = providers.map { ProviderState(it) }
+    private val states = providers.map { ProviderState(it, initialSeed) }
     private val semaphore = Semaphore(concurrency)
     private val dedupe = Deduplicator()
     private val mutex = Mutex()

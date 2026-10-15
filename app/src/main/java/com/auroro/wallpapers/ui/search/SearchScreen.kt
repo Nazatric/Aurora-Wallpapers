@@ -114,7 +114,8 @@ fun SearchScreen(
             }
             Spacer(Modifier.size(16.dp, 1.dp))
         }
-        state.message?.let { message ->
+        val cooling = state.hasSearched && state.items.isEmpty() && state.cooldownSeconds != null
+        if (state.message != null && !cooling) {
             Text(
                 text = message,
                 style = MaterialTheme.typography.labelSmall,
@@ -138,6 +139,15 @@ fun SearchScreen(
             }
 
             !state.hasSearched && state.items.isEmpty() -> SearchIdleState(
+                recent = state.recentQueries,
+                onPick = onQueryChange,
+                modifier = Modifier.fillMaxSize().padding(bottom = 120.dp),
+            )
+
+            cooling -> SearchCooldownState(
+                message = state.message.orEmpty(),
+                retryNonce = state.cooldownNonce,
+                onRetry = onRetry,
                 modifier = Modifier.fillMaxSize().padding(bottom = 120.dp),
             )
 
@@ -268,7 +278,11 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
 }
 
 @Composable
-private fun SearchIdleState(modifier: Modifier = Modifier) {
+private fun SearchIdleState(
+    recent: List<String>,
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -292,5 +306,77 @@ private fun SearchIdleState(modifier: Modifier = Modifier) {
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.padding(horizontal = 44.dp),
         )
+        Spacer(Modifier.size(18.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Spacer(Modifier.size(24.dp, 1.dp))
+            val suggestions = (recent + IDLE_SUGGESTIONS).distinct().take(8)
+            suggestions.forEach { suggestion ->
+                AuroraChip(label = suggestion, active = false, onClick = { onPick(suggestion) })
+            }
+            Spacer(Modifier.size(24.dp, 1.dp))
+        }
     }
 }
+
+/** Rate limits are honest infrastructure care, not an error: explain the wait, retry when it ends. */
+@Composable
+private fun SearchCooldownState(
+    message: String,
+    retryNonce: Int,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    LaunchedEffect(retryNonce) {
+        kotlinx.coroutines.delay(COOLDOWN_RETRY_POLL_MS)
+        onRetry()
+    }
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = AuroroPal.surfaceBright,
+            modifier = Modifier.auroroGlass(
+                shape = RoundedCornerShape(28.dp),
+                quality = LocalGlassQuality.current,
+                fallback = AuroroPal.surfaceBright,
+                tint = AuroroPal.surfaceBright.copy(alpha = 0.42f),
+            ),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_search_outlined),
+                contentDescription = null,
+                tint = AuroroPal.accent,
+                modifier = Modifier.padding(20.dp).size(30.dp),
+            )
+        }
+        Spacer(Modifier.size(16.dp))
+        Text(text = stringResource(R.string.search_cooldown_title), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            color = AuroroPal.textSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 32.dp),
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = stringResource(R.string.search_cooldown_body),
+            style = MaterialTheme.typography.labelSmall,
+            color = AuroroPal.textTertiary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 40.dp),
+        )
+        Spacer(Modifier.size(14.dp))
+        AuroraChip(label = stringResource(R.string.action_try_again), active = true, onClick = onRetry)
+    }
+}
+
+private val IDLE_SUGGESTIONS = listOf("aurora", "galaxy", "mountains", "ocean", "forest")
+private const val COOLDOWN_RETRY_POLL_MS = 15_000L

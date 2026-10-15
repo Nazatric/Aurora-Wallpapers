@@ -49,7 +49,7 @@ class WikimediaProvider(
     }
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
-        pageCache?.get(request, cursor.page)?.let { return it }
+        pageCache?.get(request, cursor)?.let { return it }
         val response = RateLimitedCall.run(limiter, source.displayName) {
             api.searchFiles(
                 search = "filetype:bitmap ${request.normalizedQuery}",
@@ -58,7 +58,7 @@ class WikimediaProvider(
         }
         val items = response.query?.pages.orEmpty().mapNotNull(::toWallpaper)
         // Commons generator/search continuation is session-based; serve one high-quality page.
-        ProviderPage(items, next = null).also { pageCache?.put(request, cursor.page, it) }
+        ProviderPage(items, next = null).also { pageCache?.put(request, cursor, it) }
     }
 
     private fun toWallpaper(page: WikimediaPage): Wallpaper? {

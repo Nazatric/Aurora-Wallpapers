@@ -49,7 +49,7 @@ class MetMuseumProvider(
         else "The Met serves relevance order for searches and its catalogue order otherwise."
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
-        pageCache?.get(request, cursor.page)?.let { return it }
+        pageCache?.get(request, cursor)?.let { return it }
         val query = request.normalizedQuery.takeIf { it.isNotEmpty() }.orEmpty()
         val ids = loadIds(query, needed = start(request, cursor) + PAGE_SIZE)
         val pageIds = ids.drop(start(request, cursor)).take(PAGE_SIZE)
@@ -66,7 +66,7 @@ class MetMuseumProvider(
         } else {
             null
         }
-        ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
+        ProviderPage(items, next).also { pageCache?.put(request, cursor, it) }
     }
 
     private fun start(request: FeedRequest, cursor: PageCursor): Int =

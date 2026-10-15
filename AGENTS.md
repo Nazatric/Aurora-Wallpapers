@@ -32,6 +32,10 @@ live in the process-wide `AspectCache` and are applied WITHOUT animation so recy
 grid. Refresh/mode-swap keep existing items until the new page lands; Home/Search persist scroll positions in
 their ViewModels; `rememberReducedMotion()` (Motion.kt) honours the system animation scales.
 History recording happens on deliberate opens.
+Random-lane freshness: `FeedPager(initialSeed=...)` seeds every provider cursor; `ProviderPageCache` keys on
+(source, page, seed, query) so a new seed always misses; sorted lanes pass seed=null and keep cache hits.
+Search idle (blank query) never touches the network; rate-limited empty results surface `cooldownSeconds` +
+a nonce-driven auto-retry card instead of "No matches". All chips are glass in both states (AuroraChip).
 Keep slices small and land each with green CI.
 
 ## Layout

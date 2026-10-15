@@ -15,7 +15,6 @@
     <string name="mode_trending">Trending</string>
     <string name="mode_newest">Newest</string>
     <string name="mode_random">Random</string>
-    <string name="chip_all_styles">All styles</string>
     <string name="loading_feed">Finding wallpapers…</string>
     <string name="loading_more">Loading more wallpapers…</string>
     <string name="empty_title">No wallpapers yet</string>
@@ -51,7 +50,9 @@
     <string name="search_clear">Clear search</string>
     <string name="search_searching">Searching the catalogues…</string>
     <string name="search_idle_title">Find your next wall</string>
-    <string name="search_idle_body">Search Wallhaven and NASA APOD by keyword, or filter by source.</string>
+    <string name="search_idle_body">Type a keyword to search all seven rights-checked catalogues, or tap a suggestion below.</string>
+    <string name="search_cooldown_title">Sources are cooling down</string>
+    <string name="search_cooldown_body">Rate limits protect the free public APIs. Results appear automatically when the wait ends.</string>
     <string name="search_no_results_title">No matches</string>
     <string name="search_no_results_body">Nothing matched that search with the current sources. Try different words or widen the source selection.</string>
     <string name="search_end_reached">That’s every match for this search.</string>
@@ -110,8 +111,6 @@
     <string name="dl_delete">Delete</string>
     <string name="dl_open">Open</string>
     <string name="set_header">Settings</string>
-    <string name="set_on">On</string>
-    <string name="set_off">Off</string>
     <string name="section_appearance">Appearance</string>
     <string name="section_discovery">Discovery</string>
     <string name="section_downloads">Downloads</string>
@@ -124,15 +123,12 @@
     <string name="set_glass">Glass quality</string>
     <string name="set_amoled">AMOLED black</string>
     <string name="set_contrast">Increase contrast</string>
-    <string name="soon_glass">Haze-backed glass renders in the Liquid Glass slice.</string>
     <string name="set_rotate">Rotate the mix hourly</string>
     <string name="set_rotate_sub">New discovery recipes each hour instead of each launch.</string>
     <string name="set_avoid">Avoid recently seen</string>
     <string name="set_avoid_sub">Skip wallpapers you looked at inside the repeat window.</string>
     <string name="set_repeat">Repeat after %1$d h</string>
     <string name="set_repeat_sub">How long before a wallpaper may return to the mix.</string>
-    <string name="set_hidden">Hidden styles</string>
-    <string name="set_hidden_sub">Tap a style to hide it from discovery and the Home chips.</string>
     <string name="set_sources_desc">Pick which catalogues feed your home screen and search. Every source is rights-checked at the item level.</string>
     <string name="set_save_location">Save downloads to</string>
     <string name="set_set_after">Set after download</string>

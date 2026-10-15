@@ -49,13 +49,13 @@ class NasaApodProvider(
     }
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
-        pageCache?.get(request, cursor.page)?.let { return it }
+        pageCache?.get(request, cursor)?.let { return it }
         val response = RateLimitedCall.run(limiter, source.displayName) {
             api.latest(pageSize = PAGE_SIZE, page = cursor.page)
         }
         val items = response.mapNotNull(::toWallpaper)
         val next = if (response.size == PAGE_SIZE && items.isNotEmpty()) PageCursor(cursor.page + 1) else null
-        ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
+        ProviderPage(items, next).also { pageCache?.put(request, cursor, it) }
     }
 
     private fun toWallpaper(dto: NasaApodDto): Wallpaper? {

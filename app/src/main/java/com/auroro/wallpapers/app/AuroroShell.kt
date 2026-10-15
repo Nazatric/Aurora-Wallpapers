@@ -127,9 +127,9 @@ fun AuroroShell() {
                     // Near-instant: the new page is fully in within 150 ms and the old one is
                     // gone in 60 ms, so switches read as immediate while the small rise keeps
                     // the eye oriented.
-                    fadeIn(tween(150, easing = AuroroMotion.EmphasizedDecelerate)) +
-                        slideInVertically(tween(150, easing = AuroroMotion.EmphasizedDecelerate)) { it / 32 }
-                    ) togetherWith fadeOut(tween(60, easing = AuroroMotion.EmphasizedAccelerate))
+                    fadeIn(tween(110, easing = AuroroMotion.EmphasizedDecelerate)) +
+                        slideInVertically(tween(110, easing = AuroroMotion.EmphasizedDecelerate)) { it / 40 }
+                    ) togetherWith fadeOut(tween(45, easing = AuroroMotion.EmphasizedAccelerate))
             },
             label = "shellTab",
         ) { currentTab ->

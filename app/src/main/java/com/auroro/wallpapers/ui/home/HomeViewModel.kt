@@ -329,8 +329,14 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         return FeedPager(
             providers = app.feedProviders,
             request = FeedRequest(filter = WallpaperFilter(sort = sort)),
+            // Random mode must never replay yesterday's slice: a fresh seed per pager draws a
+            // new deterministic lane slice AND misses the page cache (seed is cache identity).
+            initialSeed = if (mode == FeedMode.RANDOM) freshSeed() else null,
         )
     }
+
+    private fun freshSeed(): String =
+        kotlin.random.Random.nextLong().toULong().toString(radix = 36)
 
     private fun loadSorted(mode: FeedMode) {
         loadJob?.cancel()

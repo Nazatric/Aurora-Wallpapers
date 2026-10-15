@@ -40,7 +40,7 @@ class ClevelandProvider(
         else "The Cleveland Open Access API serves relevance order for searches and its catalogue order otherwise."
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
-        pageCache?.get(request, cursor.page)?.let { return it }
+        pageCache?.get(request, cursor)?.let { return it }
         val randomMode = request.filter.sort == SortOption.RANDOM
         val skip = if (randomMode) {
             RandomLane.offset(cursor, RANDOM_SKIP_SPAN, 37L, PAGE_SIZE)
@@ -57,7 +57,7 @@ class ClevelandProvider(
         val items = response.data.mapNotNull(::toWallpaper)
         val total = response.info?.total ?: 0
         val next = if (cursor.page * PAGE_SIZE < total && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
-        ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
+        ProviderPage(items, next).also { pageCache?.put(request, cursor, it) }
     }
 
     private fun toWallpaper(dto: ClevelandArtwork): Wallpaper? {

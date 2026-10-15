@@ -38,6 +38,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,9 +98,16 @@ fun HomeScreen(
     // rises in on the M3 emphasized curve — cheap (one graphicsLayer), never competes
     // with the artwork.
     val feedEntry = remember { Animatable(1f) }
+    // Armed only after the first composition: returning to the Home tab must land instantly on
+    // the settled feed — the rise plays when the mix itself changes, never on tab switches.
+    var entryArmed by remember { mutableStateOf(false) }
     LaunchedEffect(state.mode, state.orientation, state.layout) {
+        if (!entryArmed) {
+            entryArmed = true
+            return@LaunchedEffect
+        }
         feedEntry.snapTo(0f)
-        feedEntry.animateTo(1f, tween(360, easing = AuroroMotion.EmphasizedDecelerate))
+        feedEntry.animateTo(1f, tween(260, easing = AuroroMotion.EmphasizedDecelerate))
     }
     Column(modifier = modifier.fillMaxSize()) {
         HomeHeader(

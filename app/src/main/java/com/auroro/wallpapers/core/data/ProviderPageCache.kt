@@ -22,8 +22,8 @@ class ProviderPageCache(
         require(ttlMillis > 0)
     }
 
-    suspend fun get(request: FeedRequest, page: Int): ProviderPage? {
-        val prefix = keyPrefix(request, page)
+    suspend fun get(request: FeedRequest, cursor: PageCursor): ProviderPage? {
+        val prefix = keyPrefix(request, cursor)
         val fetchedAt = preferences.getLong("${prefix}_at", 0L)
         val now = clock()
         if (fetchedAt <= 0L || now < fetchedAt || now - fetchedAt >= ttlMillis) return null
@@ -37,9 +37,10 @@ class ProviderPageCache(
         return ProviderPage(items, nextPage?.let(::PageCursor))
     }
 
-    suspend fun put(request: FeedRequest, page: Int, result: ProviderPage) {
+    suspend fun put(request: FeedRequest, cursor: PageCursor, result: ProviderPage) {
         wallpapers.cacheForDiscovery(result.items)
-        val prefix = keyPrefix(request, page)
+        sweepExpiredEntries()
+        val prefix = keyPrefix(request, cursor)
         preferences.edit()
             .putLong("${prefix}_at", clock())
             .putString("${prefix}_keys", result.items.joinToString("\n") { it.key })
@@ -47,12 +48,37 @@ class ProviderPageCache(
             .apply()
     }
 
-    private fun keyPrefix(request: FeedRequest, page: Int): String {
+    /**
+     * The random-lane seed is part of the identity: a fresh seed must MISS the cache, otherwise
+     * "Random" and shuffle would replay the same cached page for the whole TTL — the exact
+     * "same wallpapers again and again" bug. Sorted lanes keep seed=null and still hit cache.
+     */
+    private fun keyPrefix(request: FeedRequest, cursor: PageCursor): String {
         val normalizedQuery = request.normalizedQuery.lowercase(Locale.ROOT)
-        val identity = "${source.id}:$page:$normalizedQuery"
+        val identity = "${source.id}:${cursor.page}:${cursor.seed ?: ""}:$normalizedQuery"
         val digest = MessageDigest.getInstance("SHA-256")
             .digest(identity.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
         return "provider_page_$digest"
+    }
+
+    /** Seeds multiply cache entries; drop expired triples occasionally so prefs stay bounded. */
+    private fun sweepExpiredEntries() {
+        if (kotlin.random.Random.nextInt(SWEEP_ODDS) != 0) return
+        val now = clock()
+        val editor = preferences.edit()
+        var removed = 0
+        preferences.all.forEach { (key, value) ->
+            if (key.endsWith("_at") && value is Long && now - value >= ttlMillis) {
+                val prefix = key.removeSuffix("_at")
+                editor.remove(key).remove("${prefix}_keys").remove("${prefix}_next")
+                removed++
+            }
+        }
+        if (removed > 0) editor.apply()
+    }
+
+    private companion object {
+        const val SWEEP_ODDS = 16
     }
 }

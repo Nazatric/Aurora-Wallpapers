@@ -45,13 +45,8 @@ fun AuroraChip(
     val pressed by interactionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
         targetValue = if (pressed) 0.92f else 1f,
-        animationSpec = AuroroMotion.BouncyFloat,
+        animationSpec = AuroroMotion.PressFloat,
         label = "chipPress",
-    )
-    val background by animateColorAsState(
-        targetValue = if (active) AuroroPal.accent else AuroroPal.surfaceBright,
-        animationSpec = AuroroMotion.ColorCalm,
-        label = "chipBackground",
     )
     val contentColor by animateColorAsState(
         targetValue = if (active) {
@@ -62,21 +57,22 @@ fun AuroraChip(
         animationSpec = AuroroMotion.ColorCalm,
         label = "chipContent",
     )
-    // Inactive chips are real liquid glass over whatever lives behind them; the selected chip
-    // fills with the live accent so state stays unmistakable on every quality tier.
-    val glassModifier = if (active) {
-        Modifier
-    } else {
-        Modifier.auroroGlass(
-            shape = RoundedCornerShape(50),
-            quality = LocalGlassQuality.current,
-            fallback = AuroroPal.surfaceBright,
-            tint = AuroroPal.surfaceBright.copy(alpha = 0.42f),
-        )
-    }
+    // Every chip is real liquid glass over whatever lives behind it; the selected one adds an
+    // accent tint to the refraction so state stays unmistakable on every quality tier (the
+    // REDUCED tier falls back to the solid accent/surface colours, never to transparency).
+    val glassModifier = Modifier.auroroGlass(
+        shape = RoundedCornerShape(50),
+        quality = LocalGlassQuality.current,
+        fallback = if (active) AuroroPal.accent else AuroroPal.surfaceBright,
+        tint = if (active) {
+            AuroroPal.accent.copy(alpha = 0.5f)
+        } else {
+            AuroroPal.surfaceBright.copy(alpha = 0.42f)
+        },
+    )
     Surface(
         shape = RoundedCornerShape(50),
-        color = if (active) background else androidx.compose.ui.graphics.Color.Transparent,
+        color = androidx.compose.ui.graphics.Color.Transparent,
         contentColor = contentColor,
         onClick = onClick,
         interactionSource = interactionSource,

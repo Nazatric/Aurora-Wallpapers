@@ -122,8 +122,8 @@ fun BottomPillBar(
                 indicatorX.snapTo(target.left)
                 indicatorW.snapTo(target.width)
             } else {
-                launch { indicatorX.animateTo(target.left, AuroroMotion.BouncyFloat) }
-                launch { indicatorW.animateTo(target.width, AuroroMotion.BouncyFloat) }
+                launch { indicatorX.animateTo(target.left, AuroroMotion.PillSpring) }
+                launch { indicatorW.animateTo(target.width, AuroroMotion.PillSpring) }
             }
         }
         // Indicator and tabs share ONE padded box: measured tab bounds are in the Row's
@@ -177,7 +177,7 @@ private fun PillItem(
     )
     val iconScale by animateFloatAsState(
         targetValue = if (active) 1.1f else 1f,
-        animationSpec = AuroroMotion.BouncyFloat,
+        animationSpec = AuroroMotion.PressFloat,
         label = "pillIconScale",
     )
     val labelColor by animateColorAsState(
@@ -238,7 +238,7 @@ private fun CenterAction(onClick: () -> Unit, label: String, @DrawableRes icon: 
     val pressed by interactionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
         targetValue = if (pressed) 0.86f else 1f,
-        animationSpec = AuroroMotion.BouncyFloat,
+        animationSpec = AuroroMotion.PressFloat,
         label = "centerPress",
     )
     Box(

@@ -37,6 +37,18 @@ object AuroroMotion {
     )
 
     /** Size transitions with a little life (pager dots, indicators). */
+    /** Pill indicator: high stiffness with a whisper of overshoot — selection reads as instant. */
+    val PillSpring: FiniteAnimationSpec<Float> = spring(
+        dampingRatio = 0.86f,
+        stiffness = Spring.StiffnessHigh,
+    )
+
+    /** Press feedback on chips and bar actions: settles in a couple of frames at 120 Hz. */
+    val PressFloat: FiniteAnimationSpec<Float> = spring(
+        dampingRatio = 0.72f,
+        stiffness = Spring.StiffnessHigh,
+    )
+
     val BouncyDp: FiniteAnimationSpec<Dp> = spring(
         dampingRatio = Spring.DampingRatioMediumBouncy,
         stiffness = Spring.StiffnessMediumLow,

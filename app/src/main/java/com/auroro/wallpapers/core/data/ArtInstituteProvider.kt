@@ -46,7 +46,7 @@ class ArtInstituteProvider(
         else "The Art Institute serves relevance order for searches and its catalogue order otherwise."
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
-        pageCache?.get(request, cursor.page)?.let { return it }
+        pageCache?.get(request, cursor)?.let { return it }
         val randomMode = request.filter.sort == SortOption.RANDOM
         val page = if (randomMode) RandomLane.page(cursor, RANDOM_PAGE_SPAN, 23L) else cursor.page
         val response = RateLimitedCall.run(limiter, source.displayName) {
@@ -59,7 +59,7 @@ class ArtInstituteProvider(
         val items = response.data.mapNotNull(::toWallpaper)
         val totalPages = response.pagination?.totalPages ?: 1
         val next = if (cursor.page < totalPages && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
-        ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
+        ProviderPage(items, next).also { pageCache?.put(request, cursor, it) }
     }
 
     private fun toWallpaper(dto: ArtworkDto): Wallpaper? {

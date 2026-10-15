@@ -41,6 +41,11 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
         val message: String? = null,
         val hasSearched: Boolean = false,
         val favoriteKeys: Set<String> = emptySet(),
+        val recentQueries: List<String> = emptyList(),
+        /** Longest rate-limit wait among empty-result sources; drives the cooling-down state. */
+        val cooldownSeconds: Long? = null,
+        /** Bumped on every cooldown so the screen's auto-retry restarts even for identical waits. */
+        val cooldownNonce: Int = 0,
     )
 
     private val _state = MutableStateFlow(UiState())
@@ -54,6 +59,11 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
         viewModelScope.launch {
             app.favorites.observeKeys().collect { keys ->
                 _state.update { it.copy(favoriteKeys = keys) }
+            }
+        }
+        viewModelScope.launch {
+            app.settings.recentSearches.collect { queries ->
+                _state.update { it.copy(recentQueries = queries) }
             }
         }
     }
@@ -113,12 +123,12 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
         searchJob?.cancel()
         moreJob?.cancel()
         val query = _state.value.query
-        val sources = _state.value.sources
-        if (query.isBlank() && sources.isEmpty()) {
-            // Nothing to search for yet: return to the idle state instead of fetching a feed.
+        if (query.isBlank()) {
+            // No keywords, no network: keyword-only catalogues would only answer with notices and
+            // rate-limited sources would burn their quota. Idle state shows recents + examples.
             pager = null
             _state.update {
-                it.copy(items = emptyList(), searching = false, loadingMore = false, endReached = false, message = null, hasSearched = false)
+                it.copy(items = emptyList(), searching = false, loadingMore = false, endReached = false, message = null, hasSearched = false, cooldownSeconds = null)
             }
             return
         }
@@ -139,10 +149,19 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
             request = FeedRequest(query = query, filter = selection),
         )
         pager = p
-        _state.update { it.copy(searching = true, message = null, loadingMore = false) }
+        _state.update { it.copy(searching = true, message = null, loadingMore = false, cooldownSeconds = null) }
         val result = p.loadNext()
         val seen = hashSetOf<String>()
         val fresh = result.items.filter { seen.add(it.key) }
+        // Empty result + a rate-limited source is NOT "no matches": surface the honest wait and
+        // let the screen retry itself once the longest limit expires.
+        val cooldown = if (fresh.isEmpty()) {
+            result.statuses.mapNotNull { status ->
+                (status.state as? SourceState.Failed)?.error?.retryAfterSeconds?.takeIf { it > 0 }
+            }.maxOrNull()
+        } else {
+            null
+        }
         _state.update {
             it.copy(
                 items = fresh,
@@ -150,6 +169,8 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
                 hasSearched = true,
                 endReached = result.endReached,
                 message = statusMessage(result.statuses),
+                cooldownSeconds = cooldown,
+                cooldownNonce = if (cooldown != null) it.cooldownNonce + 1 else it.cooldownNonce,
             )
         }
     }
