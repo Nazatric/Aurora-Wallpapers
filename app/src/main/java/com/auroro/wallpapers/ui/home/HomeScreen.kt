@@ -105,6 +105,7 @@ fun HomeScreen(
         ModeChips(selected = state.mode, onSelect = onSelectMode)
         FeedBody(
             state = state,
+            onCondense = onCondense,
             onReload = onReload,
             onLoadMore = onLoadMore,
             onToggleFavorite = onToggleFavorite,
@@ -230,6 +231,7 @@ private fun ModeChips(selected: FeedMode, onSelect: (FeedMode) -> Unit) {
 @Composable
 private fun FeedBody(
     state: HomeViewModel.UiState,
+    onCondense: (Boolean) -> Unit,
     onReload: () -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,

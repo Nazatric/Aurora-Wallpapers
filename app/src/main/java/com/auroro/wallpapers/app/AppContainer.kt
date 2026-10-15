@@ -17,6 +17,7 @@ import com.auroro.wallpapers.core.data.DiscoverySnapshotCache
 import com.auroro.wallpapers.core.data.DiscoveryEngine
 import com.auroro.wallpapers.core.data.MultiSourceDiscoveryEngine
 import com.auroro.wallpapers.core.data.SettingsDiscoveryPoolStore
+import com.auroro.wallpapers.core.data.WallpaperProvider
 import com.auroro.wallpapers.core.data.FavoritesRepository
 import com.auroro.wallpapers.core.data.HistoryRepository
 import com.auroro.wallpapers.core.data.LegacyDataCleanup
