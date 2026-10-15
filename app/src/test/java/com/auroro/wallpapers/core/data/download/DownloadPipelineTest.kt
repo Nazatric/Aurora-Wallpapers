@@ -117,8 +117,10 @@ class DownloadPipelineTest {
 
     @Test fun retiredLegacyProviderCannotStartANewNetworkDownload() = runBlocking {
         val store = WallpaperStore(db.wallpapers())
+        // Openverse was revived in 1.8.0; REDDIT remains non-integrated, so it keeps pinning
+        // the rule that retired/unauthenticated sources can never start a new network download.
         val legacy = com.auroro.wallpapers.wallpaper(
-            source = WallpaperSource.OPENVERSE,
+            source = WallpaperSource.REDDIT,
             id = "retired",
             original = server.url("/legacy-original.jpg").toString(),
         ).copy(downloadAllowed = true, setWallpaperAllowed = true)

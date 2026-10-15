@@ -165,7 +165,8 @@ class ProviderNormalizationTest {
     @Test fun urlsAreRestrictedToCurrentProviderApiAndMediaHosts() {
         assertFalse(UrlPolicy.isAllowedForNetwork("http://wallhaven.cc/api/v1/search"))
         assertFalse(UrlPolicy.isAllowedForNetwork("https://wallhaven.cc.evil.example/image.jpg"))
-        assertFalse(UrlPolicy.isAllowedForNetwork("https://api.openverse.org/v1/images/"))
+        // 1.8.0: api.openverse.org is an official provider host now that Openverse is live again.
+        assertTrue(UrlPolicy.isAllowedForNetwork("https://api.openverse.org/v1/images/"))
         assertFalse(UrlPolicy.isAllowedForNetwork("https://images.example.org/image.jpg"))
         assertTrue(UrlPolicy.isAllowedForNetwork("https://science.nasa.gov/wp-json/wp/v2/apod-basic"))
         assertTrue(UrlPolicy.isAllowedForNetwork(WallpaperSource.NASA_APOD, "https://images-assets.nasa.gov/image.jpg"))

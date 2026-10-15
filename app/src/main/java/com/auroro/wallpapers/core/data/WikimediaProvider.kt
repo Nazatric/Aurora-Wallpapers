@@ -118,8 +118,12 @@ class WikimediaProvider(
 
         internal fun isReuseOk(licenseShortName: String): Boolean {
             val l = licenseShortName.lowercase()
-            return l.startsWith("pd") || l.contains("public domain") || l.startsWith("cc0") ||
-                l.startsWith("cc-by") || l.startsWith("cc by")
+            val publicDomain = l.startsWith("pd") || l.contains("public domain") || l.startsWith("cc0")
+            if (publicDomain) return true
+            val ccBy = l.startsWith("cc-by") || l.startsWith("cc by")
+            // NC (non-commercial) is out by policy; ND (no derivatives) is out because the
+            // crop-to-fit step creates a derivative. SA and plain BY are fine with attribution.
+            return ccBy && !l.contains("nc") && !l.contains("nd")
         }
     }
 }
