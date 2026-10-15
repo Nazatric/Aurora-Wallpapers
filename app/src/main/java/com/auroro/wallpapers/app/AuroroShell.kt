@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.fillMaxWidth
 
 /** One wallpaper action that needs a crop editor pass before applying. */
 private data class CropRequest(val wallpaper: Wallpaper)
