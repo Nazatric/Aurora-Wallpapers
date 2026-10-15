@@ -65,7 +65,7 @@ import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import com.auroro.wallpapers.ui.theme.auroroGlass
-import kotlinx.coroutines.flow.snapshotFlow
+import androidx.compose.runtime.snapshotFlow
 
 private const val HERO_COUNT = 4
 private const val NEAR_END_THRESHOLD = 3

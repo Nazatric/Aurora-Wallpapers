@@ -115,8 +115,8 @@ private fun auroraTypography(
     choice: com.auroro.wallpapers.core.data.FontChoice,
 ): androidx.compose.material3.Typography = when (choice) {
     com.auroro.wallpapers.core.data.FontChoice.OPEN_SANS ->
-        AuroroTypography.copy(
-            defaultFontFamily = FontFamily(
+        auroroTypography(
+            FontFamily(
                 Font(com.auroro.wallpapers.R.font.open_sans),
             ),
         )
