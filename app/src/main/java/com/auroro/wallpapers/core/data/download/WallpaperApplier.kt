@@ -55,6 +55,29 @@ object CropMath {
         return ox.coerceIn(-maxX, maxX) to oy.coerceIn(-maxY, maxY)
     }
 
+    /**
+     * One transform-gesture step: [zoom] happens around the touch [centroidX]/[centroidY], but the
+     * layer scales around the frame centre, so the missing compensation term
+     * `(centroid - centre) * (1 - zoom)` must be folded into the translation — otherwise every
+     * off-centre pinch silently moves the artwork outside the clamp and uncovers the frame
+     * (the black-region bug). Pure so the gesture maths is unit-tested without a device.
+     */
+    fun applyZoomPan(
+        offsetX: Float,
+        offsetY: Float,
+        centroidX: Float,
+        centroidY: Float,
+        centerX: Float,
+        centerY: Float,
+        zoom: Float,
+        panX: Float,
+        panY: Float,
+    ): Pair<Float, Float> {
+        val zx = (centroidX - centerX) * (1f - zoom) + zoom * offsetX + panX
+        val zy = (centroidY - centerY) * (1f - zoom) + zoom * offsetY + panY
+        return zx to zy
+    }
+
     /** Centered crop with the aspect ratio of the screen. */
     fun centerCrop(imageW: Int, imageH: Int, screenW: Int, screenH: Int): NormalizedCrop =
         visibleRect(imageW, imageH, screenW.toFloat(), screenH.toFloat(), 1f, 0f, 0f)

@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -192,6 +193,8 @@ fun WallpaperArt(
     onToggleFavorite: (Wallpaper) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Called once per key when the image request fails permanently, so feeds can skip it. */
+    onImageFailed: ((Wallpaper) -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(corner)
     val heartScale = rememberBounceScale(favorite)
@@ -202,6 +205,7 @@ fun WallpaperArt(
         mutableFloatStateOf(AspectCache.get(wallpaper.key) ?: aspect)
     }
     val liveAspect = measuredAspect
+    var reportedFailures by remember { mutableStateOf(setOf<String>()) }
     val context = LocalContext.current
     // Feeds load the provider's sized THUMB, never the multi-MB original: that is what thumbs
     // exist for, and it is the difference between an instant card and a black rectangle.
@@ -233,14 +237,23 @@ fun WallpaperArt(
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Fit,
             onState = { state ->
-                if (state is AsyncImagePainter.State.Success) {
-                    val w = state.result.image.width
-                    val h = state.result.image.height
-                    if (w > 0 && h > 0) {
-                        val ratio = (w.toFloat() / h.toFloat()).coerceIn(0.35f, 2.8f)
-                        measuredAspect = ratio
-                        AspectCache.put(wallpaper.key, ratio)
+                when (state) {
+                    is AsyncImagePainter.State.Success -> {
+                        val w = state.result.image.width
+                        val h = state.result.image.height
+                        if (w > 0 && h > 0) {
+                            val ratio = (w.toFloat() / h.toFloat()).coerceIn(0.35f, 2.8f)
+                            measuredAspect = ratio
+                            AspectCache.put(wallpaper.key, ratio)
+                        }
                     }
+                    is AsyncImagePainter.State.Error -> {
+                        if (wallpaper.key !in reportedFailures) {
+                            reportedFailures = reportedFailures + wallpaper.key
+                            onImageFailed?.invoke(wallpaper)
+                        }
+                    }
+                    else -> Unit
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -258,14 +271,14 @@ fun WallpaperArt(
         Column(
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 16.dp, end = 60.dp, bottom = 14.dp),
         ) {
-            wallpaper.title?.takeIf { it.isNotBlank() }?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White,
-                    maxLines = 1,
-                )
-            }
+            Text(
+            text = wallpaper.title?.takeIf { it.isNotBlank() }
+                ?: stringResource(R.string.untitled_wallpaper),
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
             val meta = wallpaperMeta(wallpaper)
             Text(
                 text = meta,

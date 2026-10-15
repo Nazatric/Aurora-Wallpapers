@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.components.artAspect
@@ -92,11 +93,14 @@ fun CoverFlowScreen(
 ) {
     BackHandler { onClose() }
     var orientation by rememberSaveable { mutableStateOf(CoverOrientation.ALL) }
-    val visibleItems = remember(items, orientation) {
+    // Permanently broken renditions are skipped, never shown as dead cards.
+    var brokenKeys by remember { mutableStateOf(setOf<String>()) }
+    val visibleItems = remember(items, orientation, brokenKeys) {
+        val usable = items.filterNot { it.key in brokenKeys }
         when (orientation) {
-            CoverOrientation.ALL -> items
-            CoverOrientation.PORTRAIT -> items.filter { it.hasKnownDimensions && it.height > it.width }
-            CoverOrientation.LANDSCAPE -> items.filter { it.hasKnownDimensions && it.width > it.height }
+            CoverOrientation.ALL -> usable
+            CoverOrientation.PORTRAIT -> usable.filter { it.hasKnownDimensions && it.height > it.width }
+            CoverOrientation.LANDSCAPE -> usable.filter { it.hasKnownDimensions && it.width > it.height }
         }
     }
     val pagerState = rememberPagerState(pageCount = { visibleItems.size })
@@ -129,6 +133,8 @@ fun CoverFlowScreen(
                         text = stringResource(R.string.coverflow_subtitle),
                         style = MaterialTheme.typography.labelSmall,
                         color = AuroroPal.textTertiary,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     )
                 }
                 OrientationToggle(
@@ -203,6 +209,7 @@ fun CoverFlowScreen(
                         favorite = wallpaper.key in favoriteKeys,
                         onToggleFavorite = onToggleFavorite,
                         onOpen = onOpen,
+                        onImageFailed = { broken -> brokenKeys = brokenKeys + broken.key },
                         modifier = Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
@@ -232,11 +239,13 @@ fun CoverFlowScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
+                            // A resolution is metadata, never a title.
                             text = wallpaper.title?.takeIf { it.isNotBlank() }
-                                ?: wallpaperDescription(wallpaper),
+                                ?: stringResource(R.string.untitled_wallpaper),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onBackground,
                             maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center,
                         )
                         Spacer(Modifier.size(2.dp))
@@ -329,6 +338,7 @@ private fun CoverFlowCard(
     favorite: Boolean,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
+    onImageFailed: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(26.dp)
@@ -341,13 +351,46 @@ private fun CoverFlowCard(
             .background(AuroroPal.surface, shape)
             .clickable(role = Role.Button, onClick = { onOpen(wallpaper) }),
     ) {
+        var previewLoaded by remember(wallpaper.key) { mutableStateOf(false) }
+        var previewFailed by remember(wallpaper.key) { mutableStateOf(false) }
+        // Thumb first (already cached from the feed), preview rendition fades over it:
+        // swiping through the carousel never shows a black card while bytes download.
+        val thumbUrl = wallpaper.thumbUrl.takeIf(String::isNotBlank) ?: wallpaper.previewUrl
         AsyncImage(
-            // Fullscreen showcase: the carousel earns the original bytes, cards don't.
-            model = wallpaper.previewUrl,
+            model = thumbUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
+        AsyncImage(
+            // Fullscreen showcase: the carousel earns the original bytes, cards don't.
+            model = wallpaper.previewUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            onState = { state ->
+                when (state) {
+                    is AsyncImagePainter.State.Success -> {
+                        previewLoaded = true
+                        previewFailed = false
+                    }
+                    is AsyncImagePainter.State.Error -> previewFailed = true
+                    else -> Unit
+                }
+            },
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = if (previewLoaded) 1f else 0f },
+        )
+        if (!previewLoaded && !previewFailed) {
+            // Spinner bound to THIS card's request; clears on success or failure.
+            CircularProgressIndicator(
+                color = AuroroPal.accent,
+                strokeWidth = 2.dp,
+                modifier = Modifier.align(Alignment.Center).size(26.dp),
+            )
+        }
+        if (previewFailed) {
+            // Unusable rendition: report once so the carousel skips this item.
+            LaunchedEffect(wallpaper.key) { onImageFailed(wallpaper) }
+        }
         IconButton(
             onClick = { onToggleFavorite(wallpaper) },
             modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).graphicsLayer {

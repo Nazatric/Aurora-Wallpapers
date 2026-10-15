@@ -94,6 +94,7 @@ fun HomeScreen(
     onCardsScrollSave: (Pair<Int, Int>) -> Unit = {},
     initialGridScroll: Pair<Int, Int> = 0 to 0,
     onGridScrollSave: (Pair<Int, Int>) -> Unit = {},
+    onImageFailed: (Wallpaper) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     // Feed-level entrance: whenever mode or orientation changes the whole feed fades and
@@ -117,14 +118,8 @@ fun HomeScreen(
             onOrientation = onOrientation,
             onSearch = onSearch,
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ModeChips(selected = state.mode, onSelect = onSelectMode, modifier = Modifier.weight(1f))
-            OrientationSegmented(selected = state.orientation, onSelect = onOrientation)
-            Spacer(Modifier.size(12.dp))
-        }
+        // Category chips own their full-width scroll row: nothing may draw over them.
+        ModeChips(selected = state.mode, onSelect = onSelectMode, modifier = Modifier.fillMaxWidth())
         FeedBody(
             state = state,
             onCondense = onCondense,
@@ -132,6 +127,7 @@ fun HomeScreen(
             onCardsScrollSave = onCardsScrollSave,
             initialGridScroll = initialGridScroll,
             onGridScrollSave = onGridScrollSave,
+            onImageFailed = onImageFailed,
             onReload = onReload,
             onLoadMore = onLoadMore,
             onToggleFavorite = onToggleFavorite,
@@ -194,6 +190,8 @@ private fun HomeHeader(
                 color = AuroroPal.textSecondary,
             )
         }
+        Spacer(Modifier.size(10.dp))
+        OrientationSegmented(selected = orientation, onSelect = onOrientation)
         Spacer(Modifier.size(6.dp))
         IconButton(
             onClick = onSearch,
@@ -297,6 +295,7 @@ private fun FeedBody(
     onCardsScrollSave: (Pair<Int, Int>) -> Unit,
     initialGridScroll: Pair<Int, Int>,
     onGridScrollSave: (Pair<Int, Int>) -> Unit,
+    onImageFailed: (Wallpaper) -> Unit,
     onReload: () -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
@@ -318,8 +317,8 @@ private fun FeedBody(
             modifier = modifier.fillMaxSize(),
         ) {
             when (state.layout) {
-                FeedLayout.CARDS -> CardsFeed(state, onCondense, initialCardsScroll, onCardsScrollSave, onLoadMore, onToggleFavorite, onOpen, Modifier)
-                FeedLayout.GRID -> GridFeed(state, onCondense, initialGridScroll, onGridScrollSave, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.CARDS -> CardsFeed(state, onCondense, initialCardsScroll, onCardsScrollSave, onImageFailed, onLoadMore, onToggleFavorite, onOpen, Modifier)
+                FeedLayout.GRID -> GridFeed(state, onCondense, initialGridScroll, onGridScrollSave, onImageFailed, onLoadMore, onToggleFavorite, onOpen, Modifier)
             }
         }
     }
@@ -331,6 +330,7 @@ private fun CardsFeed(
     onCondense: (Boolean) -> Unit,
     initialScroll: Pair<Int, Int>,
     onScrollSave: (Pair<Int, Int>) -> Unit,
+    onImageFailed: (Wallpaper) -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
@@ -359,8 +359,11 @@ private fun CardsFeed(
     LaunchedEffect(cardsNearEnd) {
         if (cardsNearEnd) onLoadMore()
     }
-    val hero = state.items.take(HERO_COUNT)
-    val rest = state.items.drop(HERO_COUNT)
+    // Only genuinely high-resolution art may take the large featured slot: a 251x304 heraldic
+    // image must never become a screen-sized blank card. Unknown dimensions stay in the grid.
+    val hero = state.items.filter(::heroEligible).take(HERO_COUNT)
+    val heroKeys = hero.mapTo(hashSetOf()) { it.key }
+    val rest = state.items.filterNot { it.key in heroKeys }
     LazyVerticalStaggeredGrid(
         state = gridStateForCards,
         columns = StaggeredGridCells.Fixed(2),
@@ -378,6 +381,7 @@ private fun CardsFeed(
                 favoriteKeys = state.favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
                 onOpen = onOpen,
+                onImageFailed = onImageFailed,
             )
         }
         staggeredItems(rest, key = { it.key }) { wallpaper ->
@@ -388,6 +392,7 @@ private fun CardsFeed(
                 favorite = wallpaper.key in state.favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
                 onClick = { onOpen(wallpaper) },
+                onImageFailed = onImageFailed,
                 modifier = Modifier.fillMaxWidth().animateItem(),
             )
         }
@@ -397,12 +402,19 @@ private fun CardsFeed(
     }
 }
 
+/** Featured-slot quality gate: real dimensions and enough pixels to fill the hero honestly. */
+private fun heroEligible(wallpaper: Wallpaper): Boolean =
+    wallpaper.hasKnownDimensions &&
+        minOf(wallpaper.width, wallpaper.height) >= 700 &&
+        maxOf(wallpaper.width, wallpaper.height) >= 1200
+
 @Composable
 private fun GridFeed(
     state: HomeViewModel.UiState,
     onCondense: (Boolean) -> Unit,
     initialScroll: Pair<Int, Int>,
     onScrollSave: (Pair<Int, Int>) -> Unit,
+    onImageFailed: (Wallpaper) -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
@@ -447,6 +459,7 @@ private fun GridFeed(
                 favorite = wallpaper.key in state.favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
                 onClick = { onOpen(wallpaper) },
+                onImageFailed = onImageFailed,
                 modifier = Modifier.fillMaxWidth().animateItem(),
             )
         }

@@ -57,6 +57,8 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
         val error: String? = null,
         val notice: String? = null,
         val endReached: Boolean = false,
+        /** Keys whose image request failed permanently; filtered out so feeds skip bad art. */
+        val brokenImageKeys: Set<String> = emptySet(),
         val mode: FeedMode = FeedMode.FOR_YOU,
         val orientation: Orientation = Orientation.ANY,
         val layout: FeedLayout = FeedLayout.CARDS,
@@ -81,10 +83,11 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
 
     /** Orientation filter is applied locally over the loaded batch (honest, instant). */
     private fun filtered(list: List<Wallpaper>): List<Wallpaper> {
+        val kept = list.filter { it.key !in _state.value.brokenImageKeys }
         val orientation = _state.value.orientation
-        if (orientation == Orientation.ANY) return list
+        if (orientation == Orientation.ANY) return kept
         val filter = WallpaperFilter(orientation = orientation)
-        return list.filter { LocalFilter.matches(it, filter) }
+        return kept.filter { LocalFilter.matches(it, filter) }
     }
 
     init {
@@ -104,6 +107,12 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
     /** Feed scroll positions survive tab switches so returning tabs land where the user left them. */
     var cardsScroll: Pair<Int, Int> = 0 to 0
     var gridScroll: Pair<Int, Int> = 0 to 0
+
+    /** One bad CDN object must remove itself, not blank a card or stop the feed. */
+    fun reportImageFailure(wallpaper: Wallpaper) {
+        if (wallpaper.key in _state.value.brokenImageKeys) return
+        _state.update { it.copy(brokenImageKeys = it.brokenImageKeys + wallpaper.key) }
+    }
 
     fun reload() {
         if (_state.value.mode != FeedMode.FOR_YOU) {
@@ -355,22 +364,43 @@ class HomeViewModel(private val app: AppContainer) : ViewModel() {
             if (gen != generation.get()) return@launch
             val seen = hashSetOf<String>()
             val fresh = result.items.filter { seen.add(it.key) }
-            rawItems = fresh
-            if (fresh.isNotEmpty()) {
-                app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+            val failed = result.statuses.any { status ->
+                status.state is SourceState.Failed || status.state is SourceState.Skipped
             }
-            _state.update {
-                it.copy(
-                    items = filtered(fresh),
-                    loading = false,
-                    endReached = result.endReached,
-                    error = if (fresh.isEmpty()) {
-                        "The catalogues returned nothing for this mode right now. Try again shortly."
-                    } else {
-                        null
-                    },
-                    notice = if (fresh.isNotEmpty()) statusNotice(result.statuses) else null,
-                )
+            when {
+                fresh.isNotEmpty() -> {
+                    rawItems = fresh
+                    app.settings.recordDiscoverySeen(fresh.map { it.key }, System.currentTimeMillis())
+                    _state.update {
+                        it.copy(
+                            items = filtered(fresh),
+                            loading = false,
+                            endReached = result.endReached,
+                            error = null,
+                            notice = statusNotice(result.statuses),
+                        )
+                    }
+                }
+                // A failed/skipped source with nothing new is NOT an empty catalogue: keep the
+                // mix the user is looking at and explain per-source, never blank the feed.
+                failed && rawItems.isNotEmpty() -> _state.update {
+                    it.copy(
+                        loading = false,
+                        endReached = false,
+                        error = null,
+                        notice = statusNotice(result.statuses)
+                            ?: "Some catalogues could not answer right now — showing your previous mix.",
+                    )
+                }
+                else -> _state.update {
+                    it.copy(
+                        items = emptyList(),
+                        loading = false,
+                        endReached = true,
+                        error = "The catalogues returned nothing for this mode right now. Try again shortly.",
+                        notice = statusNotice(result.statuses),
+                    )
+                }
             }
         }
     }

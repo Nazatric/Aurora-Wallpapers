@@ -31,11 +31,21 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val palette = remember(settings, dark) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val systemHighContrast = remember(context) {
+        runCatching {
+            android.provider.Settings.System.getInt(
+                context.contentResolver,
+                android.provider.Settings.System.HIGH_CONTRAST_TEXT,
+            ) == 1
+        }.getOrDefault(false)
+    }
+    val palette = remember(settings, dark, systemHighContrast) {
         auroroPalette(
             dark = dark,
             amoled = settings?.amoled == true,
-            increaseContrast = settings?.increaseContrast == true,
+            // App switch OR-ed with the system "high contrast text" accessibility setting.
+            increaseContrast = settings?.increaseContrast == true || systemHighContrast,
             accent = settings?.accent ?: com.auroro.wallpapers.core.data.AccentTheme.AQUA,
             design = settings?.designTheme ?: com.auroro.wallpapers.core.data.DesignTheme.LIQUID_GLASS,
         )

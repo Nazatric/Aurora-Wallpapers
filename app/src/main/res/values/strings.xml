@@ -143,6 +143,8 @@
     <string name="set_version">Auroro Wallpapers %1$s</string>
     <string name="set_about_note">Open source under the repository licence; icon and asset credits live in THIRD_PARTY_NOTICES.md and ASSET_LICENSES.md.</string>
     <string name="tab_placeholder">%1$s arrives in the next build slice.</string>
+    <string name="detail_preview_failed">The high-resolution rendition could not load. The artwork below is still usable.</string>
+    <string name="untitled_wallpaper">Untitled wallpaper</string>
     <string name="wallpaper_cd">Wallpaper, %1$s</string>
     <string name="lib_collections">Collections · %1$d</string>
     <string name="lib_coll_empty">No collections yet. Save wallpapers to a collection from the wallpaper detail screen.</string>

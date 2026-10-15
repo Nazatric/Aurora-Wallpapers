@@ -26,7 +26,7 @@ import java.util.Locale
 enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"), DARK("Dark") }
 enum class AccentTheme(val label: String) { AQUA("Aurora violet"), EMERALD("Emerald"), SKY("Sky blue") }
 enum class DesignTheme(val label: String, val description: String) {
-    LIQUID_GLASS("Liquid Glass", "Frosted depth, blur and light — renderer ships in its own run"),
+    LIQUID_GLASS("Liquid Glass", "Frosted depth, live blur and glassy specular highlights"),
     FRUTIGER_AERO("Frutiger Aero", "Luminous navy water-light, aqua glow and glossy depth"),
     MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),
 }

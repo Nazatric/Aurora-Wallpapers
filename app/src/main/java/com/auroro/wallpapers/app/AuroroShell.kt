@@ -175,6 +175,7 @@ fun AuroroShell() {
                     onCardsScrollSave = { homeViewModel.cardsScroll = it },
                     initialGridScroll = homeViewModel.gridScroll,
                     onGridScrollSave = { homeViewModel.gridScroll = it },
+                    onImageFailed = homeViewModel::reportImageFailure,
                 )
 
                 ShellTab.SEARCH -> SearchScreen(
@@ -232,7 +233,9 @@ fun AuroroShell() {
                         Brush.verticalGradient(
                             listOf(
                                 Color.Transparent,
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
+                                // Stronger mid-stop: with the tinted glass the seam under the
+                                // pill bar must fully hide scrolled text, never ghost it.
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.86f),
                                 MaterialTheme.colorScheme.background,
                             ),
                         ),

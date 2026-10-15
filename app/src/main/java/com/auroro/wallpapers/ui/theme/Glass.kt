@@ -43,8 +43,10 @@ val LocalGlassSuspend = staticCompositionLocalOf { false }
 
 /** Tint strength per quality tier; pure so it is unit-tested without a device. */
 fun glassTintAlpha(quality: GlassQuality): Float = when (quality) {
-    GlassQuality.FULL -> 0.12f
-    GlassQuality.BALANCED -> 0.18f
+    // Tints strong enough that text behind a glass surface reads as dimmed, never doubled:
+    // measured against the 720p recording where labels refracted through the pill bar.
+    GlassQuality.FULL -> 0.24f
+    GlassQuality.BALANCED -> 0.34f
     GlassQuality.REDUCED -> 1f
 }
 

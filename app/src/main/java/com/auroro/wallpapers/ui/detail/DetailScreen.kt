@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -46,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -54,6 +57,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.theme.AuroroPal
@@ -90,6 +94,11 @@ fun DetailScreen(
     val shareSuffix = stringResource(R.string.share_suffix)
     var showInfo by remember(wallpaper.key) { mutableStateOf(false) }
     var chromeVisible by remember(wallpaper.key) { mutableStateOf(false) }
+    // Progressive load: cached thumb shows instantly, preview fades over it when ready;
+    // a failure gets a real retry instead of an infinite black rectangle.
+    var previewReady by remember(wallpaper.key) { mutableStateOf(false) }
+    var previewFailed by remember(wallpaper.key) { mutableStateOf(false) }
+    var retryNonce by remember(wallpaper.key) { mutableIntStateOf(0) }
     val heartScale = rememberBounceScale(favorite)
     LaunchedEffect(wallpaper.key) { chromeVisible = true }
     // HDR: ask the window for HDR headroom only when the display actually supports it.
@@ -106,14 +115,62 @@ fun DetailScreen(
     BackHandler { onBack() }
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black).auroroHazeSource()) {
+        val thumbUrl = wallpaper.thumbUrl.takeIf(String::isNotBlank) ?: wallpaper.previewUrl
+        val previewUrl = remember(wallpaper.key, retryNonce) {
+            coil3.request.ImageRequest.Builder(context)
+                .data(wallpaper.previewUrl)
+                .setParameter("retry", retryNonce)
+                .build()
+        }
+        // Layer 1: best cached rendition (the feed's thumb) — never a black flash on open.
         AsyncImage(
-            // Preview rendition first (fast, cached); the original is fetched only for
-            // download/apply/crop, so opening detail never stalls on a 30 MB museum JPEG.
-            model = wallpaper.previewUrl,
+            model = thumbUrl,
             contentDescription = stringResource(R.string.wallpaper_cd, wallpaperDescription(wallpaper)),
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
         )
+        // Layer 2: the full preview rendition cross-fading over the thumb when it decodes.
+        AsyncImage(
+            model = previewUrl,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            onState = { state ->
+                when (state) {
+                    is AsyncImagePainter.State.Success -> {
+                        previewReady = true
+                        previewFailed = false
+                    }
+                    is AsyncImagePainter.State.Error -> {
+                        previewFailed = true
+                    }
+                    else -> Unit
+                }
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = if (previewReady) 1f else 0f },
+        )
+        if (previewFailed) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.detail_preview_failed),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp),
+                )
+                TextButton(onClick = {
+                    previewFailed = false
+                    retryNonce += 1
+                }) {
+                    Text(stringResource(R.string.retry), color = AuroroPal.accent)
+                }
+            }
+        }
         // Immersive metadata: artwork stays dominant; a bottom scrim carries title, author,
         // tags and real resolution — readable over any wallpaper, gone with the chrome.
         AnimatedVisibility(
@@ -134,17 +191,20 @@ fun DetailScreen(
                     .padding(start = 22.dp, end = 96.dp, top = 60.dp, bottom = 16.dp),
             ) {
                 Text(
-                    text = wallpaper.title.orEmpty(),
+                    text = wallpaper.title?.takeIf(String::isNotBlank)
+                        ?: stringResource(R.string.untitled_wallpaper),
                     style = MaterialTheme.typography.titleLarge,
                     color = androidx.compose.ui.graphics.Color.White,
                     maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 wallpaper.attribution?.takeIf(String::isNotBlank)?.let { author ->
                     Text(
                         text = author,
                         style = MaterialTheme.typography.labelLarge,
                         color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f),
-                        maxLines = 1,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 if (wallpaper.tags.isNotEmpty()) {

@@ -1,6 +1,7 @@
 package com.auroro.wallpapers.ui.crop
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -103,6 +104,19 @@ fun CropScreen(
     val effW = if (swapped) imageH else imageW
     val effH = if (swapped) imageW else imageH
 
+    // Rotation, image load and frame changes all move the clamp bounds; re-clamp immediately so
+    // no state change (not just gestures) can leave the frame uncovered.
+    LaunchedEffect(effW, effH, userScale, rotation) {
+        val fw = frameWPx
+        val fh = frameHPx
+        if (effW > 0 && effH > 0 && fw > 0f && fh > 0f) {
+            val base = max(fw / effW, fh / effH)
+            val clamped = CropMath.clampOffset(effW, effH, fw, fh, base * userScale, offsetX, offsetY)
+            offsetX = clamped.first
+            offsetY = clamped.second
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize().background(AuroroPal.background).auroroHazeSource()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -162,8 +176,24 @@ fun CropScreen(
                             .clip(shape)
                             .background(Color.Black)
                             .pointerInput(effW, effH, frameW, frameH) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    userScale = (userScale * zoom).coerceIn(1f, MAX_USER_ZOOM)
+                                detectTransformGestures { centroid, pan, zoom, _ ->
+                                    val nextScale = (userScale * zoom).coerceIn(1f, MAX_USER_ZOOM)
+                                    // The realised zoom is the coerced one; feed exactly that
+                                    // ratio into the centroid compensation so min/max zoom
+                                    // never leaks an uncompensated jump.
+                                    val applied = if (userScale > 0f) nextScale / userScale else 1f
+                                    val (rawX, rawY) = CropMath.applyZoomPan(
+                                        offsetX = offsetX,
+                                        offsetY = offsetY,
+                                        centroidX = centroid.x,
+                                        centroidY = centroid.y,
+                                        centerX = frameW / 2f,
+                                        centerY = frameH / 2f,
+                                        zoom = applied,
+                                        panX = pan.x,
+                                        panY = pan.y,
+                                    )
+                                    userScale = nextScale
                                     if (effW > 0 && effH > 0) {
                                         val base = max(frameW / effW, frameH / effH)
                                         val clamped = CropMath.clampOffset(
@@ -172,11 +202,14 @@ fun CropScreen(
                                             frameW,
                                             frameH,
                                             base * userScale,
-                                            offsetX + pan.x,
-                                            offsetY + pan.y,
+                                            rawX,
+                                            rawY,
                                         )
                                         offsetX = clamped.first
                                         offsetY = clamped.second
+                                    } else {
+                                        offsetX = rawX
+                                        offsetY = rawY
                                     }
                                 }
                             },
