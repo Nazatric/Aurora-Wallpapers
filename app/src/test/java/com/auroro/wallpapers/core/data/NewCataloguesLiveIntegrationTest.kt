@@ -61,8 +61,10 @@ class NewCataloguesLiveIntegrationTest {
     }
 
     @Test fun artInstituteLiveReturnsIiifWallpapers() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT90S")) {
-        val page = ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
-            .fetchPage(FeedRequest(), PageCursor())
+        val page = articTolerant {
+            ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
+                .fetchPage(FeedRequest(), PageCursor())
+        }
         assertTrue("artic returned nothing", page.items.isNotEmpty())
         page.items.forEach {
             assertTrue(it.previewUrl.contains("/iiif/2/"))
@@ -105,11 +107,32 @@ class NewCataloguesLiveIntegrationTest {
 
     @Test fun randomLaneLiveReturnsScatteredMuseumsMix() = runTest(timeout = kotlin.time.Duration.parseIsoString("PT90S")) {
         val request = FeedRequest(filter = WallpaperFilter(sort = SortOption.RANDOM))
-        val artic = ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
-            .fetchPage(request, PageCursor(seed = "slice10"))
+        val artic = articTolerant {
+            ArtInstituteProvider(retrofit(ArtInstituteApi.BASE_URL).create(ArtInstituteApi::class.java))
+                .fetchPage(request, PageCursor(seed = "slice10"))
+        }
         val cleveland = ClevelandProvider(retrofit(ClevelandApi.BASE_URL).create(ClevelandApi::class.java))
             .fetchPage(request, PageCursor(seed = "slice10"))
         assertTrue("artic random lane empty", artic.items.isNotEmpty())
         assertTrue("cleveland random lane empty", cleveland.items.isNotEmpty())
+    }
+
+    /**
+     * The Art Institute front-end protection intermittently denies datacenter runners (HTTP 403)
+     * even for perfectly valid requests. One polite retry, then an honest SKIP — a blocked
+     * network path must never masquerade as a broken adapter.
+     */
+    private suspend fun <T> articTolerant(block: suspend () -> T): T = try {
+        block()
+    } catch (first: com.auroro.wallpapers.core.network.ProviderException) {
+        if (first.message?.contains("403") != true) throw first
+        kotlinx.coroutines.delay(1_500)
+        try {
+            block()
+        } catch (second: com.auroro.wallpapers.core.network.ProviderException) {
+            if (second.message?.contains("403") != true) throw second
+            Assume.assumeNoException("AIC WAF denies this runner's network path", second)
+            throw second
+        }
     }
 }
