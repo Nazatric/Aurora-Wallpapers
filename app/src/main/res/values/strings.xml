@@ -144,4 +144,21 @@
     <string name="set_about_note">Open source under the repository licence; icon and asset credits live in THIRD_PARTY_NOTICES.md and ASSET_LICENSES.md.</string>
     <string name="tab_placeholder">%1$s arrives in the next build slice.</string>
     <string name="wallpaper_cd">Wallpaper, %1$s</string>
+    <string name="lib_collections">Collections · %1$d</string>
+    <string name="lib_coll_empty">No collections yet. Save wallpapers to a collection from the wallpaper detail screen.</string>
+    <string name="collection_count">%1$d wallpapers</string>
+    <string name="collection_rename">Rename</string>
+    <string name="collection_delete">Delete collection</string>
+    <string name="collection_empty">This collection is empty. Add wallpapers from their detail screens.</string>
+    <string name="sheet_add_title">Add to collection</string>
+    <string name="sheet_create">Create</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="detail_collect">Collect</string>
+    <string name="filter_title">Filters</string>
+    <string name="filter_reset">Reset</string>
+    <string name="filter_orientation">Orientation</string>
+    <string name="filter_resolution">Minimum resolution</string>
+    <string name="filter_sort">Sort</string>
+    <string name="settings_reduce_motion">Reduced motion</string>
+    <string name="settings_reduce_motion_sub">Skip slides and infinite drift inside the app</string>
 </resources>

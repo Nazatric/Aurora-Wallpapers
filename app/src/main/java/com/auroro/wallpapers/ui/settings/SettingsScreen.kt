@@ -188,6 +188,12 @@ fun SettingsScreen(
                 subtitle = androidx.compose.ui.res.stringResource(R.string.set_contrast_sub),
                 checked = settings.increaseContrast,
                 onCheckedChange = { v -> onUpdate { it.copy(increaseContrast = v) } },
+            )
+            SwitchRow(
+                title = androidx.compose.ui.res.stringResource(R.string.settings_reduce_motion),
+                subtitle = androidx.compose.ui.res.stringResource(R.string.settings_reduce_motion_sub),
+                checked = settings.reduceMotion,
+                onCheckedChange = { v -> onUpdate { it.copy(reduceMotion = v) } },
                 last = true,
             )
         }

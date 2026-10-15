@@ -42,6 +42,7 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
         val hasSearched: Boolean = false,
         val favoriteKeys: Set<String> = emptySet(),
         val recentQueries: List<String> = emptyList(),
+        val filter: WallpaperFilter = WallpaperFilter.Default,
         /** Longest rate-limit wait among empty-result sources; drives the cooling-down state. */
         val cooldownSeconds: Long? = null,
         /** Bumped on every cooldown so the screen's auto-retry restarts even for identical waits. */
@@ -87,6 +88,26 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
     /** "All sources" chip: clears the selection back to every integrated catalogue. */
     fun clearSources() {
         setSources(emptySet())
+    }
+
+    fun setOrientation(orientation: com.auroro.wallpapers.core.model.Orientation) {
+        _state.update { it.copy(filter = it.filter.copy(orientation = orientation)) }
+        schedule()
+    }
+
+    fun setResolution(resolution: com.auroro.wallpapers.core.model.ResolutionFilter) {
+        _state.update { it.copy(filter = it.filter.copy(resolution = resolution)) }
+        schedule()
+    }
+
+    fun setSort(sort: com.auroro.wallpapers.core.model.SortOption) {
+        _state.update { it.copy(filter = it.filter.copy(sort = sort)) }
+        schedule()
+    }
+
+    fun resetFilter() {
+        _state.update { it.copy(filter = WallpaperFilter.Default) }
+        schedule()
     }
 
     fun retry() {
@@ -140,7 +161,7 @@ class SearchViewModel(private val app: AppContainer) : ViewModel() {
 
     private suspend fun runSearch() {
         val query = _state.value.query.trim()
-        val selection = SearchSourceSelection.select(WallpaperFilter.Default, _state.value.sources, query)
+        val selection = SearchSourceSelection.select(_state.value.filter, _state.value.sources, query)
         if (query.isNotBlank()) {
             app.settings.rememberSearchQuery(query)
         }

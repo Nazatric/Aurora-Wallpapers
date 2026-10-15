@@ -41,6 +41,7 @@ fun AuroraBackdrop(modifier: Modifier = Modifier, active: Boolean = true) {
     }
     val drift by driftState
     val accent = AuroroPal.accent
+    val glow = AuroroPal.glow
     Box(
         modifier = modifier.fillMaxSize().drawBehind {
             val w = size.width
@@ -66,7 +67,7 @@ fun AuroraBackdrop(modifier: Modifier = Modifier, active: Boolean = true) {
             val c3 = Offset(w * (0.5f + 0.3f * (1f - drift)), h * (0.86f - 0.10f * drift))
             drawRect(
                 Brush.radialGradient(
-                    colors = listOf(AuroroPal.glow.copy(alpha = 0.08f), Color.Transparent),
+                    colors = listOf(glow.copy(alpha = 0.08f), Color.Transparent),
                     center = c3,
                     radius = w * 0.70f,
                 ),

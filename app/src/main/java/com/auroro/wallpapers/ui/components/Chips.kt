@@ -2,6 +2,7 @@ package com.auroro.wallpapers.ui.components
 
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.auroroGloss
 import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState

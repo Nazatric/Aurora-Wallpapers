@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.R
 import com.auroro.wallpapers.core.model.Wallpaper
+import com.auroro.wallpapers.core.model.WallpaperFilter
 import com.auroro.wallpapers.core.model.WallpaperSource
 import com.auroro.wallpapers.ui.components.AuroraChip
 import com.auroro.wallpapers.ui.components.WallpaperArt
@@ -68,10 +70,15 @@ fun SearchScreen(
     onRetry: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
     onOpen: (Wallpaper) -> Unit,
+    onOrientation: (com.auroro.wallpapers.core.model.Orientation) -> Unit,
+    onResolution: (com.auroro.wallpapers.core.model.ResolutionFilter) -> Unit,
+    onSort: (com.auroro.wallpapers.core.model.SortOption) -> Unit,
+    onResetFilter: () -> Unit,
     initialGridScroll: Pair<Int, Int> = 0 to 0,
     onGridScrollSave: (Pair<Int, Int>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var showFilters by remember { mutableStateOf(false) }
     val gridState = rememberLazyStaggeredGridState(
         initialFirstVisibleItemIndex = initialGridScroll.first,
         initialFirstVisibleItemScrollOffset = initialGridScroll.second,
@@ -90,11 +97,35 @@ fun SearchScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        SearchField(
-            query = state.query,
-            onQueryChange = onQueryChange,
+        Row(
             modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SearchField(
+                query = state.query,
+                onQueryChange = onQueryChange,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.size(8.dp))
+            IconButton(
+                onClick = { showFilters = true },
+                modifier = Modifier
+                    .size(44.dp)
+                    .auroroGlass(
+                        shape = RoundedCornerShape(50),
+                        quality = LocalGlassQuality.current,
+                        fallback = AuroroPal.surfaceBright,
+                        tint = AuroroPal.surfaceBright.copy(alpha = 0.42f),
+                    ),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_tune),
+                    contentDescription = stringResource(R.string.filter_title),
+                    tint = if (state.filter != WallpaperFilter.Default) AuroroPal.accent else MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -209,6 +240,83 @@ fun SearchScreen(
                     }
                 }
             }
+        }
+    }
+    if (showFilters) {
+        FilterSheet(
+            filter = state.filter,
+            onOrientation = onOrientation,
+            onResolution = onResolution,
+            onSort = onSort,
+            onReset = onResetFilter,
+            onDismiss = { showFilters = false },
+        )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterSheet(
+    filter: WallpaperFilter,
+    onOrientation: (com.auroro.wallpapers.core.model.Orientation) -> Unit,
+    onResolution: (com.auroro.wallpapers.core.model.ResolutionFilter) -> Unit,
+    onSort: (com.auroro.wallpapers.core.model.SortOption) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = AuroroPal.surface,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp).fillMaxWidth()) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.filter_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = AuroroPal.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                AuroraChip(label = stringResource(R.string.filter_reset), active = false, onClick = onReset)
+            }
+            Spacer(Modifier.size(14.dp))
+            Text(stringResource(R.string.filter_orientation), style = MaterialTheme.typography.labelLarge, color = AuroroPal.textSecondary)
+            Spacer(Modifier.size(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                com.auroro.wallpapers.core.model.Orientation.entries.forEach { orientation ->
+                    AuroraChip(label = orientation.label, active = filter.orientation == orientation, onClick = { onOrientation(orientation) })
+                }
+            }
+            Spacer(Modifier.size(14.dp))
+            Text(stringResource(R.string.filter_resolution), style = MaterialTheme.typography.labelLarge, color = AuroroPal.textSecondary)
+            Spacer(Modifier.size(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                AuroraChip(
+                    label = "Any",
+                    active = filter.resolution == com.auroro.wallpapers.core.model.ResolutionFilter.Any,
+                    onClick = { onResolution(com.auroro.wallpapers.core.model.ResolutionFilter.Any) },
+                )
+                com.auroro.wallpapers.core.model.ResolutionPreset.entries.forEach { preset ->
+                    AuroraChip(
+                        label = preset.label,
+                        active = filter.resolution == com.auroro.wallpapers.core.model.ResolutionFilter.Preset(preset),
+                        onClick = { onResolution(com.auroro.wallpapers.core.model.ResolutionFilter.Preset(preset)) },
+                    )
+                }
+            }
+            Spacer(Modifier.size(14.dp))
+            Text(stringResource(R.string.filter_sort), style = MaterialTheme.typography.labelLarge, color = AuroroPal.textSecondary)
+            Spacer(Modifier.size(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                listOf(
+                    com.auroro.wallpapers.core.model.SortOption.RELEVANCE,
+                    com.auroro.wallpapers.core.model.SortOption.NEWEST,
+                    com.auroro.wallpapers.core.model.SortOption.POPULAR,
+                    com.auroro.wallpapers.core.model.SortOption.RANDOM,
+                ).forEach { sort ->
+                    AuroraChip(label = sort.label, active = filter.sort == sort, onClick = { onSort(sort) })
+                }
+            }
+            Spacer(Modifier.size(28.dp))
         }
     }
 }

@@ -78,6 +78,8 @@ data class AppSettings(
     val increaseContrast: Boolean = false,
     val amoled: Boolean = false,
     val reduceTransparency: Boolean = false,
+    /** App-level reduced motion, independent of (and OR-ed with) the system animation scales. */
+    val reduceMotion: Boolean = false,
     val rotateDiscoveryHourly: Boolean = true,
     val avoidRecentlySeen: Boolean = true,
     val repeatAfterHours: Int = 24,
@@ -350,6 +352,7 @@ class SettingsRepository(
             prefs[INCREASE_CONTRAST] = next.increaseContrast
             prefs[AMOLED] = next.amoled
             prefs[REDUCE_TRANSPARENCY] = next.reduceTransparency
+            prefs[REDUCE_MOTION] = next.reduceMotion
             prefs[ROTATE_DISCOVERY_HOURLY] = next.rotateDiscoveryHourly
             prefs[AVOID_RECENT_DISCOVERY] = next.avoidRecentlySeen
             prefs[DISCOVERY_REPEAT_HOURS] = next.repeatAfterHours.coerceIn(1, 720)
@@ -417,6 +420,7 @@ class SettingsRepository(
             increaseContrast = this[INCREASE_CONTRAST] ?: defaults.increaseContrast,
             amoled = this[AMOLED] ?: defaults.amoled,
             reduceTransparency = this[REDUCE_TRANSPARENCY] ?: defaults.reduceTransparency,
+            reduceMotion = this[REDUCE_MOTION] ?: defaults.reduceMotion,
             rotateDiscoveryHourly = this[ROTATE_DISCOVERY_HOURLY] ?: defaults.rotateDiscoveryHourly,
             avoidRecentlySeen = this[AVOID_RECENT_DISCOVERY] ?: defaults.avoidRecentlySeen,
             repeatAfterHours = (this[DISCOVERY_REPEAT_HOURS] ?: defaults.repeatAfterHours).coerceIn(1, 720),
@@ -505,6 +509,7 @@ class SettingsRepository(
         private val DISCOVERY_REFRESH_ORDINAL = intPreferencesKey("discovery_refresh_ordinal")
         private val AMOLED = booleanPreferencesKey("amoled")
         private val REDUCE_TRANSPARENCY = booleanPreferencesKey("reduce_transparency")
+        private val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
         private val ASPECT_TOL = floatPreferencesKey("aspect_tolerance")
         private val CACHE_MB = intPreferencesKey("cache_limit_mb")
         private val LOCATION = stringPreferencesKey("save_location")

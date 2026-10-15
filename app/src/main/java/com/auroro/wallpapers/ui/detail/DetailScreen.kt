@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +59,7 @@ import com.auroro.wallpapers.core.model.Wallpaper
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.auroroGloss
 import com.auroro.wallpapers.ui.theme.auroroHazeSource
 import com.auroro.wallpapers.ui.components.resolutionLabel
 import com.auroro.wallpapers.ui.components.wallpaperDescription
@@ -81,6 +83,7 @@ fun DetailScreen(
     onToggleFavorite: () -> Unit,
     onDownload: () -> Unit,
     onApply: () -> Unit,
+    onCollect: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -131,7 +134,7 @@ fun DetailScreen(
                     .padding(start = 22.dp, end = 96.dp, top = 60.dp, bottom = 16.dp),
             ) {
                 Text(
-                    text = wallpaper.title,
+                    text = wallpaper.title.orEmpty(),
                     style = MaterialTheme.typography.titleLarge,
                     color = androidx.compose.ui.graphics.Color.White,
                     maxLines = 2,
@@ -240,6 +243,12 @@ fun DetailScreen(
                                 )
                             }
                         },
+                    )
+                    DetailAction(
+                        icon = R.drawable.ic_bookmark,
+                        label = stringResource(R.string.detail_collect),
+                        emphasized = false,
+                        onClick = onCollect,
                     )
                     DetailAction(
                         icon = R.drawable.ic_download,

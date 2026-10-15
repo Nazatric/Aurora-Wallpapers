@@ -64,6 +64,9 @@ fun LibraryScreen(
     onCancel: (String) -> Unit,
     onRetry: (String) -> Unit,
     onDelete: (String) -> Unit,
+    onOpenCollection: (Long?) -> Unit,
+    onRenameCollection: (String) -> Unit,
+    onDeleteCollection: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var segment by remember { mutableStateOf(LibrarySegment.FAVORITES) }
@@ -93,6 +96,11 @@ fun LibraryScreen(
                 active = segment == LibrarySegment.HISTORY,
                 onClick = { segment = LibrarySegment.HISTORY },
             )
+            AuroraChip(
+                label = stringResource(R.string.lib_collections, state.collections.size),
+                active = segment == LibrarySegment.COLLECTIONS,
+                onClick = { segment = LibrarySegment.COLLECTIONS },
+            )
             Spacer(Modifier.size(16.dp, 1.dp))
         }
         when (segment) {
@@ -110,6 +118,15 @@ fun LibraryScreen(
                 onOpen = onOpen,
                 emptyTitle = stringResource(R.string.lib_hist_empty_title),
                 emptyBody = stringResource(R.string.lib_hist_empty_body),
+            )
+
+            LibrarySegment.COLLECTIONS -> CollectionsPane(
+                state = state,
+                onOpenCollection = onOpenCollection,
+                onRename = onRenameCollection,
+                onDelete = onDeleteCollection,
+                onToggleFavorite = onToggleFavorite,
+                onOpen = onOpen,
             )
 
             LibrarySegment.DOWNLOADS -> DownloadsList(
@@ -133,7 +150,7 @@ fun LibraryScreen(
 
 private enum class DlFilter { ALL, COMPLETED, FAILED }
 
-private enum class LibrarySegment { FAVORITES, DOWNLOADS, HISTORY }
+private enum class LibrarySegment { FAVORITES, DOWNLOADS, HISTORY, COLLECTIONS }
 
 @Composable
 private fun FavoritesGrid(
@@ -405,5 +422,57 @@ private fun LibraryEmptyState(title: String, body: String) {
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 44.dp),
         )
+    }
+}
+
+@Composable
+private fun CollectionsPane(
+    state: LibraryViewModel.UiState,
+    onOpenCollection: (Long?) -> Unit,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
+    onToggleFavorite: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
+    onOpen: (com.auroro.wallpapers.core.model.Wallpaper) -> Unit,
+) {
+    if (state.openCollectionId != null) {
+        CollectionDetailPane(
+            name = state.openCollectionName,
+            items = state.openCollectionItems,
+            favoriteKeys = state.favoriteKeys,
+            onToggleFavorite = onToggleFavorite,
+            onOpen = onOpen,
+            onRename = { onRename(state.openCollectionName) },
+            onDelete = onDelete,
+            modifier = Modifier.fillMaxSize(),
+        )
+        return
+    }
+    if (state.collections.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = stringResource(R.string.lib_coll_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = AuroroPal.textSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 40.dp),
+            )
+        }
+        return
+    }
+    LazyVerticalStaggeredGrid(
+        columns = StaggeredGridCells.Fixed(2),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 12.dp, end = 12.dp, bottom = 118.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalItemSpacing = 10.dp,
+    ) {
+        staggeredItems(state.collections, key = { it.id }) { cover ->
+            CollectionCard(
+                name = cover.name,
+                count = cover.count,
+                covers = cover.covers,
+                onClick = { onOpenCollection(cover.id) },
+            )
+        }
     }
 }
