@@ -67,3 +67,23 @@ fun rememberBounceScale(trigger: Boolean): Float {
     }
     return scale.value
 }
+
+/**
+ * Honours the system "remove animations" scales: when Android is told to kill transition/window
+ * animation scales, the shell drops slides and long fades instead of animating against the user's
+ * accessibility preference.
+ */
+@Composable
+fun rememberReducedMotion(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return androidx.compose.runtime.remember(context) {
+        val resolver = context.contentResolver
+        val transition = android.provider.Settings.Global.getFloat(
+            resolver, android.provider.Settings.Global.TRANSITION_ANIMATION_SCALE, 1f,
+        )
+        val window = android.provider.Settings.Global.getFloat(
+            resolver, android.provider.Settings.Global.WINDOW_ANIMATION_SCALE, 1f,
+        )
+        transition == 0f || window == 0f
+    }
+}
