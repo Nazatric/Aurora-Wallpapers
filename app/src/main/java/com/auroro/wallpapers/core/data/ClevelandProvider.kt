@@ -62,21 +62,22 @@ class ClevelandProvider(
 
     private fun toWallpaper(dto: ClevelandArtwork): Wallpaper? {
         val id = dto.id ?: return null
-        val image = dto.images.firstOrNull() ?: return null
-        val original = image.url?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        // print = largest JPEG; full is a multi-MB TIFF we never touch.
+        val print = dto.images?.print ?: dto.images?.web ?: return null
+        val original = print.url?.trim()?.takeIf(String::isNotEmpty) ?: return null
         if (!UrlPolicy.isAllowedForNetwork(WallpaperSource.CLEVELAND_ART, original)) return null
-        if (!dto.shareLicense.equals("cc0", ignoreCase = true)) return null
+        if (!dto.shareLicenseStatus.equals("cc0", ignoreCase = true)) return null
         val creator = dto.creators.firstOrNull()?.description?.trim()?.takeIf(String::isNotBlank)
         return Wallpaper(
             source = WallpaperSource.CLEVELAND_ART,
             sourceId = id.toString(),
             pageUrl = dto.url?.takeIf { it.startsWith("https://") }
                 ?: "https://www.clevelandart.org/art/$id",
-            thumbUrl = original,
+            thumbUrl = dto.images?.web?.url?.takeIf(String::isNotBlank) ?: original,
             previewUrl = original,
             originalUrl = original,
-            width = image.width?.coerceAtLeast(0) ?: 0,
-            height = image.height?.coerceAtLeast(0) ?: 0,
+            width = print.width?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+            height = print.height?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
             mimeType = "image/jpeg",
             creatorName = creator,
             category = "Open Access",

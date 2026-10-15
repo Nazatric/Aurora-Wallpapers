@@ -2,6 +2,7 @@ package com.auroro.wallpapers.core.network.artic
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import retrofit2.http.Headers
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -12,12 +13,13 @@ import retrofit2.http.Query
  * `/full/full/` for the original) — unknown pixel sizes are handled by measured-aspect cards.
  */
 interface ArtInstituteApi {
+    @Headers("Accept: application/json")
     @GET("api/v1/artworks/search")
     suspend fun searchPublicDomain(
         @Query("q") query: String?,
         @Query("limit") limit: Int,
         @Query("page") page: Int,
-        @Query(value = "query[term][is_public_domain]", encoded = true) publicDomain: Boolean = true,
+        @Query("query[term][is_public_domain]") publicDomain: Boolean = true,
         @Query("fields") fields: String = "id,title,artist_display,date_display,image_id,classification_title,department_title",
     ): ArtSearchResponse
 

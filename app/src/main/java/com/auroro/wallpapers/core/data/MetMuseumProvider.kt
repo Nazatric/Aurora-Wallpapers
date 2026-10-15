@@ -51,16 +51,8 @@ class MetMuseumProvider(
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
         pageCache?.get(request, cursor.page)?.let { return it }
         val query = request.normalizedQuery.takeIf { it.isNotEmpty() }.orEmpty()
-        val ids = idCache.get(query) ?: RateLimitedCall.run(limiter, source.displayName) {
-            api.search(query = query.takeIf { it.isNotEmpty() })
-        }.objectIDs.orEmpty().also { if (it.isNotEmpty()) idCache.put(query, it) }
-        val randomMode = request.filter.sort == SortOption.RANDOM
-        val start = if (randomMode) {
-            RandomLane.offset(cursor, RANDOM_OFFSET_SPAN, 51L, PAGE_SIZE * 4)
-        } else {
-            (cursor.page - 1) * PAGE_SIZE
-        }
-        val pageIds = ids.drop(start).take(PAGE_SIZE)
+        val ids = loadIds(query, needed = start(request, cursor) + PAGE_SIZE)
+        val pageIds = ids.drop(start(request, cursor)).take(PAGE_SIZE)
         val items = coroutineScope {
             pageIds.map { id ->
                 async {
@@ -69,8 +61,39 @@ class MetMuseumProvider(
                 }
             }.map { it.await() }
         }.filterNotNull()
-        val next = if (ids.size > start + PAGE_SIZE && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
+        val next = if (ids.size > start(request, cursor) + PAGE_SIZE && items.isNotEmpty()) {
+            PageCursor(cursor.page + 1, cursor.seed)
+        } else {
+            null
+        }
         ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
+    }
+
+    private fun start(request: FeedRequest, cursor: PageCursor): Int =
+        if (request.filter.sort == SortOption.RANDOM) {
+            RandomLane.offset(cursor, RANDOM_OFFSET_SPAN, 51L, PAGE_SIZE)
+        } else {
+            (cursor.page - 1) * PAGE_SIZE
+        }
+
+    /** Grows the cached ID window in 500-ID v1.1 chunks until [needed] is covered or the API ceiling hits. */
+    private suspend fun loadIds(query: String, needed: Int): List<Int> {
+        val cached = idCache.get(query)?.toMutableList() ?: mutableListOf()
+        var offset = cached.size
+        while (cached.size < needed && offset < MetApi.ID_CEILING) {
+            val chunk = RateLimitedCall.run(limiter, source.displayName) {
+                api.search(
+                    query = query.takeIf { it.isNotEmpty() },
+                    offset = offset,
+                    limit = minOf(MetApi.SEARCH_CHUNK, MetApi.ID_CEILING - offset),
+                )
+            }.objectIDs.orEmpty()
+            if (chunk.isEmpty()) break
+            cached += chunk
+            offset += chunk.size
+        }
+        if (cached.isNotEmpty()) idCache.put(query, cached)
+        return cached
     }
 
     private fun toWallpaper(dto: MetObjectDto): Wallpaper? {
@@ -108,6 +131,6 @@ class MetMuseumProvider(
 
     companion object {
         const val PAGE_SIZE = 16
-        private const val RANDOM_OFFSET_SPAN = 60
+        private const val RANDOM_OFFSET_SPAN = 20
     }
 }

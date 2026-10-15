@@ -12,17 +12,25 @@ import retrofit2.http.Query
  * image — the Museum's Open Access guarantee.
  */
 interface MetApi {
-    @GET("public/collection/v1/search")
+    /**
+     * v1.1 paginated search: the old unbounded v1 search now answers HTTP 410. Offset+limit
+     * pages of up to 500 IDs, hard ceiling of 10,000 results per query.
+     */
+    @GET("v1.1/search")
     suspend fun search(
         @Query("q") query: String?,
         @Query("hasImages") hasImages: Boolean = true,
+        @Query("offset") offset: Int = 0,
+        @Query("limit") limit: Int = 500,
     ): MetSearchResponse
 
-    @GET("public/collection/v1/objects/{id}")
+    @GET("v1/objects/{id}")
     suspend fun obj(@Path("id") objectId: Int): MetObjectDto
 
     companion object {
-        const val BASE_URL = "https://collectionapi.metmuseum.org/"
+        const val BASE_URL = "https://collectionapi.metmuseum.org/public/collection/"
+        const val ID_CEILING = 10_000
+        const val SEARCH_CHUNK = 500
     }
 }
 

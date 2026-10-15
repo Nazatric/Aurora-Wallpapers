@@ -12,7 +12,8 @@ import com.auroro.wallpapers.core.network.artic.ArtworkDto
 import com.auroro.wallpapers.core.network.cleveland.ClevelandApi
 import com.auroro.wallpapers.core.network.cleveland.ClevelandArtwork
 import com.auroro.wallpapers.core.network.cleveland.ClevelandCreator
-import com.auroro.wallpapers.core.network.cleveland.ClevelandImage
+import com.auroro.wallpapers.core.network.cleveland.ClevelandImages
+import com.auroro.wallpapers.core.network.cleveland.ClevelandRendition
 import com.auroro.wallpapers.core.network.cleveland.ClevelandInfo
 import com.auroro.wallpapers.core.network.cleveland.ClevelandResponse
 import com.auroro.wallpapers.core.network.met.MetApi
@@ -179,17 +180,21 @@ class NewCataloguesTest {
                 id = 101,
                 title = "Water Serpents",
                 url = "https://www.clevelandart.org/art/101",
-                shareLicense = "cc0",
+                shareLicenseStatus = "CC0",
                 creators = listOf(ClevelandCreator("Gustav Klimt (Austrian, 1862-1918)")),
-                images = listOf(ClevelandImage(url = "https://openaccess-api.clevelandart.org/api/artworks/img/101.jpg", width = 5000, height = 3900)),
+                images = ClevelandImages(
+                    web = ClevelandRendition(url = "https://openaccess-cdn.clevelandart.org/101/101_web.jpg", width = "748", height = "583"),
+                    print = ClevelandRendition(url = "https://openaccess-cdn.clevelandart.org/101/101_print.jpg", width = "5000", height = "3900"),
+                ),
             ),
-            ClevelandArtwork(id = 102, title = "No image", shareLicense = "cc0"),
+            ClevelandArtwork(id = 102, title = "No image", shareLicenseStatus = "CC0"),
         )
         val page = ClevelandProvider(api).fetchPage(FeedRequest(), PageCursor())
         val item = page.items.single()
         assertEquals("101", item.sourceId)
         assertEquals(5000, item.width)
         assertEquals(3900, item.height)
+        assertTrue(item.thumbUrl.contains("_web.jpg"))
         assertEquals("CC0", item.licenseCode)
         assertTrue(item.attribution!!.contains("Gustav Klimt"))
     }
@@ -273,7 +278,8 @@ class NewCataloguesTest {
     }
 
     private class FakeMetApi(private val ids: List<Int>, private val objects: Map<Int, MetObjectDto>) : MetApi {
-        override suspend fun search(query: String?, hasImages: Boolean) = MetSearchResponse(total = ids.size, objectIDs = ids)
+        override suspend fun search(query: String?, hasImages: Boolean, offset: Int, limit: Int) =
+            MetSearchResponse(total = ids.size, objectIDs = ids.drop(offset).take(limit))
         override suspend fun obj(objectId: Int): MetObjectDto = objects.getValue(objectId)
     }
 

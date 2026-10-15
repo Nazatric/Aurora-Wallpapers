@@ -39,17 +39,26 @@ data class ClevelandArtwork(
     val title: String? = null,
     val url: String? = null,
     @SerialName("creation_date") val creationDate: String? = null,
-    @SerialName("share_license") val shareLicense: String? = null,
+    /** Live field name verified against the API on 2026-10-15. */
+    @SerialName("share_license_status") val shareLicenseStatus: String? = null,
     val creators: List<ClevelandCreator> = emptyList(),
-    val images: List<ClevelandImage> = emptyList(),
+    /** Rendition map, not a list: web (small jpg), print (large jpg), full (TIFF, unused). */
+    val images: ClevelandImages? = null,
 )
 
 @Serializable
 data class ClevelandCreator(val description: String? = null)
 
 @Serializable
-data class ClevelandImage(
+data class ClevelandImages(
+    val web: ClevelandRendition? = null,
+    val print: ClevelandRendition? = null,
+)
+
+@Serializable
+data class ClevelandRendition(
     val url: String? = null,
-    val width: Int? = null,
-    val height: Int? = null,
+    /** The API reports pixel sizes as strings. */
+    val width: String? = null,
+    val height: String? = null,
 )

@@ -105,7 +105,7 @@ class WikimediaProvider(
     }
 
     private fun cleanHtml(value: String?): String = value.orEmpty()
-        .let { Html.fromHtml(it, Html.FROM_HTML_MODE_COMPACT).toString() }
+        .let { Html.fromHtml(it, Html.FROM_HTML_MODE_COMPACT)?.toString().orEmpty() }
         .replace('\u00a0', ' ')
         .replace(WHITESPACE, " ")
         .trim()
