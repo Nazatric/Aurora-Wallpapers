@@ -1,6 +1,7 @@
 package com.auroro.wallpapers.ui.library
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -109,7 +110,7 @@ fun CollectionCard(
 }
 
 private fun Modifier.clickableCard(onClick: () -> Unit): Modifier =
-    this.then(androidx.compose.foundation.clickable(onClick = onClick))
+    this.then(clickable(onClick = onClick))
 
 /** Inside one collection: the real saved wallpapers, nothing invented. */
 @Composable

@@ -21,6 +21,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +75,7 @@ private data class CropRequest(val wallpaper: Wallpaper)
  * process-memory only, so a process-death restore lands back on the feed, never on a
  * half-initialized screen. Deep-link routing stays a later slice.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AuroroShell() {
     var tab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
@@ -113,6 +116,7 @@ fun AuroroShell() {
     BackHandler(enabled = coverFlow && detailWallpaper == null && crop == null) { coverFlow = false }
     BackHandler(enabled = libraryState.openCollectionId != null) { libraryViewModel.openCollection(null) }
     var renameTarget by remember { mutableStateOf<String?>(null) }
+    val shellScope = rememberCoroutineScope()
 
     // iOS-style scroll condensing: the pill bar slims to icons while the home feed scrolls down
     // and re-expands with labels on scroll-up or when the feed is back at the top.
@@ -295,9 +299,11 @@ fun AuroroShell() {
                             val chosen = text
                             renameTarget = null
                             libraryViewModel.renameOpenCollection(chosen) { ok ->
-                                snackbarHostState.showSnackbar(
-                                    if (ok) "Collection renamed" else "That name is already taken",
-                                )
+                                shellScope.launch {
+                                    snackbarHostState.showSnackbar(
+                                        if (ok) "Collection renamed" else "That name is already taken",
+                                    )
+                                }
                             }
                         },
                     ) { Text(stringResource(R.string.collection_rename)) }
