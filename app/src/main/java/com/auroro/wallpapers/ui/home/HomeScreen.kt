@@ -111,6 +111,10 @@ fun HomeScreen(
         FeedBody(
             state = state,
             onCondense = onCondense,
+            initialCardsScroll = initialCardsScroll,
+            onCardsScrollSave = onCardsScrollSave,
+            initialGridScroll = initialGridScroll,
+            onGridScrollSave = onGridScrollSave,
             onReload = onReload,
             onLoadMore = onLoadMore,
             onToggleFavorite = onToggleFavorite,
@@ -248,6 +252,10 @@ private fun ModeChips(selected: FeedMode, onSelect: (FeedMode) -> Unit) {
 private fun FeedBody(
     state: HomeViewModel.UiState,
     onCondense: (Boolean) -> Unit,
+    initialCardsScroll: Pair<Int, Int>,
+    onCardsScrollSave: (Pair<Int, Int>) -> Unit,
+    initialGridScroll: Pair<Int, Int>,
+    onGridScrollSave: (Pair<Int, Int>) -> Unit,
     onReload: () -> Unit,
     onLoadMore: () -> Unit,
     onToggleFavorite: (Wallpaper) -> Unit,
