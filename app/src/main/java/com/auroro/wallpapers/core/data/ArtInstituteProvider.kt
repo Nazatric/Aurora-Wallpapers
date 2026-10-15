@@ -28,8 +28,8 @@ class ArtInstituteProvider(
     override val source = WallpaperSource.ART_INSTITUTE
 
     override val capabilities = ProviderCapabilities(
-        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT),
-        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE),
+        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RANDOM),
+        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE, SortOption.RANDOM),
         supportsDetail = false,
         supportsRelated = false,
     )
@@ -47,16 +47,18 @@ class ArtInstituteProvider(
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
         pageCache?.get(request, cursor.page)?.let { return it }
+        val randomMode = request.filter.sort == SortOption.RANDOM
+        val page = if (randomMode) RandomLane.page(cursor, RANDOM_PAGE_SPAN, 23L) else cursor.page
         val response = RateLimitedCall.run(limiter, source.displayName) {
             api.searchPublicDomain(
                 query = request.normalizedQuery.takeIf { it.isNotEmpty() },
                 limit = PAGE_SIZE,
-                page = cursor.page,
+                page = page,
             )
         }
         val items = response.data.mapNotNull(::toWallpaper)
         val totalPages = response.pagination?.totalPages ?: 1
-        val next = if (cursor.page < totalPages && items.isNotEmpty()) PageCursor(cursor.page + 1) else null
+        val next = if (cursor.page < totalPages && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
         ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
     }
 
@@ -95,6 +97,7 @@ class ArtInstituteProvider(
 
     companion object {
         const val PAGE_SIZE = 20
+        private const val RANDOM_PAGE_SPAN = 120
         private const val PREVIEW_WIDTH = 1680
     }
 }

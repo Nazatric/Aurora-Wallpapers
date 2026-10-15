@@ -28,13 +28,16 @@ class MetMuseumProvider(
     override val source = WallpaperSource.MET_MUSEUM
 
     override val capabilities = ProviderCapabilities(
-        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT),
-        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE),
+        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RANDOM),
+        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE, SortOption.RANDOM),
         supportsDetail = false,
         supportsRelated = false,
     )
 
     private val fetchMutex = Mutex()
+
+    /** One search call per query per session; object fetches are the only per-page cost. */
+    private val idCache = android.util.LruCache<String, List<Int>>(4)
 
     override suspend fun availability(): SourceAvailability =
         if (isEnabled()) SourceAvailability.Available else SourceAvailability.DisabledByUser()
@@ -47,10 +50,17 @@ class MetMuseumProvider(
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
         pageCache?.get(request, cursor.page)?.let { return it }
-        val ids = RateLimitedCall.run(limiter, source.displayName) {
-            api.search(query = request.normalizedQuery.takeIf { it.isNotEmpty() })
-        }.objectIDs.orEmpty()
-        val pageIds = ids.drop((cursor.page - 1) * PAGE_SIZE).take(PAGE_SIZE)
+        val query = request.normalizedQuery.takeIf { it.isNotEmpty() }.orEmpty()
+        val ids = idCache[query] ?: RateLimitedCall.run(limiter, source.displayName) {
+            api.search(query = query.takeIf { it.isNotEmpty() })
+        }.objectIDs.orEmpty().also { if (it.isNotEmpty()) idCache[query] = it }
+        val randomMode = request.filter.sort == SortOption.RANDOM
+        val start = if (randomMode) {
+            RandomLane.offset(cursor, RANDOM_OFFSET_SPAN, 51L, PAGE_SIZE * 4)
+        } else {
+            (cursor.page - 1) * PAGE_SIZE
+        }
+        val pageIds = ids.drop(start).take(PAGE_SIZE)
         val items = coroutineScope {
             pageIds.map { id ->
                 async {
@@ -59,7 +69,7 @@ class MetMuseumProvider(
                 }
             }.map { it.await() }
         }.filterNotNull()
-        val next = if (ids.size > cursor.page * PAGE_SIZE && items.isNotEmpty()) PageCursor(cursor.page + 1) else null
+        val next = if (ids.size > start + PAGE_SIZE && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
         ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
     }
 
@@ -98,5 +108,6 @@ class MetMuseumProvider(
 
     companion object {
         const val PAGE_SIZE = 16
+        private const val RANDOM_OFFSET_SPAN = 60
     }
 }

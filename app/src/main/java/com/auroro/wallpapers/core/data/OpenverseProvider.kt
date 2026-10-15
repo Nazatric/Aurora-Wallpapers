@@ -28,8 +28,8 @@ class OpenverseProvider(
     override val source = WallpaperSource.OPENVERSE
 
     override val capabilities = ProviderCapabilities(
-        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT),
-        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE),
+        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RANDOM),
+        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE, SortOption.RANDOM),
         supportsDetail = false,
         supportsRelated = false,
     )
@@ -47,16 +47,22 @@ class OpenverseProvider(
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
         pageCache?.get(request, cursor.page)?.let { return it }
+        val randomMode = request.filter.sort == SortOption.RANDOM
+        val page = if (randomMode) RandomLane.page(cursor, RANDOM_PAGE_SPAN, 11L) else cursor.page
         val response = RateLimitedCall.run(limiter, source.displayName) {
             api.images(
                 query = request.normalizedQuery.takeIf { it.isNotEmpty() },
-                page = cursor.page,
+                page = page,
                 pageSize = PAGE_SIZE,
             )
         }
         val items = response.results.mapNotNull(::toWallpaper)
-        val hasMore = cursor.page < (response.pageCount ?: 1) && response.results.size == PAGE_SIZE
-        val next = if (hasMore && items.isNotEmpty()) PageCursor(cursor.page + 1) else null
+        val hasMore = if (randomMode) {
+            items.isNotEmpty()
+        } else {
+            cursor.page < (response.pageCount ?: 1) && response.results.size == PAGE_SIZE
+        }
+        val next = if (hasMore && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
         ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
     }
 
@@ -107,6 +113,7 @@ class OpenverseProvider(
 
     companion object {
         const val PAGE_SIZE = 20
+        private const val RANDOM_PAGE_SPAN = 60
         private val WHITESPACE = Regex("\\s+")
         private val REUSE_OK_LICENSES = setOf("cc0", "pdm", "by", "by-sa")
 

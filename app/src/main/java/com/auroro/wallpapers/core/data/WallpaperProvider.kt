@@ -23,6 +23,21 @@ data class ProviderCapabilities(
 /** Pagination state for a single provider. Providers paginate independently. */
 data class PageCursor(val page: Int = 1, val seed: String? = null, /** Provider-specific lane index (e.g. desktop vs phone catalogues). */ val variant: Int = 0)
 
+/**
+ * Seed-stable random lane for catalogues with no server-side randomness: the cursor seed (set by
+ * shuffle/Random mode) picks a deterministic-but-arbitrary slice, and each next page jumps to a
+ * fresh slice, so "Random" reads as a genuinely scattered mix without pretending a sort exists.
+ */
+internal object RandomLane {
+    fun page(cursor: PageCursor, span: Int, salt: Long): Int {
+        val base = (cursor.seed ?: "auroro").hashCode() * 31L + salt
+        return kotlin.random.Random(base + cursor.page * 7919L).nextInt(1, span + 1)
+    }
+
+    fun offset(cursor: PageCursor, span: Int, salt: Long, pageSize: Int): Int =
+        (page(cursor, span, salt) - 1) * pageSize
+}
+
 data class ProviderPage(
     val items: List<Wallpaper>,
     /** Cursor for the following page, or null when the provider has no more results. */

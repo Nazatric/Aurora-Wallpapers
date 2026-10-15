@@ -149,12 +149,18 @@ class AppContainer(context: Context) {
     val openverse = OpenverseProvider(
         api = openverseApi,
         limiter = SlidingWindowLimiter(
-            maxEvents = 20,
+            maxEvents = 6,
             windowMs = 60_000,
             preferences = bootPrefs,
             storageKey = "openverse_api_events",
         ),
         isEnabled = { WallpaperSource.OPENVERSE.id in settings.current().enabledSources },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.OPENVERSE,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 6L * 60 * 60 * 1_000,
+        ),
     )
 
     val wikimedia = WikimediaProvider(
@@ -166,17 +172,29 @@ class AppContainer(context: Context) {
             storageKey = "wikimedia_api_events",
         ),
         isEnabled = { WallpaperSource.WIKIMEDIA.id in settings.current().enabledSources },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.WIKIMEDIA,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 3L * 60 * 60 * 1_000,
+        ),
     )
 
     val metMuseum = MetMuseumProvider(
         api = metApi,
         limiter = SlidingWindowLimiter(
-            maxEvents = 40,
+            maxEvents = 24,
             windowMs = 60_000,
             preferences = bootPrefs,
             storageKey = "met_api_events",
         ),
         isEnabled = { WallpaperSource.MET_MUSEUM.id in settings.current().enabledSources },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.MET_MUSEUM,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 6L * 60 * 60 * 1_000,
+        ),
     )
 
     val clevelandArt = ClevelandProvider(
@@ -188,6 +206,12 @@ class AppContainer(context: Context) {
             storageKey = "cleveland_api_events",
         ),
         isEnabled = { WallpaperSource.CLEVELAND_ART.id in settings.current().enabledSources },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.CLEVELAND_ART,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 6L * 60 * 60 * 1_000,
+        ),
     )
 
     val artInstitute = ArtInstituteProvider(
@@ -199,6 +223,12 @@ class AppContainer(context: Context) {
             storageKey = "artic_api_events",
         ),
         isEnabled = { WallpaperSource.ART_INSTITUTE.id in settings.current().enabledSources },
+        pageCache = ProviderPageCache(
+            source = WallpaperSource.ART_INSTITUTE,
+            preferences = providerPagePrefs,
+            wallpapers = wallpaperStore,
+            ttlMillis = 6L * 60 * 60 * 1_000,
+        ),
     )
 
     /** Every integrated live catalogue, in feed priority order. */

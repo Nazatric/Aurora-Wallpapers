@@ -22,8 +22,8 @@ class ClevelandProvider(
     override val source = WallpaperSource.CLEVELAND_ART
 
     override val capabilities = ProviderCapabilities(
-        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT),
-        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE),
+        sortsWithoutQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RANDOM),
+        sortsWithQuery = setOf(SortOption.SOURCE_DEFAULT, SortOption.RELEVANCE, SortOption.RANDOM),
         supportsDetail = false,
         supportsRelated = false,
     )
@@ -41,16 +41,22 @@ class ClevelandProvider(
 
     override suspend fun fetchPage(request: FeedRequest, cursor: PageCursor): ProviderPage = fetchMutex.withLock {
         pageCache?.get(request, cursor.page)?.let { return it }
+        val randomMode = request.filter.sort == SortOption.RANDOM
+        val skip = if (randomMode) {
+            RandomLane.offset(cursor, RANDOM_SKIP_SPAN, 37L, PAGE_SIZE)
+        } else {
+            (cursor.page - 1) * PAGE_SIZE
+        }
         val response = RateLimitedCall.run(limiter, source.displayName) {
             api.artworks(
                 query = request.normalizedQuery.takeIf { it.isNotEmpty() },
                 limit = PAGE_SIZE,
-                skip = (cursor.page - 1) * PAGE_SIZE,
+                skip = skip,
             )
         }
         val items = response.data.mapNotNull(::toWallpaper)
         val total = response.info?.total ?: 0
-        val next = if (cursor.page * PAGE_SIZE < total && items.isNotEmpty()) PageCursor(cursor.page + 1) else null
+        val next = if (cursor.page * PAGE_SIZE < total && items.isNotEmpty()) PageCursor(cursor.page + 1, cursor.seed) else null
         ProviderPage(items, next).also { pageCache?.put(request, cursor.page, it) }
     }
 
@@ -90,5 +96,6 @@ class ClevelandProvider(
 
     companion object {
         const val PAGE_SIZE = 20
+        private const val RANDOM_SKIP_SPAN = 100
     }
 }
