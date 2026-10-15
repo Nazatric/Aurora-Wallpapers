@@ -27,6 +27,7 @@ enum class ThemeMode(val label: String) { SYSTEM("Follow system"), LIGHT("Light"
 enum class AccentTheme(val label: String) { AQUA("Aurora violet"), EMERALD("Emerald"), SKY("Sky blue") }
 enum class DesignTheme(val label: String, val description: String) {
     LIQUID_GLASS("Liquid Glass", "Frosted depth, blur and light — renderer ships in its own run"),
+    FRUTIGER_AERO("Frutiger Aero", "Luminous navy water-light, aqua glow and glossy depth"),
     MATERIAL_3("Material 3", "Clear hierarchy, expressive colour and familiar surfaces"),
 }
 

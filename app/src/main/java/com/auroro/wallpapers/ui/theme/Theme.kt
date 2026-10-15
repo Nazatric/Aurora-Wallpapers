@@ -82,7 +82,7 @@ fun AuroroTheme(settings: AppSettings? = null, content: @Composable () -> Unit) 
         )
     }
     // Liquid Glass surfaces exist only for the glass theme; every helper no-ops otherwise.
-    val glassActive = (settings?.designTheme ?: DesignTheme.LIQUID_GLASS) == DesignTheme.LIQUID_GLASS
+    val glassActive = (settings?.designTheme ?: DesignTheme.LIQUID_GLASS) != DesignTheme.MATERIAL_3
     val hazeState = if (glassActive) rememberAuroroHazeState() else null
     val glassQuality = settings?.glassQuality ?: com.auroro.wallpapers.core.data.GlassQuality.BALANCED
     val fontChoice = settings?.fontChoice ?: com.auroro.wallpapers.core.data.FontChoice.SYSTEM

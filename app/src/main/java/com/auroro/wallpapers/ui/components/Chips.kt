@@ -24,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.auroro.wallpapers.ui.theme.AuroroMotion
@@ -60,15 +61,12 @@ fun AuroraChip(
     // Every chip is real liquid glass over whatever lives behind it; the selected one adds an
     // accent tint to the refraction so state stays unmistakable on every quality tier (the
     // REDUCED tier falls back to the solid accent/surface colours, never to transparency).
-    val glassModifier = Modifier.auroroGlass(
+    // Glossy aero pills: lit gradient + luminous rim, zero backdrop capture. Chips multiply and
+    // scroll, so real blur per chip would re-render every frame; gloss stays free at 120 Hz.
+    val glassModifier = Modifier.auroroGloss(
         shape = RoundedCornerShape(50),
-        quality = LocalGlassQuality.current,
-        fallback = if (active) AuroroPal.accent else AuroroPal.surfaceBright,
-        tint = if (active) {
-            AuroroPal.accent.copy(alpha = 0.5f)
-        } else {
-            AuroroPal.surfaceBright.copy(alpha = 0.42f)
-        },
+        base = if (active) AuroroPal.accent else AuroroPal.surfaceBright,
+        rim = if (active) Color.White else AuroroPal.glow,
     )
     Surface(
         shape = RoundedCornerShape(50),

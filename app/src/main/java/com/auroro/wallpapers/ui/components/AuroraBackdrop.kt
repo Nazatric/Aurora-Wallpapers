@@ -61,6 +61,16 @@ fun AuroraBackdrop(modifier: Modifier = Modifier, active: Boolean = true) {
                     radius = w * 0.65f,
                 ),
             )
+            // Frutiger Aero water-light: a low aqua bloom that breathes with the same drift, so
+            // glass rims and selected states have a cool counterpoint to the violet wash.
+            val c3 = Offset(w * (0.5f + 0.3f * (1f - drift)), h * (0.86f - 0.10f * drift))
+            drawRect(
+                Brush.radialGradient(
+                    colors = listOf(AuroroPal.glow.copy(alpha = 0.08f), Color.Transparent),
+                    center = c3,
+                    radius = w * 0.70f,
+                ),
+            )
         },
     )
 }

@@ -111,6 +111,69 @@ fun DetailScreen(
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxSize(),
         )
+        // Immersive metadata: artwork stays dominant; a bottom scrim carries title, author,
+        // tags and real resolution — readable over any wallpaper, gone with the chrome.
+        AnimatedVisibility(
+            visible = chromeVisible,
+            modifier = Modifier.align(Alignment.BottomStart),
+            enter = fadeIn(tween(350, easing = AuroroMotion.EmphasizedDecelerate)),
+            exit = fadeOut(tween(200, easing = AuroroMotion.EmphasizedAccelerate)),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 150.dp)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(androidx.compose.ui.graphics.Color.Transparent, AuroroPal.scrim),
+                        ),
+                    )
+                    .padding(start = 22.dp, end = 96.dp, top = 60.dp, bottom = 16.dp),
+            ) {
+                Text(
+                    text = wallpaper.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = androidx.compose.ui.graphics.Color.White,
+                    maxLines = 2,
+                )
+                wallpaper.attribution?.takeIf(String::isNotBlank)?.let { author ->
+                    Text(
+                        text = author,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.75f),
+                        maxLines = 1,
+                    )
+                }
+                if (wallpaper.tags.isNotEmpty()) {
+                    Spacer(Modifier.size(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        wallpaper.tags.take(3).forEach { tag ->
+                            Box(
+                                modifier = Modifier.auroroGloss(
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
+                                    base = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.14f),
+                                    rim = androidx.compose.ui.graphics.Color.White,
+                                ).padding(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
+                                Text(
+                                    text = tag.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.size(8.dp))
+                resolutionLabel(wallpaper)?.let { res ->
+                    Text(
+                        text = res,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.65f),
+                    )
+                }
+            }
+        }
         AnimatedVisibility(
             visible = chromeVisible,
             enter = fadeIn(tween(450, easing = AuroroMotion.EmphasizedDecelerate)) +

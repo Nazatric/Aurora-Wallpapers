@@ -68,6 +68,7 @@ import com.auroro.wallpapers.ui.theme.AuroroMotion
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.LocalGlassQuality
 import com.auroro.wallpapers.ui.theme.auroroGlass
+import com.auroro.wallpapers.ui.theme.auroroGloss
 import androidx.compose.runtime.snapshotFlow
 
 private const val HERO_COUNT = 4
@@ -116,7 +117,14 @@ fun HomeScreen(
             onOrientation = onOrientation,
             onSearch = onSearch,
         )
-        ModeChips(selected = state.mode, onSelect = onSelectMode)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ModeChips(selected = state.mode, onSelect = onSelectMode, modifier = Modifier.weight(1f))
+            OrientationSegmented(selected = state.orientation, onSelect = onOrientation)
+            Spacer(Modifier.size(12.dp))
+        }
         FeedBody(
             state = state,
             onCondense = onCondense,
@@ -148,24 +156,44 @@ private fun HomeHeader(
         modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(top = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // Compact brand mark: a lit aero orb instead of a giant title — the artwork, not the
+        // wordmark, owns the screen.
+        Box(
+            modifier = Modifier
+                .padding(start = 18.dp)
+                .size(38.dp)
+                .auroroGloss(
+                    shape = RoundedCornerShape(50),
+                    base = AuroroPal.surfaceBright,
+                    rim = AuroroPal.glow,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_auto_awesome),
+                contentDescription = null,
+                tint = AuroroPal.glow,
+                modifier = Modifier.size(19.dp),
+            )
+        }
+        Spacer(Modifier.size(10.dp))
         Column(
-            modifier = Modifier.weight(1f).padding(start = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
         ) {
             Text(
                 text = stringResource(R.string.brand_name),
-                style = MaterialTheme.typography.headlineLarge,
+                style = MaterialTheme.typography.titleLarge,
                 // Brand word takes the live accent: visible in every theme, recolours with
                 // the accent setting instead of inheriting a default (black) content colour.
                 color = AuroroPal.accent,
             )
             Text(
                 text = stringResource(R.string.app_tagline),
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 color = AuroroPal.textSecondary,
             )
         }
-        OrientationSegmented(selected = orientation, onSelect = onOrientation)
         Spacer(Modifier.size(6.dp))
         IconButton(
             onClick = onSearch,
@@ -238,9 +266,13 @@ private fun OrientationButton(
 }
 
 @Composable
-private fun ModeChips(selected: FeedMode, onSelect: (FeedMode) -> Unit) {
+private fun ModeChips(
+    selected: FeedMode,
+    onSelect: (FeedMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -304,26 +336,43 @@ private fun CardsFeed(
     onOpen: (Wallpaper) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val listState = rememberLazyListState(initialScroll.first, initialScroll.second)
-    DisposableEffect(listState) {
-        onDispose { onScrollSave(listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset) }
+    val gridStateForCards = rememberLazyStaggeredGridState(
+        initialFirstVisibleItemIndex = initialScroll.first,
+        initialFirstVisibleItemScrollOffset = initialScroll.second,
+    )
+    DisposableEffect(gridStateForCards) {
+        onDispose { onScrollSave(gridStateForCards.firstVisibleItemIndex to gridStateForCards.firstVisibleItemScrollOffset) }
     }
-    NearEndEffect(listState) { onLoadMore() }
     CondenseEffect(
-        position = { listState.firstVisibleItemIndex * 100_000L + listState.firstVisibleItemScrollOffset },
-        atTop = { !listState.canScrollBackward },
-        scrolling = { listState.isScrollInProgress },
+        position = { gridStateForCards.firstVisibleItemIndex * 100_000L + gridStateForCards.firstVisibleItemScrollOffset },
+        atTop = { !gridStateForCards.canScrollBackward },
+        scrolling = { gridStateForCards.isScrollInProgress },
         onCondense = onCondense,
     )
-    LazyColumn(
-        state = listState,
+    val cardsNearEnd by remember {
+        derivedStateOf {
+            val info = gridStateForCards.layoutInfo
+            info.visibleItemsInfo.lastOrNull()
+                ?.let { it.index >= info.totalItemsCount - NEAR_END_THRESHOLD } ?: false
+        }
+    }
+    LaunchedEffect(cardsNearEnd) {
+        if (cardsNearEnd) onLoadMore()
+    }
+    val hero = state.items.take(HERO_COUNT)
+    val rest = state.items.drop(HERO_COUNT)
+    LazyVerticalStaggeredGrid(
+        state = gridStateForCards,
+        columns = StaggeredGridCells.Fixed(2),
         modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 6.dp, bottom = 118.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 118.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalItemSpacing = 10.dp,
     ) {
-        val hero = state.items.take(HERO_COUNT)
-        val rest = state.items.drop(HERO_COUNT)
-        item(key = "hero") {
+        item(
+            key = "hero",
+            span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine,
+        ) {
             HeroPager(
                 items = hero,
                 favoriteKeys = state.favoriteKeys,
@@ -331,16 +380,20 @@ private fun CardsFeed(
                 onOpen = onOpen,
             )
         }
-        items(rest, key = { it.key }) { wallpaper ->
-            WallpaperCard(
+        staggeredItems(rest, key = { it.key }) { wallpaper ->
+            WallpaperArt(
                 wallpaper = wallpaper,
+                aspect = artAspect(wallpaper),
+                corner = 20.dp,
                 favorite = wallpaper.key in state.favoriteKeys,
                 onToggleFavorite = onToggleFavorite,
-                onClick = onOpen,
-                modifier = Modifier.animateItem(),
+                onClick = { onOpen(wallpaper) },
+                modifier = Modifier.fillMaxWidth().animateItem(),
             )
         }
-        item(key = "footer") { FeedFooter(state, onLoadMore) }
+        item(key = "footer", span = androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan.FullLine) {
+            FeedFooter(state, onLoadMore)
+        }
     }
 }
 

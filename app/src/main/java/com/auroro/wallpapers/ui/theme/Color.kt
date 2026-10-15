@@ -32,6 +32,8 @@ data class AuroroPalette(
     val textSecondary: Color,
     val textTertiary: Color,
     val scrim: Color,
+    /** Environmental water-light used by the aurora backdrop and luminous rims. */
+    val glow: Color = Color(0xFF67E8F9),
 )
 
 /**
@@ -48,6 +50,13 @@ fun auroroPalette(
 ): AuroroPalette {
     val accentColor = when (design) {
         DesignTheme.MATERIAL_3 -> Color(0xFF8B7CF6)
+        // Frutiger Aero keeps the aurora periwinkle as the action hue; the aqua glow lives in
+        // the backdrop, rims and selected-state light rather than in flat fills.
+        DesignTheme.FRUTIGER_AERO -> when (accent) {
+            AccentTheme.AQUA -> Color(0xFF8A94F8)
+            AccentTheme.EMERALD -> Color(0xFF34D399)
+            AccentTheme.SKY -> Color(0xFF38BDF8)
+        }
         DesignTheme.LIQUID_GLASS -> when (accent) {
             AccentTheme.AQUA -> Color(0xFF8B7CF6) // launch "Aurora" hue
             AccentTheme.EMERALD -> Color(0xFF34D399)
@@ -56,9 +65,22 @@ fun auroroPalette(
     }
     val accentDim = accentDimOf(accentColor, dark)
     return if (dark) {
-        val bg = if (amoled) Color.Black else AuroroBackground
-        val surface = if (amoled) Color(0xFF0B0B0E) else AuroroSurface
-        val surfaceBright = if (amoled) Color(0xFF141417) else AuroroSurfaceBright
+        val aero = design == DesignTheme.FRUTIGER_AERO
+        val bg = when {
+            amoled -> Color.Black
+            aero -> Color(0xFF06101C)
+            else -> AuroroBackground
+        }
+        val surface = when {
+            amoled -> Color(0xFF0B0B0E)
+            aero -> Color(0xFF0B1826)
+            else -> AuroroSurface
+        }
+        val surfaceBright = when {
+            amoled -> Color(0xFF141417)
+            aero -> Color(0xFF12233A)
+            else -> AuroroSurfaceBright
+        }
         AuroroPalette(
             background = bg,
             surface = surface,
@@ -71,6 +93,7 @@ fun auroroPalette(
             textSecondary = if (increaseContrast) Color(0xFFD6D6E2) else AuroroTextSecondary,
             textTertiary = if (increaseContrast) AuroroTextSecondary else AuroroTextTertiary,
             scrim = AuroroScrim,
+            glow = if (aero) Color(0xFF5EEAD4) else Color(0xFF67E8F9),
         )
     } else {
         AuroroPalette(
@@ -118,4 +141,5 @@ object AuroroPal {
     val textSecondary: Color @Composable get() = LocalAuroroPalette.current.textSecondary
     val textTertiary: Color @Composable get() = LocalAuroroPalette.current.textTertiary
     val scrim: Color @Composable get() = LocalAuroroPalette.current.scrim
+    val glow: Color @Composable get() = LocalAuroroPalette.current.glow
 }

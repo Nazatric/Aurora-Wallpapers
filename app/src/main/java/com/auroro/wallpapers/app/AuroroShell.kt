@@ -15,6 +15,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,6 +47,7 @@ import com.auroro.wallpapers.ui.search.SearchScreen
 import com.auroro.wallpapers.ui.search.SearchViewModel
 import com.auroro.wallpapers.ui.theme.AuroroPal
 import com.auroro.wallpapers.ui.theme.AuroroMotion
+import com.auroro.wallpapers.ui.theme.LocalGlassSuspend
 import com.auroro.wallpapers.ui.theme.rememberReducedMotion
 import com.auroro.wallpapers.ui.theme.auroroHazeSource
 import androidx.compose.ui.graphics.Brush
@@ -107,9 +109,18 @@ fun AuroroShell() {
     // and re-expands with labels on scroll-up or when the feed is back at the top.
     var pillCondensed by remember { mutableStateOf(false) }
     val reducedMotion = rememberReducedMotion()
+    // Live backdrop capture is the one per-frame cost glass pays; skip it for the ~240 ms a tab
+    // transition runs (opaque fallbacks read as solid material mid-switch), then restore glass.
+    var glassSuspend by remember { mutableStateOf(false) }
+    LaunchedEffect(tab) {
+        glassSuspend = true
+        kotlinx.coroutines.delay(240)
+        glassSuspend = false
+    }
     LaunchedEffect(tab) {
         if (tab != ShellTab.HOME) pillCondensed = false
     }
+    CompositionLocalProvider(LocalGlassSuspend provides glassSuspend) {
     Box(
         modifier = Modifier.fillMaxSize().background(AuroroPal.background),
     ) {
@@ -263,5 +274,6 @@ fun AuroroShell() {
                 .align(Alignment.BottomCenter)
                 .padding(bottom = if (anyOverlay) 116.dp else 104.dp),
         )
+    }
     }
 }
