@@ -209,7 +209,10 @@ class AppContainer(context: Context) {
     private val wallhavenDiscovery = DiscoveryEngine(wallhaven, discoveryPools)
     val discoveryEngine = MultiSourceDiscoveryEngine(
         searchEngines = listOf(wallhavenDiscovery),
-        archiveProviders = listOf(nasaApod, clevelandArt, artInstitute),
+        // NASA APOD is the engine's only non-keyword archive lane by contract (it validates
+        // this at construction). The 1.8.0 catalogues serve Trending/Newest/Random/Search and
+        // cover-flow through `feedProviders`; widening discovery lanes is a separate change.
+        archiveProviders = listOf(nasaApod),
     )
 
     val notifier = DownloadNotifier(appContext, settings)

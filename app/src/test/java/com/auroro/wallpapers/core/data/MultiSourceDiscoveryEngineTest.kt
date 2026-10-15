@@ -12,11 +12,26 @@ import com.auroro.wallpapers.wallpaper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class MultiSourceDiscoveryEngineTest {
+    @Test fun nonApodArchiveLanesAreRejectedAtConstruction() {
+        // 1.8.0 boot-crash regression: wiring non-NASA providers into the archive lane violates
+        // the engine's construction contract and must fail in a unit test, not on app start.
+        val wallhaven = FakeProvider(WallpaperSource.WALLHAVEN) { _, _ -> ProviderPage(emptyList(), null) }
+        val cleveland = FakeProvider(WallpaperSource.CLEVELAND_ART) { _, _ -> ProviderPage(emptyList(), null) }
+        val failure = assertThrows(IllegalArgumentException::class.java) {
+            MultiSourceDiscoveryEngine(
+                searchEngines = listOf(DiscoveryEngine(wallhaven, MemoryDiscoveryPoolStore())),
+                archiveProviders = listOf(cleveland),
+            )
+        }
+        assertTrue(failure.message.orEmpty().contains("non-keyword lane"))
+    }
+
     @Test fun failedSearchSourceDoesNotBlockUnknownDimensionViewOnlyApod() = runTest {
         val session = session("abstract-geometry")
         val wallhaven = FakeProvider(WallpaperSource.WALLHAVEN) { _, _ ->
